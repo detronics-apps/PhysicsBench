@@ -5,6 +5,7 @@ import { vec } from '../js/vec.js';
 import {
   createCamera, toScreen, toWorld, toPixels, toMetres, onScreen,
   boundsFor, union, vectorScale, arrowHead, clampLabel, insideView, gridStep, gridLines, visibleWorld,
+  placeLabels, overlaps,
 } from '../js/camera.js';
 
 const close = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -214,4 +215,73 @@ test('the grid picks a round spacing and only the visible lines', () => {
   // Lines land 40–120 px apart at any zoom, so the grid never becomes a smear.
   const spacing = toPixels(CAM, step);
   assert.ok(spacing > 30 && spacing < 160, `${spacing} px apart`);
+});
+
+
+/* ------------------------------------------------------- label placement -- */
+
+test('labels asked for the same spot do not land on each other', () => {
+  // Nine, because that is how many arrows one object can carry, and they can
+  // all want the same corner of it.
+  const want = Array.from({ length: 9 }, () => ({ x: 400, y: 200, width: 70, height: 14 }));
+  const got = placeLabels(want, 880, 460);
+  assert.equal(got.length, 9);
+  for (let i = 0; i < got.length; i += 1) {
+    for (let j = i + 1; j < got.length; j += 1) {
+      const a = { x: got[i].x, y: got[i].y - 14, width: 70, height: 14 };
+      const b = { x: got[j].x, y: got[j].y - 14, width: 70, height: 14 };
+      assert.ok(!overlaps(a, b), `labels ${i} and ${j} overlap`);
+    }
+  }
+});
+
+test('the step to clear an overlap is never shorter than the label', () => {
+  /*
+   * A stride shorter than the label height moves a box by less than its own
+   * height, so it still covers part of what it was moving away from and the
+   * search gives up having achieved nothing. This is that bug, pinned: labels
+   * of mixed heights, all asking for one spot.
+   */
+  const want = [
+    { x: 300, y: 200, width: 60, height: 15 },
+    { x: 300, y: 202, width: 60, height: 14 },
+    { x: 302, y: 198, width: 60, height: 14 },
+  ];
+  const got = placeLabels(want, 880, 460);
+  for (let i = 0; i < got.length; i += 1) {
+    for (let j = i + 1; j < got.length; j += 1) {
+      const a = { x: got[i].x, y: got[i].y - want[i].height, width: 60, height: want[i].height };
+      const b = { x: got[j].x, y: got[j].y - want[j].height, width: 60, height: want[j].height };
+      assert.ok(!overlaps(a, b), `${i} and ${j} still touch`);
+    }
+  }
+});
+
+test('a label that had room keeps exactly the spot it asked for', () => {
+  const got = placeLabels([{ x: 100, y: 100, width: 60, height: 11 }], 880, 460);
+  assert.equal(got[0].x, 100);
+  assert.equal(got[0].y, 100);
+});
+
+test('the first label in the list wins, so the caller can rank them', () => {
+  const got = placeLabels([
+    { x: 300, y: 200, width: 60, height: 11 },
+    { x: 300, y: 200, width: 60, height: 11 },
+  ], 880, 460);
+  assert.equal(got[0].y, 200);
+  assert.notEqual(got[1].y, 200);
+});
+
+test('no label is pushed outside the canvas while avoiding another', () => {
+  // Everything asking for the very corner, which is the case where "move it
+  // out of the way" and "keep it in the viewBox" pull against each other.
+  const want = Array.from({ length: 8 }, () => ({ x: 2, y: 8, width: 90, height: 11 }));
+  for (const spot of placeLabels(want, 880, 460)) {
+    assert.ok(insideView({ x: spot.x, y: spot.y - 11, width: 90, height: 11 }, 880, 460),
+      `${spot.x},${spot.y} escaped the canvas`);
+  }
+});
+
+test('an empty list places nothing and throws nothing', () => {
+  assert.deepEqual(placeLabels([], 880, 460), []);
 });

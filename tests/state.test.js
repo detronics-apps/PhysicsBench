@@ -23,7 +23,7 @@ test('the defaults build a working bench at every step', () => {
 test('the defaults point only at things that exist', () => {
   const b = defaults().bench;
   assert.equal(shapeById(b.shapeId).id, b.shapeId);
-  assert.equal(shapeById(b.shape2Id).id, b.shape2Id);
+  for (const o of b.objects) assert.equal(shapeById(o.shapeId).id, o.shapeId);
   assert.equal(fluidById(b.fluidId).id, b.fluidId);
   assert.equal(worldById(b.planetId).id, b.planetId);
   // The default world's mass and radius are the real ones for that world.

@@ -126,11 +126,31 @@ const show = (value, decimals) => {
 };
 
 /**
+ * Is a slider being dragged right now?
+ *
+ * True only for the duration of the `onChange` call that an `input` event
+ * makes, which is exactly the window in which the shell must not rebuild the
+ * sidebar — replacing the element under the thumb ends the drag.
+ *
+ * A shared flag rather than an extra argument, because every one of the forty
+ * or so call sites would otherwise have to forward it, and the one that forgot
+ * would fail in a way nobody would notice until they tried to drag it.
+ */
+export const drag = { active: false };
+
+/**
  * A slider, for anything worth scrubbing rather than typing.
  *
- * The number beside it follows the thumb live, but the value is only committed
- * on release. Committing on every `input` event re-renders the sidebar, which
- * replaces the very element being dragged.
+ * The value is committed on every movement of the thumb, not on release,
+ * because the whole point of the bench is watching the change happen: drag the
+ * push angle while the object is moving and its path bends as you go. That was
+ * impossible while sliders only committed on release, and it is the difference
+ * between an instrument and a form.
+ *
+ * The cost is that the shell must not rebuild the sidebar mid-drag — it would
+ * replace the element being dragged and the drag would simply stop. Hence the
+ * flag above: the shell repaints the drawing and the readouts every movement,
+ * and rebuilds the controls once, on release.
  */
 export function sliderField(label, value, onChange, {
   min, max, step = 1, info, format = (v) => String(v), key = null, hint = null,
@@ -140,8 +160,12 @@ export function sliderField(label, value, onChange, {
     type: 'range', min, max, step, value,
     'data-field': key || label,
     on: {
-      input: (event) => { readout.textContent = format(Number(event.target.value)); },
-      change: (event) => onChange(Number(event.target.value)),
+      input: (event) => {
+        readout.textContent = format(Number(event.target.value));
+        drag.active = true;
+        try { onChange(Number(event.target.value)); } finally { drag.active = false; }
+      },
+      change: (event) => { drag.active = false; onChange(Number(event.target.value)); },
     },
   });
   return el('div', { class: 'field' }, [

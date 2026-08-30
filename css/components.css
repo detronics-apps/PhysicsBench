@@ -23,6 +23,8 @@
   --force-applied:  #2f6e94;
   --force-spring:   #9d174d;
   --force-tension:  #4d7c0f;
+  --force-buoyancy: #0e7490;
+  --force-control:  #a1621b;
   --force-net:      #a32020;
 
   --vec-velocity:     #1f7a3d;
@@ -38,6 +40,8 @@
   --ground: #9aa4ad;
   --grid: #dfe3e7;
   --trail: #94a2b1;
+  --wall: #6b7d8f;
+  --cannon: #8a5a00;
 
   /* The four kinds of statement the app must keep apart. */
   --kind-reality: #1f7a3d;
@@ -55,6 +59,8 @@
     --force-applied:  #9cc4dc;
     --force-spring:   #f9a8d4;
     --force-tension:  #bef264;
+    --force-buoyancy: #67e8f9;
+    --force-control:  #f0c078;
     --force-net:      #f08a8a;
 
     --vec-velocity:     #6ed08c;
@@ -70,6 +76,8 @@
     --ground: #5b6b7c;
     --grid: #2a3949;
     --trail: #6b7d8f;
+    --wall: #8ca0b4;
+    --cannon: #e8b45c;
 
     --kind-reality: #6ed08c;
     --kind-model: #9cc4dc;
@@ -86,6 +94,8 @@
   --force-applied:  #9cc4dc;
   --force-spring:   #f9a8d4;
   --force-tension:  #bef264;
+  --force-buoyancy: #67e8f9;
+  --force-control:  #f0c078;
   --force-net:      #f08a8a;
 
   --vec-velocity:     #6ed08c;
@@ -101,6 +111,8 @@
   --ground: #5b6b7c;
   --grid: #2a3949;
   --trail: #6b7d8f;
+  --wall: #8ca0b4;
+  --cannon: #e8b45c;
 
   --kind-reality: #6ed08c;
   --kind-model: #9cc4dc;
@@ -765,4 +777,140 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 
 @media (max-width: 640px) {
   .vectors__label { flex-basis: 100%; padding-top: 0; }
+}
+
+
+/* ------------------------------------------------------------------------
+ * The object list, the drawing tools and the driving controls.
+ *
+ * These are the parts of the sidebar that hold a variable number of things,
+ * which is where a layout usually gives way: twenty rows of controls has to
+ * stay as readable as one, and on a 320px phone as on a desktop.
+ * ---------------------------------------------------------------------- */
+
+.objects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.object-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.object-row.is-selected {
+  border-color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+}
+
+.object-row__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--body-ink);
+  flex: 0 0 auto;
+}
+
+.object-row__name {
+  font-size: 12px;
+  font-weight: 600;
+  /* The name is the flexible column, and it is the one that must be allowed to
+     shrink — otherwise the delete button is pushed off the edge on a phone. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-row__meta {
+  display: block;
+  font-weight: 400;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* The full editor for whichever object is selected. */
+.object-edit {
+  padding: var(--space-2) 0 0;
+  border-top: 1px dashed var(--border);
+  margin-top: var(--space-2);
+}
+
+.tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tool-row .btn {
+  /* Never shrink below the label: a flex row of buttons compresses instead of
+     wrapping unless each one is told not to. pitfalls.md #2. */
+  flex: 0 1 auto;
+}
+
+.btn.is-armed {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--accent-ink);
+}
+
+/* While a wall is being drawn the canvas is a drawing surface, and it should
+   say so with the cursor rather than only in a hint nobody reads. */
+.viewport__stage.is-drawing svg { cursor: crosshair; }
+.viewport__stage.is-driving svg { cursor: grab; }
+
+.scene__walls line { pointer-events: none; }
+
+.wall-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.wall-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+
+/* A button that reads as text: used where the control is the label itself, as
+   in the object list, where a full button per row would be a wall of chrome. */
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link-btn:hover { color: var(--accent-strong); }
+
+.link-btn:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Two controls side by side where they are a pair — an x and a y. Collapses to
+   one column early, because two sliders at 160px each are two unusable sliders. */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
 }

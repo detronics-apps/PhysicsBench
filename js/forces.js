@@ -34,6 +34,8 @@ export const FORCE_STYLE = {
   friction: { label: 'Friction', symbol: 'f', token: '--force-friction' },
   drag: { label: 'Air resistance', symbol: 'F_d', token: '--force-drag' },
   applied: { label: 'Applied force', symbol: 'F_app', token: '--force-applied' },
+  buoyancy: { label: 'Buoyancy', symbol: 'F_b', token: '--force-buoyancy' },
+  control: { label: 'Your control', symbol: 'F_c', token: '--force-control' },
   spring: { label: 'Spring force', symbol: 'F_s', token: '--force-spring' },
   tension: { label: 'Tension', symbol: 'T', token: '--force-tension' },
   net: { label: 'Net force', symbol: 'F_net', token: '--force-net' },
@@ -64,16 +66,21 @@ const force = (id, v, note = '') => ({
  */
 export function weightForce(mass, field) {
   const vector = scale(field, mass);
-  // A zero weight always needs its reason attached. Several labs run on a level
-  // track and set the field to zero, because on a level surface weight and the
-  // normal force cancel exactly and neither does anything along the direction
-  // of travel. Shown as a bare "0.00 N" that reads as "this cart is weightless",
-  // which is not what the model says at all.
+  /*
+   * A zero weight always needs its reason attached, and there is only one
+   * reason it can be zero: no gravitational field. Either nothing has been put
+   * in this scene to do the pulling, or the bench has been set to deep space.
+   *
+   * What it must never say is that the object is weightless. Weight is what a
+   * field does to a mass, not a property the object mislaid — and a bare
+   * "0.00 N" reads as exactly the wrong one of those.
+   */
   const note = len(vector) < 1e-12
-    ? 'Zero in this experiment. The surface is level, so weight and the normal '
-      + 'force cancel exactly and nothing is left over to act along the track — '
-      + 'which is why neither appears in the arithmetic here. The carts are not '
-      + 'weightless; their weight simply has nothing to do.'
+    ? 'Zero here, because there is no gravitational field in this scene for the '
+      + 'mass to respond to — nothing has been put here to do the pulling. The '
+      + 'object has not become weightless: weight is what a field does to a mass, '
+      + 'and this mass is the same as it ever was. Put it on a world and it '
+      + 'weighs whatever that world makes it weigh.'
     : '';
   return force('weight', vector, note);
 }
@@ -104,6 +111,48 @@ export function dragForce(velocity, {
   f.flow = result;
   return f;
 }
+
+/**
+ * Buoyancy: the upward push a fluid gives anything immersed in it.
+ *
+ * Archimedes' result, and it is worth stating in the form that makes it obvious
+ * rather than the form that makes it memorable. The fluid that *would* have
+ * occupied this space was being held up by the pressure around it. Put an object
+ * there instead and that same pressure is still pushing up, with the same total
+ * force it needed to hold up the displaced fluid — its weight, ρ·V·g.
+ *
+ * So the force depends on the volume and not at all on what the object is made
+ * of, which is why a kilogram of lead and a kilogram of feathers really do weigh
+ * differently on a kitchen scale in air, and why the answer to the riddle is
+ * "the feathers, very slightly less".
+ *
+ * If the object displaces more than its own mass, this beats its weight and it
+ * goes up. Nothing extra is switched on to make that happen: floating and
+ * sinking are the same force with the comparison coming out the other way.
+ */
+export function buoyancyForce(volume, fluidDensity, field) {
+  if (!(volume > 0) || !(fluidDensity > 0)) return force('buoyancy', vec(0, 0));
+  const displaced = volume * fluidDensity;
+  return force('buoyancy', scale(field, -displaced),
+    `The object displaces ${volume.toPrecision(3)} m³ of fluid, which would itself `
+    + `weigh ${displaced.toPrecision(3)} kg. The fluid pushes up with exactly that `
+    + 'weight, whatever the object is made of.');
+}
+
+/**
+ * The mass that gravity gets to keep, once the fluid has pushed back.
+ *
+ * Buoyancy is constant and opposite to the field, so it behaves exactly like a
+ * reduction in weight — which means potential energy has to be computed against
+ * this effective mass rather than the real one. Get that wrong and a floating
+ * balloon rises for free: the energy books show it gaining potential energy
+ * with nothing paying for it, and the invariant the app puts on screen drifts.
+ *
+ * Negative for anything that floats, which is not a bug. It is what floating
+ * means: the effective weight points upward.
+ */
+export const buoyantMass = (body, env = {}) =>
+  body.mass - Math.max(0, env.fluidDensity ?? 0) * Math.max(0, body.volume ?? 0);
 
 /** Terminal speed, re-exported: the search lives with the drag model. */
 export { terminalSpeed } from './drag.js';
@@ -143,18 +192,31 @@ export function forcesOn(body, env = {}, contact = null) {
     })
     : null;
   const extra = (body.extraForces || []).map((f) => force(f.id || 'applied', f.vec, f.note || ''));
+  // Buoyancy needs the volume, not the frontal area — a car and a cube of the
+  // same width displace very different amounts of fluid.
+  const buoyancy = env.fluidDensity > 0 && body.volume > 0
+    ? buoyancyForce(body.volume, env.fluidDensity, field)
+    : null;
+  // The control force is whatever the pointer or the keyboard is asking for. It
+  // is an ordinary force in the ordinary sum — that is the whole reason driving
+  // an object here is a physics experiment rather than a puppet show.
+  const control = body.controlForce && len(body.controlForce) > 0
+    ? force('control', body.controlForce)
+    : null;
 
   const extraGravity = (body.extraForces || []).some((f) => f.id === 'weight');
   // A zero uniform field alongside a real pull is not a force, it is an absence
   // — and listing it would put a "Weight 0.00 N" row above the real one.
   const list = extraGravity && len(scale(field, mass)) < 1e-12 ? [] : [weightForce(mass, field)];
   if (applied) list.push(applied);
+  if (control) list.push(control);
+  if (buoyancy && buoyancy.magnitude > 0) list.push(buoyancy);
   if (drag && drag.magnitude > 0) list.push(drag);
   list.push(...extra);
 
   if (!contact) {
     const net = sum(list.map((f) => f.vec));
-    return finish(list, net, mass, { touching: false, frictionMode: 'none', normalForce: 0, slipping: false });
+    return finish(list, net, mass, { touching: false, frictionMode: 'none', normalForce: 0, slipping: false, normal: null });
   }
 
   /* Step two: the normal force, which is whatever stops the body sinking in. */
@@ -209,6 +271,11 @@ export function forcesOn(body, env = {}, contact = null) {
   const net = sum(list.map((f) => f.vec));
   return finish(list, net, mass, {
     touching: true,
+    // The surface normal travels with the result, so the stepper does not have
+    // to work out for itself whether the body is on the ground or on a wall
+    // somebody drew. There is one contact, and this is which way it faces.
+    normal: n,
+    surface: contact.surface || 'ground',
     frictionMode: mode,
     normalForce: normalMagnitude,
     staticLimit: maxStatic,

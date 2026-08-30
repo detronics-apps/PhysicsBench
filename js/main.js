@@ -22,13 +22,20 @@
 import { load, save, saveSoon, state, reset } from './state.js';
 import { el, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
-import { configureSections, button } from './ui/widgets.js';
+import { configureSections, button, drag } from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
 
-import { STAGES, stageById, stageIndex, featuresAt, build, applyPush, channelsFor, vectorsFor } from './stages.js';
+import {
+  STAGES, stageById, stageIndex, featuresAt, build, applyPush, applyLive, structuralKey,
+  channelsFor, vectorsFor, MAX_OBJECTS,
+} from './stages.js';
+import { controlForce } from './control.js';
+import { boxWalls } from './segments.js';
+import { toWorld } from './camera.js';
+import { ZERO } from './vec.js';
 import { advance, inspect, totals, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime } from './recorder.js';
-import { renderScene, sceneLegend } from './ui/scene-svg.js';
+import { renderScene, sceneLegend, sceneCamera } from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
 import { renderTransport, transportNote } from './ui/transport.js';
@@ -38,11 +45,21 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';
 
 const dom = {};
-let sim = { scenario: null, world: null, recorder: createRecorder() };
+let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
 const clock = { last: 0, raf: 0, frame: 0 };
+
+/**
+ * Live input: where the pointer is, which keys are down, and any wall being
+ * dragged out right now.
+ *
+ * Deliberately outside `state`. None of it is part of the experiment — it is
+ * not worth saving, not worth sharing, and putting it in state would mean every
+ * mouse move wrote to localStorage and rebuilt the sidebar.
+ */
+const input = { pointer: null, keys: new Set(), drawing: null };
 
 /* ---------------------------------------------------------------- theme -- */
 
@@ -64,7 +81,7 @@ function buildHeader() {
     on: {
       click: () => update((draft) => {
         draft.theme = THEME_ORDER[(THEME_ORDER.indexOf(draft.theme) + 1) % THEME_ORDER.length];
-      }, { rebuildSim: false }),
+      }, { sim: 'none' }),
     },
   }, dualLabel(THEME_LABEL[state.theme], THEME_GLYPH[state.theme]));
   dom.themeButton = themeButton;
@@ -126,7 +143,7 @@ function goToStage(id) {
     draft.stage = id;
     draft.transport.scrubT = null;
     draft.transport.playing = false;
-  });
+  }, { sim: 'full' });
 }
 
 function buildViewport() {
@@ -167,7 +184,7 @@ function buildFooter() {
       button('Print', () => printSheet(), { small: true, title: 'Print the drawing, the numbers, the graphs and the working' }),
       button('SVG', () => downloadSvg(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
       button('PNG', () => downloadPng(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
-      button('CSV', () => downloadCsv(sim.recorder, channelsFor(state.stage).flatMap((g) => g.ids), `physics-${state.stage}`), { small: true, title: 'Download the measurements as a spreadsheet' }),
+      button('CSV', () => downloadCsv(sim.recorder, channelsFor(state.stage, state.bench).flatMap((g) => g.ids), `physics-${state.stage}`), { small: true, title: 'Download the measurements as a spreadsheet' }),
       button('Reset', () => {
         reset();
         rebuild();
@@ -184,6 +201,7 @@ function buildFooter() {
 function rebuild() {
   sim.recorder = createRecorder({ interval: 1 / 60, capacity: 4000 });
   state.transport.scrubT = null;
+  sim.key = structuralKey(state.stage, state.bench);
   sim.scenario = build(state.stage, state.bench);
   sim.world = applyPush(sim.scenario.world, state.bench, sim.scenario.features);
   if (!sim.world.bodies.some((b) => b.id === state.selectedId)) state.selectedId = 'main';
@@ -201,11 +219,51 @@ function shownWorld() {
 
 /* -------------------------------------------------------- state changes -- */
 
-export function update(mutate, { rebuildSim = true } = {}) {
+/**
+ * Change something, and decide how much of the simulation that costs.
+ *
+ *   'live'  the default. Push the new numbers into the world that is already
+ *           running, leaving every position and velocity exactly where the
+ *           simulation put them.
+ *   'none'  nothing physical changed — a theme, an arrow being hidden.
+ *   'full'  start again from scratch.
+ *
+ * 'live' is the one that matters. Rebuilding on every slider move is what makes
+ * an app feel like a slideshow: you set something moving, reach for the angle,
+ * and it snaps back to the start. Being able to turn the push while watching
+ * the path bend is the difference between a bench and a diagram.
+ *
+ * It does not have to be asked for carefully, either — `structuralKey` notices
+ * when a change genuinely alters what bodies exist and rebuilds anyway, so a
+ * caller can always say 'live' and be right.
+ */
+export function update(mutate, { sim: how = 'live' } = {}) {
   mutate(state);
   saveSoon();
-  if (rebuildSim) rebuild();
-  render();
+  if (how === 'full') rebuild();
+  else if (how !== 'none') applyParams();
+  // Mid-drag the sidebar is left alone: rebuilding it would replace the slider
+  // under the thumb and end the drag on its first movement. Everything that is
+  // watched while dragging — the drawing, the readouts, the banners — is in
+  // `paint`, which runs either way.
+  render({ controls: !drag.active });
+}
+
+/**
+ * Push the current parameters into the running world.
+ *
+ * The scenario is rebuilt because the teaching panels are derived from it —
+ * the disclosure, the equations, what the object is. The *world* is not: it
+ * keeps running, and only its properties are updated.
+ */
+function applyParams() {
+  const key = structuralKey(state.stage, state.bench);
+  if (key !== sim.key) {
+    rebuild();
+    return;
+  }
+  sim.scenario = build(state.stage, state.bench);
+  sim.world = applyLive(sim.world, state.bench, sim.scenario.features, { stageId: state.stage });
 }
 
 function captureFocus() {
@@ -236,7 +294,12 @@ function restoreFocus(snap) {
 
 /* -------------------------------------------------------------- render -- */
 
-export function render() {
+export function render({ controls = true } = {}) {
+  if (!controls) {
+    // The cheap path: nothing that could contain the caret is touched.
+    paint(true);
+    return;
+  }
   const snap = captureFocus();
   hideTooltip();
   applyTheme();
@@ -265,17 +328,17 @@ export function render() {
   ]));
 
   clear(dom.vectors);
-  const available = vectorsFor(state.stage);
+  const available = vectorsFor(state.stage, state.bench);
   dom.vectors.appendChild(vectorPicker(
     available,
     state.vectors,
-    (id, on) => update((draft) => { draft.vectors[id] = on; }, { rebuildSim: false }),
-    (patch) => update((draft) => { Object.assign(draft.vectors, patch); }, { rebuildSim: false }),
+    (id, on) => update((draft) => { draft.vectors[id] = on; }, { sim: 'none' }),
+    (patch) => update((draft) => { Object.assign(draft.vectors, patch); }, { sim: 'none' }),
   ));
   dom.vectors.appendChild(el('div', { class: 'vectors__foot' }, [
     button('Just what matters here', () => update((draft) => {
       Object.assign(draft.vectors, suggestionFor(state.stage, available));
-    }, { rebuildSim: false }), { small: true, title: 'Show only the arrows this step is about' }),
+    }, { sim: 'none' }), { small: true, title: 'Show only the arrows this step is about' }),
   ]));
 
   clear(dom.controls);
@@ -295,11 +358,18 @@ function paint(force = false) {
   const ctx = context();
 
   clear(dom.stage);
+  const armed = state.ui.tool === 'wall';
+  const driving = sim.scenario?.features?.has('control') && state.bench.control?.mode !== 'none';
+  dom.stage.classList.toggle('is-drawing', armed);
+  dom.stage.classList.toggle('is-driving', !armed && !!driving);
   dom.stage.appendChild(renderScene(ctx.world, {
     selectedId: state.selectedId,
     vectors: state.vectors,
     view: state.view,
     focusId: 'main',
+    pointer: input.pointer,
+    drawing: input.drawing,
+    control: driving ? state.bench.control : null,
   }));
   // A drawing sized to its contents must never be magnified to fill the panel.
   // Called after the stage has been replaced, on every render — pitfalls.md #3.
@@ -319,7 +389,7 @@ function paint(force = false) {
   if (force || clock.frame % 3 === 0) {
     clear(dom.graphs);
     if (state.view.graphs) {
-      for (const group of channelsFor(state.stage)) {
+      for (const group of channelsFor(state.stage, state.bench)) {
         dom.graphs.appendChild(renderGraph(sim.recorder, group.ids, {
           t: shownTime(),
           title: group.label,
@@ -349,10 +419,16 @@ function paint(force = false) {
   updateTransport();
 }
 
+/** Renumber the extra objects so their ids always match their position. */
+const renumber = (list) => list.map((o, i) => ({ ...o, id: `o${i + 2}` }));
+
 function context() {
   return {
     state,
     params: state.bench,
+    space: !!sim.scenario?.space,
+    pointer: input.pointer,
+    keys: input.keys,
     features: sim.scenario?.features || featuresAt(state.stage),
     scenario: sim.scenario,
     world: shownWorld(),
@@ -364,7 +440,86 @@ function context() {
     goToStage,
     set: (key, value) => update((draft) => { draft.bench[key] = value; }),
     setMany: (patch) => update((draft) => { Object.assign(draft.bench, patch); }),
-    setView: (key, value) => update((draft) => { draft.view[key] = value; }, { rebuildSim: false }),
+    setView: (key, value) => update((draft) => { draft.view[key] = value; }, { sim: 'none' }),
+
+    selectBody: (id) => update((draft) => { draft.selectedId = id; }, { sim: 'none' }),
+
+    /* ------------------------------------------------------- objects -- */
+    addObject: () => update((draft) => {
+      if (draft.bench.objects.length >= MAX_OBJECTS - 1) return;
+      const last = draft.bench.objects[draft.bench.objects.length - 1];
+      draft.bench.objects = renumber([...draft.bench.objects, {
+        id: 'new',
+        mass: 1,
+        size: 0.4,
+        shapeId: 'sphere',
+        // Placed beside the last one rather than on top of it, because two
+        // objects starting inside each other resolve by flinging apart.
+        x: last ? last.x + 1.5 : 3,
+        y: 0,
+        vx: 0,
+        vy: 0,
+      }]);
+      draft.selectedId = draft.bench.objects[draft.bench.objects.length - 1].id;
+    }),
+    removeObject: (id) => update((draft) => {
+      draft.bench.objects = renumber(draft.bench.objects.filter((o) => o.id !== id));
+      if (!draft.bench.objects.some((o) => o.id === draft.selectedId)) draft.selectedId = 'main';
+    }),
+    clearObjects: () => update((draft) => {
+      draft.bench.objects = [];
+      draft.selectedId = 'main';
+    }),
+    setObject: (id, patch) => update((draft) => {
+      draft.bench.objects = draft.bench.objects.map((o) => (o.id === id ? { ...o, ...patch } : o));
+    }),
+
+    /* --------------------------------------------------------- walls -- */
+    setTool: (tool) => update((draft) => {
+      draft.ui.tool = tool;
+      input.drawing = null;
+    }, { sim: 'none' }),
+    removeWall: (index) => update((draft) => {
+      draft.bench.walls = draft.bench.walls.filter((_, i) => i !== index);
+    }),
+    clearWalls: () => update((draft) => { draft.bench.walls = []; }),
+    addBox: () => update((draft) => {
+      // Sized to what is actually on the bench, so the box contains the
+      // experiment rather than an arbitrary rectangle near it.
+      const xs = sim.world.bodies.filter((b) => b.kind !== 'planet').map((b) => b.pos.x);
+      const ys = sim.world.bodies.filter((b) => b.kind !== 'planet').map((b) => b.pos.y);
+      const minX = Math.min(-2, ...xs) - 1;
+      const maxX = Math.max(2, ...xs) + 1;
+      const minY = sim.world.ground ? 0 : Math.min(-2, ...ys) - 1;
+      const maxY = Math.max(2, ...ys) + 2;
+      draft.bench.walls = [...draft.bench.walls, ...boxWalls({ minX, maxX, minY, maxY })]
+        .slice(0, 40);
+    }),
+
+    /* ------------------------------------------------------- cannons -- */
+    addCannon: () => update((draft) => {
+      if (draft.bench.cannons.length >= 6) return;
+      draft.bench.cannons = [...draft.bench.cannons, {
+        id: `cannon${draft.bench.cannons.length + 1}`,
+        x: -3, y: 1, angleDeg: 35, speed: 9, mass: 0.5, size: 0.2,
+        shapeId: 'sphere', everySeconds: 1,
+      }];
+    }),
+    removeCannon: (index) => update((draft) => {
+      draft.bench.cannons = draft.bench.cannons
+        .filter((_, i) => i !== index)
+        .map((c, i) => ({ ...c, id: `cannon${i + 1}` }));
+    }),
+    clearCannons: () => update((draft) => { draft.bench.cannons = []; }),
+    setCannon: (index, patch) => update((draft) => {
+      draft.bench.cannons = draft.bench.cannons.map((c, i) => (i === index ? { ...c, ...patch } : c));
+    }),
+
+    /* ------------------------------------------------------- driving -- */
+    setControl: (patch) => update((draft) => {
+      draft.bench.control = { ...draft.bench.control, ...patch };
+    }),
+
     actions,
   };
 }
@@ -449,10 +604,51 @@ function updateTransport() {
 
 /* --------------------------------------------------------------- clock -- */
 
+/**
+ * Whatever the pointer or the keyboard is currently asking of the driven body.
+ *
+ * Written onto the body as a force rather than applied to its velocity, so it
+ * joins the same vector sum as weight and friction, gets its own arrow, and has
+ * its work booked on the same ledger. Steering an object here is a physics
+ * experiment; it is not a puppet on a string.
+ */
+function applyControl(world) {
+  const wanted = sim.scenario?.features?.has('control') ? state.bench.control : null;
+  const off = !wanted || wanted.mode === 'none';
+  const target = off ? null : world.bodies.find((b) => b.id === wanted.targetId && !b.fixed);
+
+  const force = target
+    ? controlForce({
+      mode: wanted.mode,
+      body: target,
+      pointer: input.pointer,
+      keys: input.keys,
+      strength: wanted.strength,
+    })
+    : ZERO;
+
+  // Every other body has its control force cleared, or switching which object
+  // you are driving would leave the old one under permanent thrust.
+  const stale = world.bodies.some((b) => {
+    const mine = b.id === target?.id;
+    const has = b.controlForce && (b.controlForce.x !== 0 || b.controlForce.y !== 0);
+    return mine ? (b.controlForce?.x !== force.x || b.controlForce?.y !== force.y) : has;
+  });
+  if (!stale) return world;
+
+  return {
+    ...world,
+    bodies: world.bodies.map((b) => (b.id === target?.id ? { ...b, controlForce: force } : { ...b, controlForce: ZERO })),
+  };
+}
+
 function stepSimulation(seconds) {
   // The push is re-applied before every step, because it stops after its
   // duration — and what happens after it stops is the whole point of step two.
+  // It also re-reads the parameters, which is what lets the angle be turned
+  // while the object is moving and the path bend from where it is.
   sim.world = applyPush(sim.world, state.bench, sim.scenario.features);
+  sim.world = applyControl(sim.world);
   sim.world = advance(sim.world, seconds);
   sim.recorder = record(sim.recorder, sim.world, { bodyId: state.selectedId });
 }
@@ -474,6 +670,111 @@ function startClock() {
   };
   clock.raf = requestAnimationFrame(tick);
 }
+
+/* --------------------------------------------------------------- input -- */
+
+/**
+ * Where the pointer is, in metres.
+ *
+ * `getScreenCTM` is used rather than the bounding rectangle because the drawing
+ * is letterboxed inside whatever space the panel gives it, and the offset that
+ * introduces is invisible until a wall lands somewhere other than where it was
+ * drawn. The matrix knows; arithmetic on the rectangle only nearly does.
+ */
+function pointerToWorld(event) {
+  const svg = dom.stage.querySelector('svg');
+  if (!svg || !svg.getScreenCTM) return null;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const inView = point.matrixTransform(ctm.inverse());
+  const cam = sceneCamera(shownWorld());
+  const world = toWorld(cam, { x: inView.x, y: inView.y });
+  return Number.isFinite(world.x) && Number.isFinite(world.y) ? world : null;
+}
+
+function wireInput() {
+  dom.stage.addEventListener('pointermove', (event) => {
+    input.pointer = pointerToWorld(event);
+    if (input.drawing && input.pointer) {
+      input.drawing = { ...input.drawing, to: input.pointer };
+      paint(true);
+    }
+  });
+
+  dom.stage.addEventListener('pointerleave', () => {
+    // A pointer that has left the drawing is not somewhere the object should
+    // still be being towed towards.
+    input.pointer = null;
+    if (!input.drawing) paint(true);
+  });
+
+  dom.stage.addEventListener('pointerdown', (event) => {
+    if (state.ui.tool !== 'wall') return;
+    const at = pointerToWorld(event);
+    if (!at) return;
+    event.preventDefault();
+    dom.stage.setPointerCapture?.(event.pointerId);
+    input.drawing = { from: at, to: at };
+    paint(true);
+  });
+
+  const finishWall = () => {
+    const pending = input.drawing;
+    input.drawing = null;
+    if (!pending) return;
+    const length = Math.hypot(pending.to.x - pending.from.x, pending.to.y - pending.from.y);
+    // A click that never moved is a click, not a wall.
+    if (length < 0.05) {
+      paint(true);
+      return;
+    }
+    update((draft) => {
+      draft.bench.walls = [...draft.bench.walls, {
+        x1: pending.from.x, y1: pending.from.y, x2: pending.to.x, y2: pending.to.y,
+        restitution: 0.3, mu: 0.6,
+      }].slice(0, 40);
+    });
+  };
+
+  dom.stage.addEventListener('pointerup', finishWall);
+  dom.stage.addEventListener('pointercancel', () => { input.drawing = null; paint(true); });
+
+  /*
+   * The keyboard, and the one rule that keeps it usable: it is ignored while a
+   * control has focus. Otherwise typing a mass into a number field drives the
+   * car, and pressing the left arrow to move the caret sends it into a wall.
+   */
+  const typing = () => {
+    const active = document.activeElement;
+    if (!active) return false;
+    const tag = active.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.isContentEditable;
+  };
+
+  const driving = () => sim.scenario?.features?.has('control') && state.bench.control?.mode === 'keyboard';
+
+  window.addEventListener('keydown', (event) => {
+    if (!driving() || typing() || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!(event.key in KEYS_WATCHED)) return;
+    input.keys.add(event.key);
+    // Arrow keys scroll the page, which is exactly the wrong thing while
+    // steering. Only swallowed while a mode that uses them is actually on.
+    event.preventDefault();
+  });
+
+  window.addEventListener('keyup', (event) => { input.keys.delete(event.key); });
+  // A key held down when the window loses focus never sends its keyup, and the
+  // object drives off the bench while nobody is looking at it.
+  window.addEventListener('blur', () => input.keys.clear());
+}
+
+const KEYS_WATCHED = {
+  ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
+  w: 1, a: 1, s: 1, d: 1, W: 1, A: 1, S: 1, D: 1,
+};
 
 // A background tab should not be burning a core on a simulation nobody is
 // watching, and returning to it should not jump the experiment forward.
@@ -514,6 +815,7 @@ function init() {
     buildFooter(),
   );
 
+  wireInput();
   rebuild();
   render();
   save();
@@ -539,4 +841,11 @@ window.PhysicsBench = {
     return sim.world.t;
   },
   reset: () => { rebuild(); render(); },
+  // The verification pass drives these directly rather than synthesising
+  // pointer events, which tests the model rather than the event plumbing.
+  input,
+  setPointer: (x, y) => { input.pointer = x === null ? null : { x, y }; },
+  press: (key) => input.keys.add(key),
+  release: (key) => input.keys.delete(key),
+  camera: () => sceneCamera(shownWorld()),
 };

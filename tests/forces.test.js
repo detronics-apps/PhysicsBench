@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { vec, len, fromPolarDeg, perp, dot } from '../js/vec.js';
+import { vec, len, fromPolarDeg, perp, dot, ZERO } from '../js/vec.js';
 import {
-  FORCE_STYLE, forcesOn, weightForce, dragForce, springForce,
+  FORCE_STYLE, forcesOn, weightForce, dragForce, springForce, buoyancyForce, buoyantMass,
   inEquilibrium, accelerationFrom, forceFor, uniformField,
 } from '../js/forces.js';
 import { G_STANDARD } from '../js/constants.js';
@@ -248,17 +248,90 @@ test('forceFor and accelerationFrom are inverses', () => {
 });
 
 test('a zero weight always carries its reason', () => {
-  // Several labs run on a level track with no field, because on a level surface
-  // weight and the normal force cancel exactly. Printed as a bare "0.00 N" that
-  // reads as "this cart is weightless", which is not what the model says.
+  /*
+   * Weight comes out zero wherever there is no field: the first two steps,
+   * where nothing has been put in the scene to do the pulling, and deep space.
+   * Printed as a bare "0.00 N" it reads as "this object is weightless", which is
+   * the opposite of what the model says — the mass is unchanged, and it is the
+   * field that is absent.
+   */
   const level = weightForce(2, vec(0, 0));
   close(level.magnitude, 0);
-  assert.match(level.note, /not\s+weightless/);
-  assert.match(level.note, /level/);
+  assert.match(level.note, /not become weightless/);
+  assert.match(level.note, /no gravitational field/);
+  // And it must not explain itself with a surface, since there may not be one.
+  assert.ok(!/level surface|the track|the carts/i.test(level.note));
 
   // A real weight needs no apology.
   assert.equal(weightForce(2, uniformField(G_STANDARD)).note, '');
 
+  // And the reason survives the trip through the solver, which is where it is
+  // actually read from.
   const r = forcesOn({ mass: 2, pos: vec(0, 0), vel: vec(3, 0) }, { field: vec(0, 0) }, null);
-  assert.match(r.by('weight').note, /nothing is left over/);
+  assert.match(r.by('weight').note, /no gravitational field/);
+});
+
+
+/* -------------------------------------------------------------- buoyancy -- */
+
+test('buoyancy is the weight of the fluid displaced, and nothing about the object', () => {
+  const field = vec(0, -9.81);
+  const lead = buoyancyForce(0.001, 997, field);
+  const foam = buoyancyForce(0.001, 997, field);
+  // Same volume, same fluid: identical. What the object is made of does not
+  // enter Archimedes' principle at all.
+  close(lead.magnitude, foam.magnitude, 1e-12);
+  close(lead.magnitude, 0.001 * 997 * 9.81, 1e-9);
+  // And it points up, against the field.
+  assert.ok(lead.vec.y > 0);
+});
+
+test('no fluid, no buoyancy — a vacuum has nothing to displace', () => {
+  close(buoyancyForce(1, 0, vec(0, -9.81)).magnitude, 0, 1e-12);
+  close(buoyancyForce(0, 997, vec(0, -9.81)).magnitude, 0, 1e-12);
+});
+
+test('the effective mass is what is left after the fluid has pushed back', () => {
+  const body = { mass: 2, volume: 0.001 };
+  close(buoyantMass(body, { fluidDensity: 0 }), 2, 1e-12);
+  close(buoyantMass(body, { fluidDensity: 997 }), 2 - 0.997, 1e-12);
+  // Negative for anything that floats, which is what floating means: the
+  // effective weight points upward.
+  assert.ok(buoyantMass({ mass: 0.5, volume: 0.001 }, { fluidDensity: 997 }) < 0);
+});
+
+test('a balloon in water feels a net upward force, from the ordinary sum', () => {
+  const result = forcesOn(
+    { mass: 2, vel: ZERO, pos: vec(0, 0), volume: 0.027, area: 0.13, cd: 0.5, diameter: 0.4 },
+    { field: vec(0, -9.81), fluidDensity: 997, viscosity: 1e-3 },
+    null,
+  );
+  assert.ok(result.by('buoyancy'));
+  assert.ok(result.by('buoyancy').magnitude > result.by('weight').magnitude);
+  // Nothing was switched on to make it float. The comparison simply came out
+  // the other way, and the net force is the same sum it always was.
+  assert.ok(result.net.vec.y > 0);
+});
+
+test('the control force joins the sum like any other force', () => {
+  const result = forcesOn(
+    { mass: 1, vel: ZERO, pos: vec(0, 0), controlForce: vec(5, 0) },
+    { field: vec(0, 0) },
+    null,
+  );
+  assert.equal(result.by('control').magnitude, 5);
+  close(result.acceleration.x, 5, 1e-12);
+});
+
+test('a contact reports which way its surface faces, whatever surface it is', () => {
+  const onSlope = forcesOn(
+    { mass: 1, vel: ZERO, pos: vec(0, 0) },
+    { field: vec(0, -9.81) },
+    { normal: vec(0, 1), muS: 0.5, muK: 0.4, surface: 'wall' },
+  );
+  assert.equal(onSlope.contact.surface, 'wall');
+  close(onSlope.contact.normal.y, 1, 1e-12);
+  // No contact means no normal at all, rather than a plausible-looking default
+  // the stepper could pick up and use.
+  assert.equal(forcesOn({ mass: 1, vel: ZERO, pos: vec(0, 0) }, {}, null).contact.normal, null);
 });

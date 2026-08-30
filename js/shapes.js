@@ -1,17 +1,48 @@
 /**
- * The shape of the object, and what shape changes. Pure.
+ * The shape of an object: what it changes, and what it looks like. Pure.
  *
- * Shape affects three separate things, and the stages introduce them one at a
+ * Shape affects four separate things, and the steps introduce them one at a
  * time so they do not run together:
  *
  *   how it sits on a surface  — a sphere touches at a point, a cube on a face
+ *   how much of it there is   — the volume, which decides mass and buoyancy
  *   how much fluid it shoves  — the frontal area
  *   how cleanly it shoves it  — the drag coefficient
  *
  * `size` throughout is the overall extent in metres: the diameter of a sphere,
- * the edge of a cube. Keeping one number for size means changing shape changes
- * the shape and not accidentally the scale as well.
+ * the edge of a cube, the length of a car. Keeping one number for size means
+ * changing shape changes the shape and not accidentally the scale as well.
+ *
+ * Each shape also carries its own outline, as an SVG path in a unit box with
+ * **y downward** — screen orientation, so the renderer scales and translates it
+ * and does nothing else. A teardrop drawn as a rectangle is not a cosmetic
+ * problem: the whole point of the shape control is that a streamlined body
+ * looks streamlined, and a box with C_d = 0.04 written under it teaches
+ * nothing.
+ *
+ * Every outline must span the **full** box, −0.5 to 0.5 on both axes. How
+ * squat or tall the shape really is belongs to `aspect`, which the renderer
+ * applies when it scales. An outline that only fills part of its box gets
+ * squashed twice — that is exactly how the car ended up drawn at a sixth of its
+ * own height, looking like a skirting board with wheels.
  */
+
+/**
+ * A car needs two outlines, because a car seen from the side and a car seen
+ * from above are different pictures of the same object — and which one is
+ * right depends on whether there is a floor to drive on.
+ */
+// Side on: body, greenhouse, and two wheel arches cut into the underside, so
+// it reads as a car rather than as a wedge.
+const CAR_SIDE = 'M -0.5 0.2 L -0.46 -0.02 L -0.28 -0.06 L -0.16 -0.46 '
+  + 'L 0.1 -0.5 L 0.28 -0.06 L 0.46 0.02 L 0.5 0.2 L 0.36 0.2 '
+  + 'Q 0.34 0.5 0.22 0.5 Q 0.1 0.5 0.08 0.2 L -0.2 0.2 '
+  + 'Q -0.22 0.5 -0.34 0.5 Q -0.46 0.5 -0.48 0.2 Z';
+
+// From above: a rounded nose, a squared-off tail.
+const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
+  + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '
+  + 'Q -0.44 0.5 -0.5 0.38 Z';
 
 /**
  * Every shape gives its volume, its frontal area and its high-Reynolds drag
@@ -29,7 +60,9 @@ export const SHAPES = [
     volume: (s) => (Math.PI * s ** 3) / 6,
     area: (s) => (Math.PI * s * s) / 4,
     support: (s) => s / 2,
+    aspect: 1,
     rolls: true,
+    circle: true,
     note: 'Touches the ground at a single point, and rolls. The drag figure is '
       + 'for the subcritical range; above the critical Reynolds number a smooth '
       + 'sphere drops to about 0.1, which is the effect a golf ball\'s dimples '
@@ -42,7 +75,9 @@ export const SHAPES = [
     volume: (s) => s ** 3,
     area: (s) => s * s,
     support: (s) => s / 2,
+    aspect: 1,
     rolls: false,
+    path: 'M -0.5 -0.5 L 0.5 -0.5 L 0.5 0.5 L -0.5 0.5 Z',
     note: 'Sits on a face. Twice the drag of a sphere of the same width, for the '
       + 'same reason a brick is harder to throw than a ball.',
   },
@@ -53,7 +88,10 @@ export const SHAPES = [
     volume: (s) => s * s * (s / 10),
     area: (s) => s * s,
     support: (s) => s / 20,
+    aspect: 0.1,
     rolls: false,
+    // Full box: how thin a plate actually is comes from `aspect`, not from here.
+    path: 'M -0.5 -0.5 L 0.5 -0.5 L 0.5 0.5 L -0.5 0.5 Z',
     note: 'The bluntest common shape. Presenting the same area edge-on instead '
       + 'would cut the drag by more than ten times — which is why a sheet of '
       + 'paper falls so differently depending on how you drop it.',
@@ -65,10 +103,14 @@ export const SHAPES = [
     volume: (s) => 0.28 * s ** 3,
     area: (s) => (Math.PI * s * s) / 8,
     support: (s) => s / 4,
+    aspect: 0.5,
     rolls: false,
+    // A round nose and a long tail, because that is where the saving is: it is
+    // the wake behind a bluff body that costs, not the air in front of it.
+    path: 'M -0.5 0 Q -0.5 -0.5 -0.28 -0.5 Q 0.1 -0.44 0.5 0 '
+      + 'Q 0.1 0.44 -0.28 0.5 Q -0.5 0.5 -0.5 0 Z',
     note: 'Thirty times less drag than a flat plate of the same frontal area. '
-      + 'Almost all of the saving is in the tail, not the nose: it is the wake '
-      + 'behind a bluff body that costs, not the air in front of it.',
+      + 'Almost all of the saving is in the tail, not the nose.',
   },
   {
     id: 'cylinder',
@@ -77,21 +119,71 @@ export const SHAPES = [
     volume: (s) => (Math.PI * s * s * s) / 4,
     area: (s) => s * s,
     support: (s) => s / 2,
+    aspect: 1,
     rolls: true,
-    note: 'Rolls along its side. A common enough shape that its drag figure is '
-      + 'worth knowing — pipes, masts, cables and legs are all cylinders.',
+    circle: true,
+    note: 'Rolls along its side. Pipes, masts, cables and legs are all cylinders.',
+  },
+  {
+    id: 'car',
+    label: 'Car',
+    cd: 0.32,
+    // A car is mostly air. Its volume is nothing like its bounding box, which
+    // matters the moment buoyancy is switched on.
+    volume: (s) => 0.09 * s ** 3,
+    area: (s) => 0.13 * s * s,
+    support: (s) => s * 0.2,
+    aspect: 0.4,
+    rolls: false,
+    path: CAR_SIDE,
+    pathTop: CAR_TOP,
+    note: 'Drawn from the side where there is a floor to drive on, and from '
+      + 'above in space. A modern hatchback is around C_d 0.32; the drag figure '
+      + 'quoted in a brochure is usually C_d·A, which is the number that '
+      + 'actually decides the fuel bill.',
+  },
+  {
+    id: 'balloon',
+    label: 'Balloon',
+    cd: 0.5,
+    volume: (s) => 0.42 * s ** 3,
+    area: (s) => (Math.PI * s * s) / 4,
+    // Exactly half the drawn height, or it rests with its neck through the floor.
+    support: (s) => s * 0.6,
+    aspect: 1.2,
+    rolls: false,
+    // Rounded top, tapering to a neck — and drawn so the neck is at the bottom,
+    // which is the only orientation anyone has ever seen a balloon in.
+    path: 'M 0 -0.5 Q 0.5 -0.5 0.5 -0.1 Q 0.5 0.2 0.1 0.42 '
+      + 'L 0.07 0.5 L -0.07 0.5 L -0.1 0.42 Q -0.5 0.2 -0.5 -0.1 '
+      + 'Q -0.5 -0.5 0 -0.5 Z',
+    note: 'The shape that makes buoyancy obvious: fill it with something less '
+      + 'dense than the fluid around it and it goes up, for exactly the reason a '
+      + 'stone goes down.',
   },
 ];
 
 export const shapeById = (id) => SHAPES.find((s) => s.id === id) || SHAPES[0];
 
 /**
+ * The outline to draw, given whether the scene has a "down" in it.
+ *
+ * `null` means a circle, which is a shape SVG already has a better primitive
+ * for than any path would be.
+ */
+export function outline(shapeId, { topDown = false } = {}) {
+  const shape = shapeById(shapeId);
+  if (shape.circle) return null;
+  return topDown && shape.pathTop ? shape.pathTop : shape.path;
+}
+
+/**
  * Everything about an object of a given shape, size and material.
  *
- * Mass comes from volume × density rather than being set directly, because that
- * is the honest relationship: make it bigger and it gets heavier, change the
- * material and it gets heavier without getting bigger. The bench lets the mass
- * be set directly too, in which case the density is what follows.
+ * Mass may be set directly, in which case the density is what follows — or
+ * derived from a density, in which case making it bigger makes it heavier.
+ * Volume is the quantity buoyancy needs, and it is nothing like the bounding
+ * box for a car or a balloon.
  */
 export function describe({ shapeId, size, density = null, mass = null }) {
   const shape = shapeById(shapeId);
@@ -110,6 +202,8 @@ export function describe({ shapeId, size, density = null, mass = null }) {
     cd: shape.cd,
     // How far the centre sits above the surface it rests on.
     support: shape.support(size),
+    // How tall it is drawn, relative to its length.
+    height: size * shape.aspect,
     rolls: shape.rolls,
   };
 }
@@ -118,10 +212,9 @@ export function describe({ shapeId, size, density = null, mass = null }) {
 export function sizeFor(shapeId, mass, density) {
   const shape = shapeById(shapeId);
   if (!(mass > 0) || !(density > 0)) return 0;
-  const volume = mass / density;
   // Every volume function here is a constant times s³, so one sample inverts it.
   const unit = shape.volume(1);
-  return unit > 0 ? Math.cbrt(volume / unit) : 0;
+  return unit > 0 ? Math.cbrt(mass / density / unit) : 0;
 }
 
 /**
@@ -146,11 +239,13 @@ export function dragComparison(shapeId, size) {
 /**
  * Materials, so a size and a shape can produce a believable mass.
  *
- * The range matters more than the exact figures: expanded polystyrene to lead
- * is a factor of nearly six hundred, and that is what makes "same size,
- * different mass" possible to set up at all.
+ * The range matters more than the exact figures: expanded polystyrene to
+ * osmium is a factor of over a thousand, and that is what makes "same size,
+ * different mass" — and floating — possible to set up at all.
  */
 export const MATERIALS = [
+  { id: 'helium', label: 'Helium', density: 0.166 },
+  { id: 'air', label: 'Air', density: 1.225 },
   { id: 'polystyrene', label: 'Expanded polystyrene', density: 20 },
   { id: 'balsa', label: 'Balsa', density: 160 },
   { id: 'pine', label: 'Pine', density: 500 },
@@ -163,21 +258,36 @@ export const MATERIALS = [
   { id: 'osmium', label: 'Osmium', density: 22590 },
 ];
 
-export const materialById = (id) => MATERIALS.find((m) => m.id === id) || MATERIALS[6];
+// Named rather than positional: an index here means adding a material to the
+// list quietly changes what an unknown id falls back to, which is the kind of
+// bug that survives a test suite by moving the answer and the expectation
+// together.
+export const materialById = (id) =>
+  MATERIALS.find((m) => m.id === id) || MATERIALS.find((m) => m.id === 'aluminium');
 
-/** Would this object float in that fluid? Density is the whole answer. */
+/**
+ * Whether this object floats in that fluid, and by how much.
+ *
+ * Density is the whole answer, and it is a comparison rather than a property:
+ * steel floats in mercury and a helium balloon floats in air. This is no longer
+ * a note the app has to apologise for — buoyancy is modelled, and the object
+ * really does rise.
+ */
 export function floats(objectDensity, fluidDensity) {
-  if (!(fluidDensity > 0)) return { floats: false, text: 'Nothing floats in a vacuum.' };
+  if (!(fluidDensity > 0)) {
+    return { floats: false, ratio: Infinity, text: 'Nothing floats in a vacuum: with no fluid there is nothing to be pushed aside.' };
+  }
   const ratio = objectDensity / fluidDensity;
   return {
     floats: ratio < 1,
     ratio,
     text: ratio < 1
-      ? 'Less dense than the fluid, so in reality it would float. This '
-        + 'simulation does not model buoyancy, so it will sink anyway — that is '
-        + 'an assumption of the model, not a result of it.'
-      : `${ratio.toFixed(1)}× the density of the fluid, so it sinks. Buoyancy `
-        + `would still reduce its effective weight by ${((1 / ratio) * 100).toFixed(0)}%, `
-        + 'which this simulation does not model either.',
+      ? `Less dense than the fluid — ${(ratio * 100).toFixed(0)}% of it — so the upward `
+        + 'push from the fluid it displaces beats its own weight and it rises. '
+        + 'Nothing was added to make that happen: it is the same buoyant force a '
+        + 'sinking object also feels, only now it is the bigger of the two.'
+      : `${ratio.toFixed(1)}× the density of the fluid, so it sinks. Buoyancy still `
+        + `cancels ${((1 / ratio) * 100).toFixed(0)}% of its weight, which is why the same `
+        + 'stone is easier to lift underwater.',
   };
 }

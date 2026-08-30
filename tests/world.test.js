@@ -83,8 +83,22 @@ test('a light ball in air reaches its terminal speed and stops accelerating', ()
     fluidDensity: 1.225,
   }), 12);
   const b = findBody(w, 'a');
-  const expected = Math.sqrt((0.02 * g) / (0.5 * 1.225 * 0.47 * Math.PI * 0.01));
+  /*
+   * The weight that drag has to balance is the *buoyant* weight, not mg.
+   *
+   * This ball is 20 cm across and weighs 20 grams, which makes it about four
+   * times the density of air — so the air is holding up a quarter of it before
+   * it has moved at all, and its terminal speed is measurably lower than the
+   * mg version of the formula predicts. Using mg here would be the same mistake
+   * as quoting a helium balloon's terminal speed downwards.
+   */
+  const volume = (4 / 3) * Math.PI * 0.1 ** 3;
+  const buoyantWeight = (0.02 - 1.225 * volume) * g;
+  const expected = Math.sqrt(buoyantWeight / (0.5 * 1.225 * 0.47 * Math.PI * 0.01));
   close(Math.abs(b.vel.y), expected, 0.05);
+  // And it really is different from the naive answer, or this test proves nothing.
+  const ignoringBuoyancy = Math.sqrt((0.02 * g) / (0.5 * 1.225 * 0.47 * Math.PI * 0.01));
+  assert.ok(ignoringBuoyancy - expected > 0.3);
   // Net force has fallen to nothing: that is what terminal speed means.
   assert.ok(len(forcesFor(w, b).net.vec) < 1e-3);
 });
@@ -325,4 +339,139 @@ test('trails are recorded only when asked for, and are capped', () => {
     bodies: [{ id: 'a', pos: vec(0, 50), cd: 0, area: 0 }], ground: { y: 0 }, trailLimit: 20,
   }), 2);
   assert.equal(findBody(with_, 'a').trail.length, 20);
+});
+
+
+/* ----------------------------------------------------------------- walls -- */
+
+test('a drawn wall holds a body up exactly as the ground does', () => {
+  const drop = (spec) => {
+    let w = createWorld(spec);
+    for (let i = 0; i < 1500; i += 1) w = step(w, 1 / 500);
+    return findBody(w, 'a');
+  };
+  const body = { id: 'a', mass: 1, radius: 0.2, pos: vec(0, 2), restitution: 0.5, cd: 0, area: 0 };
+
+  const onGround = drop({ bodies: [body], ground: { y: 0, restitution: 0.5 }, walls: [] });
+  const onWall = drop({
+    bodies: [body], ground: null,
+    walls: [{ x1: -5, y1: 0, x2: 5, y2: 0, restitution: 0.5, mu: 0.5 }],
+  });
+
+  // Two contact routines would eventually disagree. There is one.
+  close(onWall.pos.y, onGround.pos.y, 1e-6);
+  close(onWall.vel.y, onGround.vel.y, 1e-6);
+  close(onWall.pos.y, 0.2, 1e-6);
+});
+
+test('a body rolls off the end of a wall rather than off an infinite line', () => {
+  let w = createWorld({
+    bodies: [{ id: 'a', mass: 1, radius: 0.2, pos: vec(0, 0.2), vel: vec(4, 0), cd: 0, area: 0, muS: 0, muK: 0 }],
+    ground: null,
+    walls: [{ x1: -1, y1: 0, x2: 1, y2: 0, restitution: 0, mu: 0 }],
+  });
+  for (let i = 0; i < 600; i += 1) w = step(w, 1 / 500);
+  const b = findBody(w, 'a');
+  // Past the end of the wall and falling. A segment has ends; that is the point.
+  assert.ok(b.pos.x > 1);
+  assert.ok(b.pos.y < 0);
+});
+
+test('a body settles in a corner instead of being squeezed out of it', () => {
+  let w = createWorld({
+    bodies: [{ id: 'a', mass: 1, radius: 0.2, pos: vec(0.5, 1), vel: vec(-3, 0), restitution: 0, cd: 0, area: 0 }],
+    ground: null,
+    walls: [
+      { x1: -2, y1: 0, x2: 2, y2: 0, restitution: 0, mu: 0.6 },
+      { x1: 0, y1: 0, x2: 0, y2: 3, restitution: 0, mu: 0.6 },
+    ],
+  });
+  for (let i = 0; i < 2000; i += 1) w = step(w, 1 / 500);
+  const b = findBody(w, 'a');
+  assert.ok(Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y));
+  // Resting on the floor, clear of the upright, and not vibrating.
+  close(b.pos.y, 0.2, 0.02);
+  assert.ok(b.pos.x >= 0.2 - 0.02);
+  assert.ok(Math.hypot(b.vel.x, b.vel.y) < 0.05);
+});
+
+test('a cannon fires on a schedule and stops at the body limit', () => {
+  let w = createWorld({
+    bodies: [{ id: 'a', mass: 1, radius: 0.1, pos: vec(-10, 0), cd: 0, area: 0 }],
+    ground: null,
+    g: 0,
+    field: vec(0, 0),
+    maxBodies: 5,
+    cannons: [{ id: 'c1', x: 0, y: 0, angleDeg: 0, speed: 3, everySeconds: 0.5, mass: 0.2, size: 0.1 }],
+  });
+  for (let i = 0; i < 500; i += 1) w = step(w, 1 / 100);   // five seconds
+  // Ten shots were due; the limit allows four more bodies and says so.
+  assert.equal(w.bodies.length, 5);
+  const shot = w.bodies.find((b) => b.id === 'shot-1');
+  assert.ok(shot);
+  close(shot.vel.x, 3, 1e-9);
+  close(shot.vel.y, 0, 1e-9);
+});
+
+test('a shot is given a velocity and then left alone', () => {
+  let w = createWorld({
+    bodies: [], ground: null, g: 0, field: vec(0, 0),
+    cannons: [{ id: 'c1', x: 0, y: 0, angleDeg: 90, speed: 5, everySeconds: 0, mass: 1, size: 0.1 }],
+  });
+  for (let i = 0; i < 200; i += 1) w = step(w, 1 / 100);
+  assert.equal(w.bodies.length, 1);
+  // Fired inside the first step, so it has had two seconds less one step: at
+  // 5 m/s that is 9.95 m, and it is still going at 5 m/s because nothing acted
+  // on it after it left.
+  close(w.bodies[0].pos.y, 5 * (2 - 0.01), 0.01);
+  close(w.bodies[0].vel.y, 5, 1e-9);
+});
+
+test('driving books its work, so the totals still balance', () => {
+  let w = createWorld({
+    bodies: [{ id: 'a', mass: 2, radius: 0.2, pos: vec(0, 0), cd: 0, area: 0, controlForce: vec(6, 0) }],
+    ground: null, g: 0, field: vec(0, 0),
+  });
+  const start = totals(w);
+  for (let i = 0; i < 400; i += 1) w = step(w, 1 / 200);
+  const end = totals(w);
+  // Two seconds of 6 N on 2 kg: 3 m/s², 6 m/s, 36 J of kinetic energy — all of
+  // it supplied by whoever is holding the key down.
+  close(findBody(w, 'a').vel.x, 6, 1e-6);
+  close(end.kinetic, 36, 1e-3);
+  close(end.supplied, 36, 1e-3);
+  close(end.balance - start.balance, 0, 1e-6);
+});
+
+test('a cannon pays for what it fires — the books do not move', () => {
+  let w = createWorld({
+    bodies: [], ground: null, g: 0, field: vec(0, 0),
+    cannons: [{ id: 'c1', x: 0, y: 0, angleDeg: 0, speed: 10, everySeconds: 0.5, mass: 1, size: 0.2 }],
+  });
+  const start = totals(w).balance;
+  const seen = [];
+  for (let i = 0; i < 300; i += 1) {
+    w = step(w, 1 / 100);
+    if (i % 50 === 49) seen.push(totals(w).balance);
+  }
+  // Six shots at 50 J of muzzle energy each. Without booking them the balance
+  // would have climbed to 300 J; the whole point of the number is that it does
+  // not move, whatever appears on the bench.
+  assert.ok(w.bodies.length >= 6, `only ${w.bodies.length} shots`);
+  for (const balance of seen) close(balance, start, 1e-6);
+  close(totals(w).supplied, totals(w).kinetic, 1e-6);
+});
+
+test('a cannon firing upward pays for the height as well as the speed', () => {
+  const g = 9.81;
+  let w = createWorld({
+    bodies: [], ground: { y: 0 }, g, field: vec(0, -g),
+    cannons: [{ id: 'c1', x: 0, y: 4, angleDeg: 90, speed: 6, everySeconds: 0, mass: 2, size: 0.2 }],
+  });
+  const start = totals(w).balance;
+  for (let i = 0; i < 100; i += 1) w = step(w, 1 / 200);
+  // ½·2·6² = 36 J of muzzle energy, plus 2·9.81·4 = 78.5 J of potential from
+  // appearing four metres up. Both arrived from the cannon, not from nowhere.
+  close(totals(w).supplied, 36 + 2 * g * 4, 1e-6);
+  close(totals(w).balance, start, 1e-6);
 });

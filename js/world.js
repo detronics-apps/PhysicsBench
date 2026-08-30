@@ -21,7 +21,8 @@
  */
 
 import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
-import { forcesOn, uniformField } from './forces.js';
+import { forcesOn, uniformField, buoyantMass } from './forces.js';
+import { wall as makeWall, nearestContact, isRealWall } from './segments.js';
 import { attractionVector, surfaceGravity } from './gravitation.js';
 import { substeps } from './integrator.js';
 import { collide1D } from './collide.js';
@@ -68,6 +69,14 @@ export function body(spec = {}) {
     // Drag properties. Zero area means the air cannot get hold of it.
     cd: spec.cd ?? 0.47,
     area: spec.area ?? Math.PI * radius * radius,
+    // Volume is a separate question from frontal area, and buoyancy needs this
+    // one. A car and a cube of the same width shove aside very different
+    // amounts of fluid.
+    volume: spec.volume ?? (4 / 3) * Math.PI * radius ** 3,
+    // Which outline to draw, so the renderer does not have to guess from kind.
+    shapeId: spec.shapeId || null,
+    // Whatever the pointer or the keyboard is asking of this body, as a force.
+    controlForce: spec.controlForce || ZERO,
     restitution: clamp01(spec.restitution ?? 0.5),
     muS: Math.max(0, spec.muS ?? 0.4),
     muK: Math.max(0, spec.muK ?? 0.3),
@@ -125,6 +134,21 @@ export function createWorld(spec = {}) {
       top: spec.bounds?.top ?? 1e6,
       restitution: clamp01(spec.bounds?.restitution ?? 0.9),
     },
+    /*
+     * Drawn walls: ramps, barriers, the sides of a box. Each is two points, and
+     * a body rests on one exactly as it rests on the ground — same normal force,
+     * same friction, same settling. Anything less and a car could be driven up a
+     * drawn ramp but not parked on it.
+     */
+    walls: (spec.walls || []).map(makeWall).filter(isRealWall),
+    /*
+     * Cannons fire copies of an object into the scene at a known speed and
+     * angle, which is the cheapest way to ask "what happens to twenty of these
+     * at once" without placing twenty of them by hand.
+     */
+    cannons: (spec.cannons || []).map(cannon),
+    maxBodies: Math.max(1, spec.maxBodies ?? 20),
+    shotCount: spec.shotCount ?? 0,
     bodyCollisions: spec.bodyCollisions ?? false,
     collisionRestitution: clamp01(spec.collisionRestitution ?? 1),
     // Energy that has left the mechanical account, and where it went. Never a
@@ -139,6 +163,36 @@ export function createWorld(spec = {}) {
     events: [],
   };
 }
+
+/**
+ * A cannon: a position, a direction, a muzzle speed, and what it fires.
+ *
+ * The muzzle speed is an initial velocity and nothing more — no force acts once
+ * the shot has left. That is deliberate, and it is the same lesson as step two:
+ * whatever happens to the shot afterwards is gravity, drag and walls, never a
+ * lingering memory of having been fired.
+ */
+export function cannon(spec = {}) {
+  return {
+    id: spec.id || 'c' + Math.random().toString(36).slice(2, 7),
+    x: Number.isFinite(spec.x) ? spec.x : 0,
+    y: Number.isFinite(spec.y) ? spec.y : 0,
+    angleDeg: Number.isFinite(spec.angleDeg) ? spec.angleDeg : 45,
+    speed: Math.max(0, Number.isFinite(spec.speed) ? spec.speed : 8),
+    mass: Math.max(1e-6, Number.isFinite(spec.mass) ? spec.mass : 0.5),
+    size: Math.max(0.01, Number.isFinite(spec.size) ? spec.size : 0.2),
+    shapeId: spec.shapeId || 'sphere',
+    // Zero means a single shot when the run starts; anything else is a rate.
+    everySeconds: Math.max(0, Number.isFinite(spec.everySeconds) ? spec.everySeconds : 1),
+    fired: spec.fired ?? 0,
+  };
+}
+
+/** The velocity a cannon gives whatever leaves it. */
+export const muzzleVelocity = (c) => vec(
+  c.speed * Math.cos((c.angleDeg * Math.PI) / 180),
+  c.speed * Math.sin((c.angleDeg * Math.PI) / 180),
+);
 
 /* -------------------------------------------------------------- geometry -- */
 
@@ -159,6 +213,41 @@ export function groundGap(ground, b) {
   return dot(sub(b.pos, vec(0, ground.y)), n) - support;
 }
 
+/**
+ * Whatever this body is standing on — the ground, or a wall somebody drew.
+ *
+ * One contact, whichever surface it comes from, because a model without
+ * rotation has one normal to work with. Returning the same shape for both means
+ * the normal force, friction, the settling rule and the anti-jitter clamp all
+ * work on a drawn ramp without knowing that drawn ramps exist.
+ *
+ * The ground wins ties. It is the surface the teaching steps are built on, and
+ * a wall drawn along the floor should not quietly take over from it.
+ */
+export function contactFor(world, b) {
+  if (b.fixed) return null;
+
+  if (isResting(world.ground, b)) {
+    return {
+      normal: groundNormal(world.ground),
+      muS: combine(world.ground.muS, b.muS),
+      muK: combine(world.ground.muK, b.muK),
+      surface: 'ground',
+    };
+  }
+
+  const hit = nearestContact(world.walls, b.pos, radiusAlong(b), CONTACT_TOLERANCE);
+  if (!hit) return null;
+  // Moving away from the wall fast enough not to count as resting on it.
+  if (dot(b.vel, hit.normal) > BOUNCE_THRESHOLD) return null;
+  return {
+    normal: hit.normal,
+    muS: combine(hit.mu, b.muS),
+    muK: combine(hit.mu * 0.75, b.muK),
+    surface: 'wall',
+  };
+}
+
 const isResting = (ground, b) => {
   if (!ground) return false;
   const gap = groundGap(ground, b);
@@ -174,9 +263,7 @@ const isResting = (ground, b) => {
  * recomputing it separately is how the numbers and the picture drift apart.
  */
 export function forcesFor(world, b) {
-  const contact = isResting(world.ground, b)
-    ? { normal: groundNormal(world.ground), muS: combine(world.ground.muS, b.muS), muK: combine(world.ground.muK, b.muK) }
-    : null;
+  const contact = contactFor(world, b);
 
   /*
    * Mutual gravitation is added as an extra force rather than folded into the
@@ -259,7 +346,13 @@ export function step(world, dt) {
      * static friction could hold, the body really is being pushed the other way
      * and must be allowed to go.
      */
-    const surface = result.contact.touching ? perp(groundNormal(world.ground)) : null;
+    // The direction along whichever surface it is on — the ground, or a wall
+    // somebody drew. Taking the ground's normal here regardless was fine while
+    // the ground was the only thing to stand on, and would have let a box creep
+    // sideways for ever on a ramp drawn at any other angle.
+    const surface = result.contact.touching && result.contact.normal
+      ? perp(result.contact.normal)
+      : null;
     let slid = 0;
     if (surface) {
       const beforeT = dot(b.vel, surface);
@@ -335,10 +428,14 @@ export function step(world, dt) {
     // taken along the mid-step displacement so it matches the energy the object
     // actually gained. This is the other side of the ledger: energy is not
     // being created when you push something, it is arriving from you.
-    const applied = result.by('applied');
-    if (applied && applied.magnitude > 0) {
+    // Both the timed push and whatever your hand is doing on the keyboard are
+    // outside agents doing work on the system, and both have to be booked, or
+    // the invariant on screen drifts the moment anybody drives.
+    for (const id of ['applied', 'control']) {
+      const external = result.by(id);
+      if (!external || external.magnitude <= 0) continue;
       const step = { x: (b.vel.x + vel.x) / 2 * dt, y: (b.vel.y + vel.y) / 2 * dt };
-      ledger.input += applied.vec.x * step.x + applied.vec.y * step.y;
+      ledger.input += external.vec.x * step.x + external.vec.y * step.y;
     }
 
     return { ...b, pos, vel };
@@ -349,19 +446,85 @@ export function step(world, dt) {
   for (let i = 0; i < bodies.length; i += 1) {
     if (bodies[i].fixed) continue;
     resolveGround(bodies, i, world, ledger, events);
+    resolveWalls(bodies, i, world, ledger, events);
     resolveBounds(bodies, i, world, ledger, events);
   }
 
   if (world.bodyCollisions) resolvePairs(bodies, world, ledger, events);
 
   const t = world.t + dt;
+
+  // Cannons fire inside the step, so a shot is recorded on the timeline like
+  // everything else, and scrubbing back to before it was fired shows a scene
+  // without it.
+  const fired = fireCannons(world, bodies, t, events, ledger);
+
   if (world.trailLimit > 0) {
     for (const b of bodies) {
       b.trail = [...b.trail, { x: b.pos.x, y: b.pos.y }].slice(-world.trailLimit);
     }
   }
 
-  return { ...world, t, bodies, ledger, events };
+  return { ...world, t, bodies, ledger, events, cannons: fired.cannons, shotCount: fired.shotCount };
+}
+
+/**
+ * Fire whichever cannons are due, up to the body limit.
+ *
+ * The limit is real and it says so when it is reached: past twenty bodies the
+ * drawing is a cloud rather than an experiment, and silently dropping shots
+ * would look like the cannon had broken.
+ */
+function fireCannons(world, bodies, t, events, ledger) {
+  const cannons = world.cannons || [];
+  if (!cannons.length) return { cannons, shotCount: world.shotCount ?? 0 };
+
+  let shotCount = world.shotCount ?? 0;
+  const next = cannons.map((c) => {
+    const due = c.everySeconds > 0 ? Math.floor(t / c.everySeconds) + 1 : 1;
+    if (c.fired >= due) return c;
+    if (bodies.length >= world.maxBodies) {
+      events.push({ type: 'cannon-full', id: c.id, limit: world.maxBodies, t });
+      return c;
+    }
+    shotCount += 1;
+    const shot = body({
+      id: 'shot-' + shotCount,
+      kind: c.shapeId === 'cube' || c.shapeId === 'plate' ? 'box' : 'ball',
+      shapeId: c.shapeId,
+      mass: c.mass,
+      radius: c.size / 2,
+      width: c.size,
+      height: c.size,
+      diameter: c.size,
+      pos: vec(c.x, c.y),
+      vel: muzzleVelocity(c),
+      restitution: world.collisionRestitution,
+      colour: 3,
+    });
+    bodies.push(shot);
+
+    /*
+     * A cannon does work on its shot, and that work has to be booked.
+     *
+     * Without this the shot simply appears holding kinetic energy that nothing
+     * paid for, and the number the app labels "the books" — the one it promises
+     * does not move — climbs by half a muzzle-energy every time the cannon
+     * goes off. An app that prints an invariant beside a figure visibly
+     * ratcheting upward has taught the opposite of what it meant to.
+     *
+     * The height it appears at costs too: a shot fired from three metres up
+     * arrives holding potential energy, and the cannon paid for that as well.
+     */
+    const kinetic = 0.5 * shot.mass * len2(shot.vel);
+    const potential = buoyantMass(shot, world.env) * world.env.g * (shot.pos.y - (world.ground?.y ?? 0));
+    ledger.input += kinetic + potential;
+
+    events.push({ type: 'fired', id: c.id, shot: 'shot-' + shotCount, t, muzzleEnergy: kinetic });
+    return { ...c, fired: c.fired + 1 };
+  });
+
+  return { cannons: next, shotCount };
 }
 
 function resolveGround(bodies, index, world, ledger, events) {
@@ -414,9 +577,51 @@ function bookContact(before, pos, vel, world, ledger) {
   const kineticBefore = 0.5 * before.mass * len2(before.vel);
   const kineticAfter = 0.5 * before.mass * len2(vel);
   // PE = −m·(field · position), so a move against the field costs energy.
-  const potentialChange = -before.mass * dot(world.env.field, sub(pos, before.pos));
+  // Against the *effective* mass: a fluid holding part of the weight up means
+  // less potential energy is bought by the same rise, and charging the full mass
+  // would book a contact as having lost energy it never had.
+  const potentialChange = -buoyantMass(before, world.env) * dot(world.env.field, sub(pos, before.pos));
   const lost = (kineticBefore - kineticAfter) - potentialChange;
   if (lost > 0) ledger.impact += lost;
+}
+
+/**
+ * Contact with a drawn wall, resolved exactly as the ground is.
+ *
+ * Deliberately the same shape as resolveGround rather than something cleverer,
+ * because the two have to agree: a ball dropped on the floor and the same ball
+ * dropped onto a wall drawn along the floor must bounce to the same height, or
+ * the drawing tool has quietly become a second physics engine.
+ *
+ * Repeated a few times, because a body in a corner is touching two walls and
+ * pushing it out of one can push it into the other.
+ */
+function resolveWalls(bodies, index, world, ledger, events) {
+  if (!world.walls?.length) return;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const b = bodies[index];
+    const hit = nearestContact(world.walls, b.pos, radiusAlong(b));
+    if (!hit || hit.depth <= 0) return;
+
+    const pos = add(b.pos, scale(hit.normal, hit.depth));
+    const approach = dot(b.vel, hit.normal);
+    let vel = b.vel;
+
+    if (approach < 0) {
+      const e = combine(hit.restitution, b.restitution);
+      const normalPart = scale(hit.normal, approach);
+      const tangentPart = sub(b.vel, normalPart);
+      if (Math.abs(approach) > BOUNCE_THRESHOLD) {
+        vel = add(tangentPart, scale(hit.normal, -approach * e));
+        events.push({ type: 'bounce', id: b.id, surface: 'wall', speed: Math.abs(approach), e, t: world.t });
+      } else {
+        vel = tangentPart;
+      }
+    }
+
+    bookContact(b, pos, vel, world, ledger);
+    bodies[index] = { ...b, pos, vel };
+  }
 }
 
 function resolveBounds(bodies, index, world, ledger, events) {
@@ -541,8 +746,9 @@ export function inspect(world, id) {
     acceleration: result.acceleration,
     momentum: scale(b.vel, b.mass),
     kinetic: 0.5 * b.mass * len(b.vel) ** 2,
-    potential: b.mass * world.env.g * (b.pos.y - (world.ground?.y ?? 0)),
+    potential: buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0)),
     weight: b.mass * world.env.g,
+    buoyantWeight: buoyantMass(b, world.env) * world.env.g,
     heightAboveGround: height,
     forces: result.forces,
     net: result.net,
@@ -561,7 +767,7 @@ export function totals(world) {
     px += b.mass * b.vel.x;
     py += b.mass * b.vel.y;
     kinetic += 0.5 * b.mass * len(b.vel) ** 2;
-    potential += b.mass * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
+    potential += buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
   }
   const moved = world.ledger.heat + world.ledger.impact;
   const supplied = world.ledger.input;
@@ -589,6 +795,8 @@ export const restore = (world, snapshot) => ({
   t: snapshot.t,
   bodies: snapshot.bodies.map((b) => ({ ...b, pos: { ...b.pos }, vel: { ...b.vel }, trail: [...b.trail] })),
   ledger: { ...snapshot.ledger },
+  cannons: snapshot.cannons ? snapshot.cannons.map((c) => ({ ...c })) : world.cannons,
+  shotCount: snapshot.shotCount ?? world.shotCount,
   events: [],
 });
 
@@ -597,6 +805,8 @@ export const snapshot = (world) => ({
   t: world.t,
   bodies: world.bodies.map((b) => ({ ...b, pos: { ...b.pos }, vel: { ...b.vel }, trail: [...b.trail] })),
   ledger: { ...world.ledger },
+  cannons: (world.cannons || []).map((c) => ({ ...c })),
+  shotCount: world.shotCount ?? 0,
 });
 
 export { perp, ZERO };

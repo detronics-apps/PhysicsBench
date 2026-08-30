@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   STAGES, stageById, stageIndex, featuresAt, build, applyPush, pushState,
-  channelsFor, vectorsFor,
+  channelsFor, vectorsFor, applyLive, structuralKey, MAX_OBJECTS, inSpace,
 } from '../js/stages.js';
 import { defaults, VECTOR_IDS } from '../js/state.js';
 import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
@@ -292,4 +292,132 @@ test('stage lookups fall back rather than throwing', () => {
   assert.equal(stageById('nonsense').id, 'mass');
   assert.equal(stageIndex('nonsense'), 0);
   assert.equal(stageIndex('collide'), 7);
+});
+
+
+/* ------------------------------------------------ live parameter editing -- */
+
+test('changing a number does not move or stop what is already running', () => {
+  const p = { ...defaults().bench };
+  const f = featuresAt('push');
+  let s = build('push', p);
+  let w = applyPush(s.world, p, f);
+  for (let i = 0; i < 200; i += 1) {
+    w = applyPush(w, p, f);
+    w = advance(w, 1 / 100);
+  }
+  const before = findBody(w, 'main');
+  const wasAt = { ...before.pos };
+  const wasGoing = { ...before.vel };
+
+  // Change the mass, the shape and the push angle, all at once, mid-run.
+  const after = applyLive(w, { ...p, mass: 5, shapeId: 'cube', pushAngleDeg: 90 }, f, { stageId: 'push' });
+  const b = findBody(after, 'main');
+
+  assert.deepEqual(b.pos, wasAt);
+  assert.deepEqual(b.vel, wasGoing);
+  assert.equal(b.mass, 5);
+  assert.equal(b.shapeId, 'cube');
+  assert.ok(after.t > 0);
+});
+
+test('at the very start, the starting position still means something', () => {
+  const p = { ...defaults().bench };
+  const f = featuresAt('surface');
+  const w = build('surface', p).world;
+  const moved = applyLive(w, { ...p, x0: 3 }, f, { stageId: 'surface' });
+  // Nothing has run yet, so "starts at" and "is at" are the same statement and
+  // dragging the slider ought to move it.
+  assert.ok(Math.abs(findBody(moved, 'main').pos.x - 3) < 0.2);
+});
+
+test('the structural key changes only when the scene has to be rebuilt', () => {
+  const p = defaults().bench;
+  const same = [
+    { ...p, mass: 99 },
+    { ...p, pushAngleDeg: 180 },
+    { ...p, fluidId: 'honey' },
+    { ...p, walls: [{ x1: 0, y1: 0, x2: 1, y2: 0 }] },
+  ];
+  for (const q of same) assert.equal(structuralKey('collide', q), structuralKey('collide', p));
+
+  // Adding an object changes what bodies exist, which nothing live can do.
+  assert.notEqual(
+    structuralKey('collide', { ...p, objects: [...p.objects, { id: 'o3', mass: 1, size: 0.3, shapeId: 'cube', x: 2, y: 0, vx: 0, vy: 0 }] }),
+    structuralKey('collide', p),
+  );
+  assert.notEqual(structuralKey('collide', p), structuralKey('fluid', p));
+  assert.notEqual(structuralKey('collide', { ...p, worldMode: 'space' }), structuralKey('collide', p));
+});
+
+/* ------------------------------------------------------------- in space -- */
+
+test('space takes away the floor and the field together', () => {
+  const p = { ...defaults().bench, worldMode: 'space' };
+  const s = build('friction', p);
+  assert.equal(s.world.ground, null);
+  assert.equal(s.world.env.g, 0);
+  close(s.world.env.field.y, 0, 1e-12);
+  assert.equal(s.space, true);
+  // No planet is drawn either, because there is no planet.
+  assert.equal(s.world.bodies.some((b) => b.kind === 'planet'), false);
+});
+
+test('an object in space keeps whatever velocity it has', () => {
+  const p = { ...defaults().bench, worldMode: 'space', v0: 2, pushSeconds: 0, fluidId: 'vacuum' };
+  const f = featuresAt('friction');
+  let w = build('friction', p).world;
+  for (let i = 0; i < 500; i += 1) {
+    w = applyPush(w, p, f);
+    w = advance(w, 1 / 100);
+  }
+  const b = findBody(w, 'main');
+  close(b.vel.x, 2, 1e-9);
+  close(b.vel.y, 0, 1e-9);
+  close(b.pos.x, 10, 1e-6);
+});
+
+test('the arrows offered in space are only the ones that exist there', () => {
+  const p = { ...defaults().bench, worldMode: 'space' };
+  const ids = vectorsFor('friction', p).map((v) => v.id);
+  // No weight, no normal force, no friction — offering them would teach that
+  // they are always there.
+  assert.ok(!ids.includes('weight'));
+  assert.ok(!ids.includes('normal'));
+  assert.ok(!ids.includes('friction'));
+  assert.ok(ids.includes('velocity'));
+
+  // Draw a wall to stand on — which the sandbox steps allow — and the normal
+  // force becomes real again, because now there is something to stand on.
+  const withWall = vectorsFor('collide', { ...p, walls: [{ x1: -1, y1: 0, x2: 1, y2: 0 }] }).map((v) => v.id);
+  assert.ok(withWall.includes('normal'));
+});
+
+test('buoyancy is offered only where there is a fluid to do the pushing', () => {
+  const p = defaults().bench;
+  assert.ok(vectorsFor('fluid', { ...p, fluidId: 'water' }).map((v) => v.id).includes('buoyancy'));
+  assert.ok(!vectorsFor('fluid', { ...p, fluidId: 'vacuum' }).map((v) => v.id).includes('buoyancy'));
+  assert.ok(!vectorsFor('surface', p).map((v) => v.id).includes('buoyancy'));
+});
+
+test('every step still declares all four kinds, in space as well as on a world', () => {
+  for (const stage of STAGES) {
+    for (const worldMode of ['planet', 'space']) {
+      const s = build(stage.id, { ...defaults().bench, worldMode });
+      assert.ok(s.disclosure.reality.length > 20, stage.id);
+      assert.ok(s.disclosure.models.length > 0, stage.id);
+      assert.ok(findBody(s.world, 'main'), stage.id + ' lost the object');
+    }
+  }
+});
+
+test('up to twenty objects, each with its own size, mass and shape', () => {
+  const objects = Array.from({ length: 25 }, (_, i) => ({
+    id: 'o' + (i + 2), mass: i + 2, size: 0.2 + i * 0.01, shapeId: 'cube', x: i, y: 0, vx: 0, vy: 0,
+  }));
+  const s = build('collide', { ...defaults().bench, objects });
+  const movable = s.world.bodies.filter((b) => !b.fixed);
+  assert.equal(movable.length, 20);
+  // Each really is its own object, not twenty copies of one.
+  assert.equal(new Set(movable.map((b) => b.mass)).size, 20);
 });

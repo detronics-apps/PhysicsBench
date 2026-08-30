@@ -264,3 +264,88 @@ export function gridLines(cam) {
   for (let y = firstY; y <= box.maxY + 1e-9 && ys.length < limit; y += step) ys.push(Number(y.toPrecision(12)));
   return { step, xs, ys, box };
 }
+
+/**
+ * Lay out a set of labels so that none of them lands on another.
+ *
+ * Nine arrows leaving one object put nine pieces of text within about eighty
+ * pixels of each other, and several of those arrows are near-parallel by
+ * construction — weight and the normal force are exactly opposite on a resting
+ * body, momentum and velocity always point the same way. Their labels land on
+ * top of one another and the result is unreadable in exactly the situations the
+ * arrows exist to explain.
+ *
+ * The rule is: keep every label as near as possible to where it asked to be,
+ * move it only as far as it takes to be clear of the ones already placed, and
+ * never let it leave the canvas. Earlier items in the list win ties, so the
+ * caller can put the important arrow first and know it will not be the one
+ * shoved into a corner.
+ *
+ * Candidates are `{ x, y, width, height }` boxes with `x, y` the top-left of
+ * where the text wants to sit. The return is the same list with `x` and `y`
+ * resolved, in the same order.
+ */
+export function placeLabels(candidates, viewWidth, viewHeight, {
+  gap = 3,
+  stride = null,
+  attempts = 24,
+} = {}) {
+  const placed = [];
+  const out = [];
+
+  /*
+   * How far to move a label to get it out of the way, worked out from how tall
+   * the labels actually are rather than picked.
+   *
+   * A stride shorter than the label height cannot clear an overlap: the box
+   * moves down by less than its own height and still covers part of what it was
+   * avoiding, so the search runs out of attempts having improved nothing. That
+   * was a real bug here — a stride of 13 against text that renders 14 to 15
+   * pixels tall, which left exactly one pair touching in the busiest scene and
+   * looked for all the world like the placement logic not running at all.
+   */
+  const tallest = candidates.reduce((m, c) => Math.max(m, c.height || 0), 0);
+  const step = stride ?? Math.max(12, tallest + gap + 2);
+
+  for (const candidate of candidates) {
+    const width = Math.max(0, candidate.width || 0);
+    const height = Math.max(0, candidate.height || 0);
+    let best = null;
+
+    for (let i = 0; i < attempts; i += 1) {
+      // Straight down, straight up, then progressively further out and to one
+      // side. Vertical first because text is wider than it is tall, so a
+      // vertical nudge clears an overlap in the least distance.
+      const rung = Math.ceil(i / 2);
+      const sign = i % 2 === 0 ? 1 : -1;
+      const dy = i === 0 ? 0 : sign * rung * step;
+      // Sideways only once the vertical ladder has been exhausted, and then
+      // increasingly far, so a busy scene spreads rather than piling up in one
+      // column and giving up.
+      const dx = i < 6 ? 0 : sign * rung * (width * 0.45);
+
+      const spot = clampLabel(
+        { x: candidate.x + dx, y: candidate.y + dy, width, height },
+        viewWidth, viewHeight,
+      );
+      const box = { x: spot.x, y: spot.y - height, width, height };
+
+      if (best === null) best = box;                       // a fallback that at least fits
+      if (!placed.some((other) => overlaps(box, other, gap))) {
+        best = box;
+        break;
+      }
+    }
+
+    placed.push(best);
+    out.push({ ...candidate, x: best.x, y: best.y + height, width, height });
+  }
+  return out;
+}
+
+/** Do two boxes touch, allowing for a gap that must stay clear between them? */
+export const overlaps = (a, b, gap = 0) =>
+  a.x < b.x + b.width + gap
+  && a.x + a.width + gap > b.x
+  && a.y < b.y + b.height + gap
+  && a.y + a.height + gap > b.y;

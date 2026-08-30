@@ -23,6 +23,11 @@ its slider is still where you left it.
 | 7 | **Put it in a fluid** | Air, water, honey — what actually changes? |
 | 8 | **A second object** | What survives a collision, and what does not? |
 
+From step five the bench can also be moved to **deep space**, which removes the floor and the
+gravitational field together — the honest pairing, since there is no such thing as a world with
+gravity and nothing to stand on. From step seven it becomes a sandbox: draw walls and ramps, add
+cannons, put up to twenty objects on it, and from step eight take the controls and drive one.
+
 The point of building it this way is that split across separate labs, "mass", "force", "gravity",
 "friction" and "drag" look like separate subjects with separate formulas. Accumulated on one
 object they are visibly one story: each step is another force joining the same vector sum, and the
@@ -33,6 +38,34 @@ about 4×10⁻⁹ N — roughly a millionth of the weight of a grain of sand. Gr
 planet and the *same equation* gives 9.8 m/s², while the surface under the object flattens until
 "towards the centre" and "down" are the same direction. Nothing is added to make weight happen.
 It is that faint tug, with a planet on the other end.
+
+## Changing things while it runs
+
+Nothing here restarts when you change it. Set the object moving, then drag the push angle and watch
+the path bend from where the object actually is; make it heavier mid-flight and watch the same force
+buy less acceleration. Sliders commit on every movement of the thumb rather than on release, because
+the change is the thing worth watching. Only a change that alters *what bodies exist* — a different
+step, an object added or removed — rebuilds anything, and the app works that out for itself.
+
+## Building a scene
+
+The last two steps turn the bench into a sandbox without taking anything away from it.
+
+- **Walls** are drawn by dragging on the picture. Each is a straight segment with two ends, and a
+  body rests on one exactly as it rests on the ground: same normal force, same friction, same
+  settling — and it rolls off the end, because a segment has ends. A ball dropped on the floor and
+  the same ball dropped on a wall drawn along the floor bounce to the same height to six decimal
+  places, because there is one contact routine and not two.
+- **Cannons** give an object a velocity and then have nothing more to do with it. That is the same
+  lesson as the timed push in step two: whatever happens next is gravity, drag and walls, never a
+  memory of having been fired.
+- **Twenty objects**, each with its own size, mass and shape. Cannon shots count towards the twenty,
+  and when the bench is full the cannons stop and say so.
+- **Driving.** Connect an object to the pointer or to the arrow keys. Both are forces — they join
+  the same vector sum as weight and friction, get their own arrow, and their work is booked on the
+  same ledger. Moving the object directly would give it infinite acceleration and no momentum
+  history, and every arrow around it would then be describing a motion that F = ma had no part in.
+  Draw a ramp, make the object a car, and drive it up.
 
 ## Choosing what you can see
 
@@ -77,9 +110,14 @@ than intended. Some consequences:
   (Clift–Gauvin), which collapses exactly to Stokes' law at the low end and to the familiar
   constant at the high end. In air, doubling the speed quadruples the drag; in honey it doubles
   it. One equation, two behaviours, and the readout says which regime you are in.
-- **Energy is never simply lost.** Work done by the push is booked as an input, friction and drag
-  are booked as heat, collisions as impact — and the number labelled *the books* does not move,
-  whatever is pushed, heated or dropped.
+- **Energy is never simply lost, and never quietly created.** Work done by the push, by your hand
+  on the keyboard, and by a cannon on its shot is booked as input; friction and drag are booked as
+  heat, collisions as impact — and the number labelled *the books* does not move, whatever is
+  pushed, heated, dropped or fired.
+- **Floating and sinking are the same force.** Buoyancy is modelled, not assumed away:
+  F = ρ_fluid · V · g, taken from the shape's real volume, so a balloon in water rises for exactly
+  the reason a stone sinks. Potential energy is computed against the buoyant mass, which is what
+  stops a floating object gaining energy nobody paid for.
 - **Where the model runs out, it says so.** Invent a neutron star and the object is held at a
   tenth of the speed of light with an explanation, rather than shown numbers with nothing behind
   them.
@@ -105,11 +143,13 @@ nothing to install:
 npm test
 ```
 
-239 cases across 18 modules, and they are invariants rather than examples: momentum is conserved
-at every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
+293 cases across 20 modules, and they are invariants rather than examples: momentum is conserved at
+every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
-opposite whatever their masses, a migrated state round-trips unchanged, and every arrow stays
-inside its canvas.
+opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a
+cannon pays for what it fires, holding two arrow keys is no faster than holding one, every shape
+outline fills its own box, a migrated state round-trips unchanged, and every arrow stays inside its
+canvas.
 
 ## Deploying to GitHub Pages
 
@@ -130,7 +170,9 @@ js/vec.js             2D vectors; x right, y UP, angles anticlockwise
 js/constants.js       G, standard gravity, c — and which of them are defined
 js/gravitation.js     G·m₁·m₂/r², the worlds, and when a sphere becomes flat
 js/drag.js            Reynolds number, the fluids, and why honey is not thick air
-js/shapes.js          what shape changes: how it sits, its area, its drag
+js/shapes.js          what shape changes: how it sits, its area, its drag, its outline
+js/segments.js        drawn walls: contact, normals, and where a ramp ends
+js/control.js         driving by pointer or keyboard, as forces rather than teleports
 js/models.js          reality / model / assumption / approximation, and the equations
 js/integrator.js      RK4 and semi-implicit Euler
 js/forces.js          weight, normal, friction, drag — each named, never just a net
@@ -140,11 +182,11 @@ js/kinematics.js      the constant-acceleration relations and a solver
 js/collide.js         one-dimensional and planar impacts at any restitution
 js/energy.js          an energy audit that relocates rather than loses
 js/momentum.js        p = mv, impulse, and how wrong that is near c
-js/camera.js          metres to pixels, and the rules for drawing an arrow
+js/camera.js          metres to pixels, arrow rules, and keeping labels off each other
 js/graph.js           graph geometry: ticks, scales, paths that stay in their box
 js/recorder.js        the recording the animation and the graphs both read
 js/state.js           one parameter object, localStorage, URL-hash sharing
-js/main.js            the shell, the clock, and the two render paths
+js/main.js            the shell, the clock, live editing, pointer and keyboard input
 js/ui/bench.js        the controls, readouts and teaching panels
 js/ui/vectors.js      the arrow picker
 js/ui/                renderers, the inspector, the transport, DOM helpers
@@ -180,10 +222,11 @@ iteratively, so the simulation and the table beside it agree to five decimal pla
 speeds are found by search rather than by the closed form, because the drag coefficient is not
 constant.
 
-**What is not modelled.** Rotation of bodies, buoyancy, wind, air-density variation with altitude,
-deformation, the drag crisis above the critical Reynolds number, the recoil of a planet, and where
-lost energy goes after it is accounted for. Each is declared in the step that assumes it away,
-along with what would change if it were not.
+**What is not modelled.** Rotation of bodies, partial immersion at a free surface (buoyancy assumes
+the object is fully surrounded, which is right for a balloon in air and wrong for a boat), wind,
+air-density variation with altitude, deformation, the drag crisis above the critical Reynolds
+number, the recoil of a planet, and where lost energy goes after it is accounted for. Each is
+declared in the step that assumes it away, along with what would change if it were not.
 
 ## Licence
 

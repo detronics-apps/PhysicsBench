@@ -190,6 +190,51 @@ export const MODELS = Object.fromEntries([
       + 'immeasurably small amount.',
   ),
   entry(
+    'buoyancy', 'model', 'Archimedes\' principle',
+    'A body immersed in a fluid is pushed up with a force equal to the weight '
+      + 'of the fluid it displaces: F = ρ_fluid · V · g.',
+    'It is the whole of floating and sinking in one line, and it explains why '
+      + 'the answer depends on the volume of the object and not at all on what '
+      + 'the object is made of.',
+    'A partly submerged body displaces only the volume actually under the '
+      + 'surface, which is what makes a boat settle at a particular waterline '
+      + 'instead of either sinking or leaping out. A compressible body — a '
+      + 'balloon rising through air — expands as the pressure falls, so its '
+      + 'displaced volume grows with height.',
+    'The pressure in a fluid increases with depth, so the fluid pushes harder on '
+      + 'the bottom of a submerged object than on its top, and the difference is '
+      + 'an upward force.',
+  ),
+  entry(
+    'segment-surfaces', 'model', 'Walls as straight segments',
+    'Every drawn obstacle is a straight line with two ends, and a body meeting '
+      + 'one gets the same normal force, friction and settling as it would from '
+      + 'the ground.',
+    'One contact routine for every surface means a ball dropped on the floor and '
+      + 'the same ball dropped on a wall drawn along the floor bounce to the same '
+      + 'height. Two routines would eventually disagree.',
+    'A real surface is curved, has thickness, and deflects under load. A thin '
+      + 'segment can also be passed through entirely by anything moving fast '
+      + 'enough to cross it within one time step.',
+    'Contact between solids is a distributed pressure over a small deformed '
+      + 'area, not a point touching a line.',
+  ),
+  entry(
+    'spring-control', 'model', 'A spring to the pointer',
+    'Following the pointer is modelled as a spring between the object and the '
+      + 'cursor, F = k·(target − position), with damping opposing the velocity.',
+    'It keeps the object under the same F = ma as everything else. Setting the '
+      + 'position directly would give it infinite acceleration and no momentum '
+      + 'history, and every arrow around it would then be describing a motion '
+      + 'that force had no part in.',
+    'A real hand on a real object applies contact forces at the point it holds, '
+      + 'which also produce torque. The damping term here stands in for '
+      + 'everything that would otherwise leave the object oscillating about the '
+      + 'cursor for ever.',
+    'You cannot move an object without applying a force to it, and the force '
+      + 'decides the acceleration, not the position.',
+  ),
+  entry(
     'numeric-integration', 'model', 'Step-by-step numerical integration',
     'Motion is advanced in small time steps rather than solved as a formula, '
       + 'using a fourth-order Runge–Kutta scheme.',
@@ -226,6 +271,33 @@ export const ASSUMPTIONS = Object.fromEntries([
       + 'is why a feather and a hammer do not quite fall together even before '
       + 'drag is considered.',
     'A submerged object is pushed up by the weight of the fluid it displaces.',
+  ),
+  entry(
+    'fully-immersed', 'assumption', 'The object is completely surrounded by fluid',
+    'Buoyancy is computed from the object\'s whole volume, whether it is deep '
+      + 'in the fluid or not, and there is no free surface for it to float at.',
+    'It keeps buoyancy to one clean statement — up by the weight of the volume '
+      + 'displaced — instead of a partial-immersion calculation that depends on '
+      + 'the shape of the object at the waterline.',
+    'A floating object would rise until part of it broke the surface, then '
+      + 'settle where the submerged part displaced exactly its own weight. Here '
+      + 'it simply keeps rising, which is right for a balloon in air and wrong '
+      + 'for a boat.',
+    'A partly submerged body displaces only the fluid actually beneath the '
+      + 'surface.',
+  ),
+  entry(
+    'deep-space', 'assumption', 'Nothing else is out here',
+    'In space the simulation has no gravitational field and no ground: the only '
+      + 'forces are the ones you add.',
+    'It is the cleanest way to see what a force does on its own, with nothing '
+      + 'competing. Every effect you then see is something you put there.',
+    'Real space has gravity everywhere — an object near the Earth is in free '
+      + 'fall, not free of gravity, which is exactly why astronauts float. There '
+      + 'is also a thin gas, sunlight pressure and the pull of everything else in '
+      + 'the universe.',
+    'Weightlessness is what falling freely feels like, not the absence of '
+      + 'gravity.',
   ),
   entry(
     'no-rotation', 'assumption', 'Objects do not spin',

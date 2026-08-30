@@ -2,7 +2,7 @@
  * The bench: the object, whatever it is sitting on, and every physical quantity
  * drawn as an arrow. The one place world metres become screen pixels.
  *
- * Three rules run through the whole renderer, and all three come from the
+ * Four rules run through the whole renderer, and all four come from the
  * teaching rather than from graphics.
  *
  * **One scale per quantity.** Every force arrow is drawn to the same
@@ -18,20 +18,49 @@
  * **Every arrow can be switched off.** Nine arrows on one object is a thicket,
  * and the interesting question is usually about two of them. The picker decides
  * what is drawn; this file only asks whether each one is wanted.
+ *
+ * **A shape looks like the shape it is.** A streamlined teardrop drawn as a
+ * rectangle with C_d = 0.04 written under it teaches nothing, so every shape
+ * carries its own outline and the renderer draws that. A car gets two outlines,
+ * and which one is right depends on whether the scene has a "down" in it.
  */
 
 import { svg, el } from './dom.js';
 import {
   createCamera, toScreen, toPixels, boundsFor, arrowHead, gridLines, clampLabel, visibleWorld,
+  placeLabels,
 } from '../camera.js';
 import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
+import { outline } from '../shapes.js';
+import { wallBounds, alongWall } from '../segments.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
 import { fmtFixed } from '../format.js';
 
 const VIEW_W = 880;
 const VIEW_H = 460;
+
+/**
+ * How tall a label actually renders, including the ascender and descender.
+ *
+ * Measured rather than assumed: an 11px font produces a 15px box and a 10.5px
+ * one produces 14px, and telling the placer they were 11 is exactly how two
+ * labels ended up touching after the placer had declared them clear.
+ */
+const LABEL_H = { arrow: 14, body: 15 };
+
+/**
+ * Above this many objects, only the selected one gets numbers on its arrows.
+ *
+ * Nine arrows on one object is a thicket, which the picker exists to thin.
+ * Seven objects with six arrows each is a different failure altogether: forty
+ * pieces of text competing for one canvas, and no amount of moving them apart
+ * makes that readable. The arrows themselves stay — their directions and
+ * lengths are still the picture — and the numbers move to the inspector, which
+ * is where a value you want to read precisely belongs anyway.
+ */
+const CROWD_LIMIT = 3;
 
 /** How long the longest arrow of each kind is drawn, in pixels. */
 const ARROW_PX = { force: 74, velocity: 64, acceleration: 56, momentum: 56 };
@@ -57,14 +86,19 @@ export const VECTOR_STYLE = {
  *
  * @param {object} world
  * @param {object} options
- *   `{ selectedId, vectors, view, focusId }` — `vectors` is the per-arrow map
- *   straight from the picker.
+ *   `{ selectedId, vectors, view, focusId, pointer, drawing, control }` —
+ *   `vectors` is the per-arrow map straight from the picker, `drawing` is a wall
+ *   being dragged out right now, and `pointer` is where the cursor is in world
+ *   metres.
  */
 export function renderScene(world, {
   selectedId = null,
   vectors = {},
   view = {},
   focusId = 'main',
+  pointer = null,
+  drawing = null,
+  control = null,
 } = {}) {
   const root = svg('svg', {
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
@@ -84,36 +118,96 @@ export function renderScene(world, {
    */
   const planets = world.bodies.filter((b) => b.kind === 'planet');
   const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
-  const focus = ordinary.find((b) => b.id === focusId) || ordinary[0];
+  const cam = sceneCamera(world, focusId);
 
-  const box = planets.length && focus
-    ? windowAround(focus, ordinary, planets)
-    : boundsFor(ordinary, { ground: world.ground });
-
-  const cam = createCamera({
-    world: box, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
-  });
+  /*
+   * Whether the scene has a "down" in it.
+   *
+   * Everything that has an up and a down — a car on its wheels, a balloon with
+   * its neck below it — is drawn side-on when there is a field, and from above
+   * when there is not. A car in deep space seen from the side, apparently
+   * driving along nothing, would be a picture of a situation that does not
+   * exist.
+   */
+  const topDown = !world.ground && Math.abs(world.env?.field?.y ?? 0) < 1e-9;
 
   for (const planet of planets) root.appendChild(drawPlanet(cam, planet));
   if (view.showGrid !== false) root.appendChild(drawGrid(cam));
   if (world.ground) root.appendChild(drawGround(cam, world.ground));
+  if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
+  if (drawing) root.appendChild(drawPending(cam, drawing));
+  if (world.cannons?.length) root.appendChild(drawCannons(cam, world.cannons));
 
   // Trails go under the bodies, so an object is never hidden by its own path.
   if (view.showTrail !== false) {
     for (const b of ordinary) root.appendChild(drawTrail(cam, b));
   }
+
+  const labels = [];
+
   // Anything non-finite is skipped rather than emitted: `cx="NaN"` empties the
   // whole drawing with no explanation, and the banner is a better explanation.
   for (const b of ordinary) {
     if (Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y)) {
-      root.appendChild(drawBody(cam, b, b.id === selectedId));
+      root.appendChild(drawBody(cam, b, b.id === selectedId, topDown, labels));
     }
   }
 
+  if (control) root.appendChild(drawControl(cam, world, control, pointer));
+
   // Arrows go on top of everything: they are the point of the drawing.
-  root.appendChild(drawVectors(world, cam, { vectors, view, ordinary }));
+  const movable = ordinary.filter((b) => !b.fixed);
+  const crowded = movable.length > CROWD_LIMIT;
+  root.appendChild(drawVectors(world, cam, {
+    vectors, view, ordinary, labels,
+    // On a crowded bench the numbers follow the selection rather than covering
+    // everything at once.
+    labelIds: crowded ? new Set([selectedId, focusId].filter(Boolean)) : null,
+  }));
+
+  if (crowded && view.showValues !== false) {
+    root.appendChild(svg('text', {
+      x: 8, y: VIEW_H - 22, fill: 'var(--text-faint)', 'font-size': 10,
+    }, `${movable.length} objects — values are shown for the selected one; the rest keep their arrows`));
+  }
+
+  /*
+   * Every label on the drawing is placed last, together.
+   *
+   * Nine arrows leaving one object put nine pieces of text inside eighty pixels
+   * of each other, and several of those arrows are near-parallel by
+   * construction — weight and the normal force are exactly opposite on a
+   * resting body. Placed one at a time each is correct and the set is
+   * unreadable, which is worst in exactly the situations the arrows exist to
+   * explain. Collecting them and resolving the collisions once is the only way
+   * a label can know what else is already there.
+   */
+  root.appendChild(drawLabels(labels));
 
   return root;
+}
+
+/**
+ * The camera this world is drawn through.
+ *
+ * Exported because the drawing is also an input surface: a wall dragged out on
+ * it, and a pointer the object is being towed towards, both need pixels turned
+ * back into metres. Two cameras computed from the same rules would agree until
+ * one of them was changed, and a wall landing a little away from where it was
+ * drawn is a maddening bug to find. There is one.
+ */
+export function sceneCamera(world, focusId = 'main') {
+  const planets = world.bodies.filter((b) => b.kind === 'planet');
+  const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
+  const focus = ordinary.find((b) => b.id === focusId) || ordinary[0];
+
+  const box = planets.length && focus
+    ? windowAround(focus, ordinary, planets)
+    : withWalls(boundsFor(ordinary, { ground: world.ground }), world.walls, world.cannons);
+
+  return createCamera({
+    world: box, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
+  });
 }
 
 /**
@@ -147,6 +241,29 @@ function windowAround(focus, all, planets = []) {
     maxY = Math.max(maxY, b.pos.y + rad);
   }
   return { minX, maxX, minY, maxY };
+}
+
+/** Walls and cannons are part of the scene, so the framing has to include them. */
+function withWalls(box, walls, cannons) {
+  let out = box;
+  const wb = wallBounds(walls);
+  if (wb) {
+    out = {
+      minX: Math.min(out.minX, wb.minX - 0.3),
+      maxX: Math.max(out.maxX, wb.maxX + 0.3),
+      minY: Math.min(out.minY, wb.minY - 0.3),
+      maxY: Math.max(out.maxY, wb.maxY + 0.3),
+    };
+  }
+  for (const c of cannons || []) {
+    out = {
+      minX: Math.min(out.minX, c.x - 0.6),
+      maxX: Math.max(out.maxX, c.x + 0.6),
+      minY: Math.min(out.minY, c.y - 0.6),
+      maxY: Math.max(out.maxY, c.y + 0.6),
+    };
+  }
+  return out;
 }
 
 /* --------------------------------------------------------------- ground -- */
@@ -269,6 +386,109 @@ function drawGround(cam, ground) {
   return group;
 }
 
+/* ---------------------------------------------------------------- walls -- */
+
+/**
+ * Drawn obstacles.
+ *
+ * Ends are marked, because a segment having ends is the whole difference
+ * between a wall and a floor: a body rolls off the end of one and not the
+ * other, and a learner watching it happen should be able to see where the end
+ * was.
+ */
+function drawWalls(cam, walls) {
+  const group = svg('g', { class: 'scene__walls' });
+  for (const w of walls) {
+    const a = toScreen(cam, { x: w.x1, y: w.y1 });
+    const b = toScreen(cam, { x: w.x2, y: w.y2 });
+    if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) continue;
+    group.appendChild(svg('line', {
+      x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
+      stroke: 'var(--wall)', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-opacity': 0.85,
+    }));
+    for (const end of [a, b]) {
+      group.appendChild(svg('circle', {
+        cx: r(end.x), cy: r(end.y), r: 3.2, fill: 'var(--wall)', 'fill-opacity': 0.9,
+      }));
+    }
+  }
+  return group;
+}
+
+/** The wall currently being dragged out, before the mouse has been let go. */
+function drawPending(cam, drawing) {
+  const group = svg('g', { class: 'scene__pending' });
+  const a = toScreen(cam, drawing.from);
+  const b = toScreen(cam, drawing.to);
+  if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) return group;
+  group.appendChild(svg('line', {
+    x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
+    stroke: 'var(--accent-strong)', 'stroke-width': 4,
+    'stroke-linecap': 'round', 'stroke-dasharray': '8 5',
+  }));
+  const metres = Math.hypot(drawing.to.x - drawing.from.x, drawing.to.y - drawing.from.y);
+  const angle = (Math.atan2(drawing.to.y - drawing.from.y, drawing.to.x - drawing.from.x) * 180) / Math.PI;
+  group.appendChild(svg('text', {
+    x: r((a.x + b.x) / 2), y: r((a.y + b.y) / 2 - 10), 'text-anchor': 'middle',
+    fill: 'var(--accent-strong)', 'font-size': 11, 'font-weight': 600,
+  }, `${fmtFixed(metres, 2)} m at ${fmtFixed(angle, 0)}°`));
+  return group;
+}
+
+/**
+ * A cannon: a base and a barrel pointing the way it will fire.
+ *
+ * Drawn at a fixed pixel size rather than in metres. A cannon is a piece of
+ * apparatus, not an object in the experiment — it has no mass, takes part in
+ * nothing, and scaling it with the scene would make it either invisible or the
+ * biggest thing on the bench.
+ */
+function drawCannons(cam, cannons) {
+  const group = svg('g', { class: 'scene__cannons' });
+  for (const c of cannons) {
+    const at = toScreen(cam, { x: c.x, y: c.y });
+    if (!Number.isFinite(at.x) || !Number.isFinite(at.y)) continue;
+    // World y is up, screen y is down: the flip, applied once, here.
+    const rad = (-c.angleDeg * Math.PI) / 180;
+    const dx = Math.cos(rad);
+    const dy = Math.sin(rad);
+    group.appendChild(svg('line', {
+      x1: r(at.x), y1: r(at.y), x2: r(at.x + dx * 26), y2: r(at.y + dy * 26),
+      stroke: 'var(--cannon)', 'stroke-width': 8, 'stroke-linecap': 'round',
+    }));
+    group.appendChild(svg('circle', {
+      cx: r(at.x), cy: r(at.y), r: 7,
+      fill: 'var(--cannon)', stroke: 'var(--panel)', 'stroke-width': 2,
+    }));
+    group.appendChild(svg('path', {
+      d: arrowHead(at.x + dx * 30, at.y + dy * 30, dx, dy, 7),
+      fill: 'var(--cannon)', stroke: 'var(--cannon)', 'stroke-width': 1,
+    }));
+  }
+  return group;
+}
+
+/** The line between the object being driven and the cursor pulling it. */
+function drawControl(cam, world, control, pointer) {
+  const group = svg('g', { class: 'scene__control' });
+  if (control.mode !== 'mouse' || !pointer) return group;
+  const body = world.bodies.find((b) => b.id === control.targetId);
+  if (!body || !Number.isFinite(body.pos.x)) return group;
+  const a = toScreen(cam, body.pos);
+  const b = toScreen(cam, pointer);
+  if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) return group;
+  group.appendChild(svg('line', {
+    x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
+    stroke: 'var(--force-control)', 'stroke-width': 1.5,
+    'stroke-dasharray': '3 4', 'stroke-opacity': 0.7,
+  }));
+  group.appendChild(svg('circle', {
+    cx: r(b.x), cy: r(b.y), r: 6, fill: 'none',
+    stroke: 'var(--force-control)', 'stroke-width': 2,
+  }));
+  return group;
+}
+
 /* --------------------------------------------------------------- bodies -- */
 
 /**
@@ -323,14 +543,54 @@ function drawTrail(cam, body) {
   return group;
 }
 
-function drawBody(cam, body, selected) {
+/**
+ * Map a shape's outline from its unit box onto the canvas.
+ *
+ * Done arithmetically rather than with an SVG `transform`, for two reasons.
+ * A non-uniform transform scales the stroke with it, so a flat plate would have
+ * a hairline top edge and a fat left one; and a transform is one more thing an
+ * export has to survive. Numbers in the `d` attribute survive everything.
+ *
+ * The outlines use only absolute M, L and Q, so every pair of numbers after a
+ * command is a coordinate — which makes the transformation a substitution
+ * rather than a parser.
+ */
+function scalePath(d, cx, cy, width, height) {
+  const tokens = d.trim().split(/[\s,]+/);
+  const out = [];
+  let pending = [];
+  for (const token of tokens) {
+    if (/^[A-Za-z]$/.test(token)) {
+      out.push(token);
+      pending = [];
+      continue;
+    }
+    pending.push(Number(token));
+    if (pending.length === 2) {
+      out.push(r(cx + pending[0] * width), r(cy + pending[1] * height));
+      pending = [];
+    }
+  }
+  return out.join(' ');
+}
+
+function drawBody(cam, body, selected, topDown, labels) {
   const group = svg('g', { class: 'scene__body' });
   const centre = toScreen(cam, body.pos);
   const fill = `var(--body-${body.colour % 4})`;
   const stroke = selected ? 'var(--accent-strong)' : 'var(--text-dim)';
   const strokeWidth = selected ? 3 : 1.5;
 
-  if (body.kind === 'ball') {
+  const path = body.shapeId ? outline(body.shapeId, { topDown }) : null;
+
+  if (path) {
+    const w = Math.max(8, toPixels(cam, body.width || body.radius * 2));
+    const h = Math.max(5, toPixels(cam, body.height || body.radius * 2));
+    group.appendChild(svg('path', {
+      d: `${scalePath(path, centre.x, centre.y, w, h)} Z`,
+      fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
+    }));
+  } else if (body.kind === 'ball' || !body.shapeId) {
     const radius = Math.max(4, toPixels(cam, body.radius));
     group.appendChild(svg('circle', {
       cx: r(centre.x), cy: r(centre.y), r: r(radius), fill, stroke, 'stroke-width': strokeWidth,
@@ -351,18 +611,15 @@ function drawBody(cam, body, selected) {
   }
 
   if (body.label) {
-    // Centred under the body, where there is room to grow. Text hung off the
-    // side of a symbol runs off the canvas — pitfalls.md #4.
-    const textWidth = body.label.length * 6.5;
+    // Centred under the body, where there is room to grow — and handed to the
+    // collective placer rather than positioned here, so an arrow's label cannot
+    // land on top of it.
+    const width = body.label.length * 6.5;
     const below = toPixels(cam, Math.max(body.radius, (body.height || 0) / 2)) + 16;
-    const spot = clampLabel(
-      { x: centre.x - textWidth / 2, y: centre.y + below, width: textWidth, height: 11 },
-      VIEW_W, VIEW_H,
-    );
-    group.appendChild(svg('text', {
-      x: r(spot.x + textWidth / 2), y: r(spot.y), 'text-anchor': 'middle',
-      fill: 'var(--text-dim)', 'font-size': 11, 'font-weight': 600,
-    }, body.label));
+    labels.push({
+      x: centre.x - width / 2, y: centre.y + below, width, height: LABEL_H.body,
+      text: body.label, colour: 'var(--text-dim)', weight: 600, size: 11,
+    });
   }
   return group;
 }
@@ -377,7 +634,7 @@ function drawBody(cam, body, selected) {
  * still showing. Turning the weight arrow off must not make the friction arrow
  * longer, or the comparison the picker exists to enable is broken by using it.
  */
-function drawVectors(world, cam, { vectors, view, ordinary }) {
+function drawVectors(world, cam, { vectors, view, ordinary, labels, labelIds = null }) {
   const group = svg('g', { class: 'scene__vectors' });
 
   const perBody = ordinary
@@ -390,10 +647,11 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
     acceleration: makeScale(perBody.map(({ result }) => len(result.acceleration)), ARROW_PX.acceleration),
     momentum: makeScale(perBody.map(({ body }) => len(body.vel) * body.mass), ARROW_PX.momentum),
   };
-  const labelled = view.showValues !== false;
+  const showValues = view.showValues !== false;
 
   for (const { body, result } of perBody) {
     const origin = toScreen(cam, body.pos);
+    const labelled = showValues && (!labelIds || labelIds.has(body.id));
 
     const wanted = result.forces.filter((f) => vectors[f.id] && scales.force.visible(f.magnitude));
     wanted.forEach((f, i) => {
@@ -403,6 +661,7 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
         // and the normal force are exactly opposite and exactly equal on a
         // resting body, and drawn on one line they look like one arrow.
         offset: fanOffset(i, wanted.length),
+        labels,
       }));
     });
 
@@ -411,6 +670,7 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
         label: labelled ? `F_net ${fmtFixed(result.net.magnitude, 2)} N` : null,
         dashed: true,
         width: 3.5,
+        labels,
       }));
     }
 
@@ -418,6 +678,7 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
       group.appendChild(arrow(origin, body.vel, scales.velocity.lengthFor(len(body.vel)), 'var(--vec-velocity)', {
         label: labelled ? `v ${fmtFixed(len(body.vel), 2)} m/s` : null,
         width: 3,
+        labels,
       }));
     }
     if (vectors.acceleration) {
@@ -425,6 +686,7 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
         label: labelled ? `a ${fmtFixed(len(result.acceleration), 2)} m/s²` : null,
         width: 2.5,
         offset: 11,
+        labels,
       }));
     }
     if (vectors.momentum) {
@@ -433,6 +695,7 @@ function drawVectors(world, cam, { vectors, view, ordinary }) {
         label: labelled ? `p ${fmtFixed(len(p), 2)} kg·m/s` : null,
         width: 2.5,
         offset: -11,
+        labels,
       }));
     }
   }
@@ -453,13 +716,18 @@ function makeScale(magnitudes, maxPixels) {
 const fanOffset = (index, total) => (total <= 1 ? 0 : (index - (total - 1) / 2) * 7);
 
 /**
- * One arrow: shaft, head, and an optional label at the tip.
+ * One arrow: shaft, head, and a label request at the tip.
  *
  * The head is barb–apex–barb with the apex exactly on the tip, built by
  * `arrowHead` rather than by hand — drawing it freehand is how arrows end up
  * pointing into the object they are meant to be leaving (pitfalls.md #6).
+ *
+ * The label is *requested* rather than drawn, because whether it fits depends
+ * on the other eight arrows and this function can only see one.
  */
-function arrow(origin, vector, lengthPx, colour, { label = null, width = 3, dashed = false, offset = 0 } = {}) {
+function arrow(origin, vector, lengthPx, colour, {
+  label = null, width = 3, dashed = false, offset = 0, labels = null,
+} = {}) {
   const group = svg('g', {});
   if (!(lengthPx > 0)) return group;
 
@@ -481,17 +749,36 @@ function arrow(origin, vector, lengthPx, colour, { label = null, width = 3, dash
     fill: colour, stroke: colour, 'stroke-width': 1, 'stroke-linejoin': 'round',
   }));
 
-  if (label) {
+  if (label && labels) {
     const textWidth = label.length * 6.2;
-    const spot = clampLabel(
-      { x: tip.x + dir.x * 8 - textWidth / 2, y: tip.y + dir.y * 12 + 4, width: textWidth, height: 11 },
-      VIEW_W, VIEW_H,
-    );
-    group.appendChild(svg('text', {
-      x: r(spot.x + textWidth / 2), y: r(spot.y), 'text-anchor': 'middle',
-      fill: colour, 'font-size': 10.5, 'font-weight': 600,
-    }, label));
+    labels.push({
+      x: tip.x + dir.x * 10 - textWidth / 2,
+      y: tip.y + dir.y * 14 + 4,
+      width: textWidth,
+      height: LABEL_H.arrow,
+      text: label,
+      colour,
+      weight: 600,
+      size: 10.5,
+    });
   }
+  return group;
+}
+
+/** Every label, moved apart and then drawn. */
+function drawLabels(labels) {
+  const group = svg('g', { class: 'scene__labels' });
+  const placed = placeLabels(labels, VIEW_W, VIEW_H);
+  placed.forEach((spot, i) => {
+    const source = labels[i];
+    group.appendChild(svg('text', {
+      x: r(spot.x + spot.width / 2), y: r(spot.y), 'text-anchor': 'middle',
+      fill: source.colour, 'font-size': source.size, 'font-weight': source.weight,
+      // A light halo of the panel colour, so a label crossing an arrow it did
+      // not overlap in geometry is still readable where the two graze.
+      stroke: 'var(--panel)', 'stroke-width': 2.6, 'paint-order': 'stroke',
+    }, source.text));
+  });
   return group;
 }
 
@@ -523,4 +810,4 @@ export function sceneLegend(world, vectors) {
   ])));
 }
 
-export { VIEW_W, VIEW_H };
+export { VIEW_W, VIEW_H, scalePath };

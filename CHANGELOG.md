@@ -1,5 +1,82 @@
 # Changelog
 
+## 2.1.0
+
+The bench stops being a diagram: you can now change things while it runs, put it in deep space,
+draw the scene, and drive an object around it.
+
+### What changed
+
+- **Changing a value no longer restarts the run.** Set something moving, then drag the push angle
+  and watch the path bend from where the object actually is. Sliders now commit on every movement
+  of the thumb rather than on release, so the change is something you watch rather than something
+  you submit. Only a change that alters *what bodies exist* — a different step, an object added —
+  rebuilds anything.
+- **Deep space, from step five onwards.** One control removes the floor and the gravitational field
+  together, which is the honest pairing: there is no such thing as a world with gravity and nothing
+  to stand on. Weight, the normal force and friction go with them, and the arrow picker stops
+  offering them rather than offering chips that do nothing.
+- **Draw walls and obstacles.** Drag on the drawing to lay down a ramp, a barrier or the side of a
+  box, or add four at once. A body rests on a drawn wall exactly as it rests on the ground — same
+  normal force, same friction, same settling — and rolls off the end of it, because a segment has
+  ends.
+- **Cannons.** They give an object an initial velocity and then have nothing more to do with it,
+  which is the same lesson as the timed push in step two.
+- **Up to twenty objects**, each with its own size, mass and shape, in a list you can add to,
+  remove from and edit. Cannon shots count towards the twenty, and when the bench is full the
+  cannons stop and say so rather than quietly dropping shots.
+- **Take the controls.** Connect an object to the pointer or to the arrow keys and drive it — over
+  a ramp you drew, if you like. Both are *forces*: they join the same vector sum as weight and
+  friction, get their own arrow, and have their work booked on the same ledger. Moving the object
+  directly would give it infinite acceleration and no momentum history, and every arrow around it
+  would then be describing a motion that F = ma had no part in.
+- **Arrow labels no longer land on each other.** Every label on the drawing is now placed once, as
+  a set, so it can be moved out of the way of the others. On a crowded bench the numbers follow the
+  selection and the rest keep their arrows — forty pieces of text on one canvas is not a labelling
+  problem that spacing can fix.
+- **The shapes look like the shapes.** Every outline is drawn from its own path: the teardrop was a
+  rectangle before. A car is drawn side-on where there is a floor to drive on and from above in
+  space, and there is a balloon.
+
+### New physics
+
+- **Buoyancy**, modelled rather than assumed away. F = ρ_fluid · V · g, so an object less dense
+  than the fluid rises — nothing is switched on to make that happen, the comparison simply comes
+  out the other way. Volume is taken from the shape, so a car and a cube of the same width displace
+  very different amounts. Potential energy is computed against the buoyant mass, which is what keeps
+  a floating object from rising for free.
+- **Walls as surfaces.** One contact routine serves the ground and every drawn segment, so a ball
+  dropped on the floor and the same ball dropped on a wall drawn along the floor bounce to the same
+  height, to six decimal places.
+- **A spring to the pointer**, with damping near critical, declared as a model. Its stiffness scales
+  with mass so a 900 kg car and a 1 kg ball handle the same, which means the strength setting reads
+  as an acceleration and F = ma decides the rest.
+
+### Fixes found while verifying
+
+- **A cannon minted energy.** Every shot arrived holding kinetic energy that nothing had paid for,
+  and the figure the app labels *the books* — the one it promises does not move — climbed by half a
+  muzzle-energy each time it fired. A cannon does work on its shot; that work is now booked, along
+  with the potential energy of the height it is fired from.
+- **Shape outlines were squashed twice**, once by their own coordinates and again by the shape's
+  aspect ratio, which drew the car at a sixth of its height. Outlines now fill their box and the
+  aspect is applied once. A test pins it, because both halves look correct on their own.
+- **Labels were told they were 11 pixels tall when they render at 14 to 15**, so the placer moved
+  them by less than their own height and declared them clear while they still touched.
+- **The zero-weight note was stale**, explaining an absent weight in terms of a level surface in
+  scenes that have no surface at all. It now says what is actually true: there is no field here, and
+  the object has not become weightless.
+- **A balloon rested with its neck through the floor** — its support height and its drawn height
+  disagreed. Every shape's support is now exactly half its drawn height, and a test checks all of
+  them.
+- **The friction clamp read the ground's normal** whatever the body was standing on, which would
+  have let a box creep sideways for ever on a drawn ramp at any other angle.
+
+Verified across 450 rendered frames spanning 150 parameter combinations — every step, both worlds,
+every shape, four fluids, with walls, cannons and driving switched on: no NaN reaching the DOM,
+nothing outside its canvas, no label touching another, and every export free of unresolved custom
+properties.
+
 ## 2.0.0
 
 Rebuilt as one bench that grows in eight steps, rather than thirteen separate labs.

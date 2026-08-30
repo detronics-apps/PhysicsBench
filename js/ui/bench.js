@@ -12,8 +12,12 @@ import {
 } from './widgets.js';
 import { explain, equationPanel } from './explain.js';
 import { equation } from '../models.js';
-import { stageById, featuresAt, pushState } from '../stages.js';
+import { stageById, featuresAt, pushState, MAX_OBJECTS } from '../stages.js';
+import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
+import { boxWalls, wallAngle, wallLength, MAX_WALLS } from '../segments.js';
+import { buoyantMass } from '../forces.js';
 import { SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats } from '../shapes.js';
+import { MAX_CANNONS } from '../state.js';
 import { FLUIDS, drag as fluidDrag, terminalSpeed } from '../drag.js';
 import { WORLDS, describeWorld, surfaceGravity, everydayComparison, massForGravity } from '../gravitation.js';
 import { inspect, totals, findBody } from '../world.js';
@@ -33,9 +37,12 @@ export function controls(ctx) {
     f.has('applied') ? pushSection(ctx) : null,
     f.has('second-mass') && !f.has('planet') ? otherMassSection(ctx) : null,
     f.has('planet') ? worldSection(ctx) : null,
-    f.has('ground') ? surfaceSection(ctx) : null,
+    f.has('ground') && !ctx.space ? surfaceSection(ctx) : null,
     f.has('fluid') ? fluidSection(ctx, object) : null,
-    f.has('collide') ? secondObjectSection(ctx) : null,
+    f.has('sandbox') ? objectsSection(ctx) : null,
+    f.has('sandbox') ? wallsSection(ctx) : null,
+    f.has('sandbox') ? cannonsSection(ctx) : null,
+    f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
   ].filter(Boolean);
 }
@@ -148,7 +155,38 @@ function worldSection(ctx) {
   const { params: p, set } = ctx;
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
 
+  const f = ctx.features;
+
+  /*
+   * On a world, or in deep space.
+   *
+   * The two go together and it matters that they do. There is no such thing as
+   * a world with gravity and nothing to stand on, or a floor with nothing
+   * holding you down to it, so the choice removes both at once — and what is
+   * left is the cleanest possible view of a force acting on its own.
+   */
+  const where = f.has('space') ? selectField('Where the bench is',
+    [
+      { value: 'planet', label: 'On a world' },
+      { value: 'space', label: 'Deep space — no floor, no gravity' },
+    ],
+    p.worldMode, (v) => set('worldMode', v), {
+      key: 'worldMode',
+      hint: p.worldMode === 'space'
+        ? 'No field and no floor, so weight, the normal force and friction all '
+          + 'go with them. Draw a wall if you want something to stand on. Note '
+          + 'that this is not why astronauts float: they are in orbit, which is '
+          + 'falling continuously, with plenty of gravity acting.'
+        : 'Anything with an up and a down is drawn side-on here. Switch to space '
+          + 'and the same objects are drawn from above.',
+    }) : null;
+
+  if (ctx.space) {
+    return section('The world it is on', [where], { key: 'world' });
+  }
+
   return section('The world it is on', [
+    where,
     selectField('A real one', [...WORLDS.map((w) => ({ value: w.id, label: w.label })), { value: 'custom', label: 'Something of your own' }],
       p.planetId, (v) => {
         const found = WORLDS.find((w) => w.id === v);
@@ -184,7 +222,7 @@ function worldSection(ctx) {
     sliderField('Drop it from', p.dropHeight ?? 0.6, (v) => set('dropHeight', v), {
       min: 0, max: 20, step: 0.1, key: 'dropHeight', format: (v) => `${fmtFixed(v, 1)} m up`,
     }),
-  ], { key: 'world' });
+  ].filter(Boolean), { key: 'world' });
 }
 
 function surfaceSection(ctx) {
@@ -234,10 +272,23 @@ function fluidSection(ctx, object) {
   const { params: p, set } = ctx;
   const fluid = FLUIDS.find((x) => x.id === p.fluidId) || FLUIDS[0];
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
-  const vt = terminalSpeed({
-    mass: p.mass, g: world.g, density: fluid.density, viscosity: fluid.viscosity,
+  /*
+   * Terminal speed is where drag balances the *buoyant* weight, not mg.
+   *
+   * For anything close to the density of the fluid that is a large correction,
+   * and for anything less dense than the fluid there is no downward terminal
+   * speed at all — it goes up. Using mg here would print a confident number for
+   * how fast a balloon sinks.
+   */
+  const effectiveMass = p.mass - fluid.density * object.volume;
+  const vt = effectiveMass > 0 ? terminalSpeed({
+    mass: effectiveMass, g: world.g, density: fluid.density, viscosity: fluid.viscosity,
     diameter: p.size, area: object.area, cdShape: object.cd,
-  });
+  }) : NaN;
+  const rise = effectiveMass < 0 ? terminalSpeed({
+    mass: -effectiveMass, g: world.g, density: fluid.density, viscosity: fluid.viscosity,
+    diameter: p.size, area: object.area, cdShape: object.cd,
+  }) : NaN;
 
   return section('The fluid it moves through', [
     selectField('Fluid', FLUIDS.map((x) => ({ value: x.id, label: x.label })), p.fluidId, (v) => set('fluidId', v), {
@@ -248,28 +299,272 @@ function fluidSection(ctx, object) {
       el('dd', { text: `${fluid.density} kg/m³` }),
       el('dt', { text: 'Viscosity' }),
       el('dd', { text: `${fluid.viscosity} Pa·s` }),
-      el('dt', { text: 'Terminal speed' }),
-      el('dd', { text: Number.isFinite(vt) ? `${fmtFixed(vt, 2)} m/s` : 'none' }),
+      el('dt', { text: 'Buoyant force' }),
+      el('dd', { text: `${fmtFixed(fluid.density * object.volume * world.g, 3)} N up` }),
+      el('dt', { text: Number.isFinite(rise) ? 'Steady rising speed' : 'Terminal speed' }),
+      el('dd', {
+        text: Number.isFinite(rise) ? `${fmtFixed(rise, 2)} m/s upward`
+          : (Number.isFinite(vt) ? `${fmtFixed(vt, 2)} m/s` : 'none'),
+      }),
     ]),
     fluid.density > 0 ? el('div', { class: 'field__hint', text: floats(object.density, fluid.density).text }) : null,
+    fluid.density > 0 ? el('div', {
+      class: 'field__hint',
+      text: `The fluid holds up ${fmtFixed(fluid.density * object.volume, 3)} kg of the `
+        + `${fmtFixed(p.mass, 3)} kg — that is why the same stone is easier to lift underwater, `
+        + 'and it is why a balloon goes the other way entirely.',
+    }) : null,
   ].filter(Boolean), { key: 'fluid' });
 }
 
-function secondObjectSection(ctx) {
-  const { params: p, set } = ctx;
-  return section('The second object', [
-    numberField('Mass', p.mass2, (v) => set('mass2', v), { unit: 'kg', min: 0.001, max: 1e6, step: 0.5, key: 'mass2' }),
-    selectField('Shape', SHAPES.map((s) => ({ value: s.id, label: s.label })), p.shape2Id, (v) => set('shape2Id', v), { key: 'shape2Id' }),
-    sliderField('Size', p.size2, (v) => set('size2', v), { min: 0.05, max: 4, step: 0.05, key: 'size2', format: (v) => `${fmtFixed(v, 2)} m` }),
-    sliderField('Starts at', p.x2, (v) => set('x2', v), { min: -40, max: 40, step: 0.5, key: 'x2', format: (v) => `${fmtFixed(v, 1)} m` }),
-    sliderField('Moving at', p.v2, (v) => set('v2', v), { min: -50, max: 50, step: 0.5, key: 'v2', format: (v) => `${fmtFixed(v, 1)} m/s` }),
-    sliderField('Bounciness e', p.restitution, (v) => set('restitution', v), {
+/**
+ * Every object after the first.
+ *
+ * A list rather than a fixed pair, because "what happens with twenty of these"
+ * is a question worth being able to ask, and because the interesting collisions
+ * are the ones you did not plan. Selecting a row opens the full editor for that
+ * object below it — twenty expanded editors would be a scroll bar, not a panel.
+ */
+function objectsSection(ctx) {
+  const { params: p, state } = ctx;
+  const extras = p.objects || [];
+  const selected = extras.find((o) => o.id === state.selectedId) || null;
+
+  const rows = extras.map((o, i) => {
+    const described = describeObject({ shapeId: o.shapeId, size: o.size, mass: o.mass });
+    return el('div', {
+      class: `object-row${state.selectedId === o.id ? ' is-selected' : ''}`,
+    }, [
+      el('span', { class: 'object-row__swatch', style: { background: `var(--body-${(i % 3) + 1})` } }),
+      el('button', {
+        class: 'link-btn object-row__name', type: 'button',
+        'data-field': `object:${o.id}`,
+        on: { click: () => ctx.selectBody(o.id) },
+      }, [
+        el('span', { text: `Object ${i + 2} · ${shapeLabel(o.shapeId)}` }),
+        el('span', {
+          class: 'object-row__meta',
+          text: `${fmtFixed(o.mass, 2)} kg · ${fmtFixed(o.size, 2)} m · ${fmtFixed(described.density, 0)} kg/m³`,
+        }),
+      ]),
+      button('Remove', () => ctx.removeObject(o.id), { small: true, title: 'Take this object off the bench' }),
+    ]);
+  });
+
+  const editor = selected ? el('div', { class: 'object-edit' }, [
+    numberField('Mass', selected.mass, (v) => ctx.setObject(selected.id, { mass: v }), {
+      unit: 'kg', min: 0.001, max: 1e6, step: 0.5, key: `o:mass:${selected.id}`,
+    }),
+    selectField('Shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), selected.shapeId,
+      (v) => ctx.setObject(selected.id, { shapeId: v }), { key: `o:shape:${selected.id}` }),
+    sliderField('Size', selected.size, (v) => ctx.setObject(selected.id, { size: v }), {
+      min: 0.05, max: 4, step: 0.05, key: `o:size:${selected.id}`, format: (v) => `${fmtFixed(v, 2)} m`,
+    }),
+    sliderField('Starts at', selected.x, (v) => ctx.setObject(selected.id, { x: v }), {
+      min: -40, max: 40, step: 0.5, key: `o:x:${selected.id}`, format: (v) => `${fmtFixed(v, 1)} m along`,
+    }),
+    sliderField(ctx.space ? 'Height' : 'Above the surface', selected.y, (v) => ctx.setObject(selected.id, { y: v }), {
+      min: ctx.space ? -20 : 0, max: 20, step: 0.25, key: `o:y:${selected.id}`, format: (v) => `${fmtFixed(v, 2)} m`,
+    }),
+    sliderField('Moving at', selected.vx, (v) => ctx.setObject(selected.id, { vx: v }), {
+      min: -50, max: 50, step: 0.5, key: `o:vx:${selected.id}`, format: (v) => `${fmtFixed(v, 1)} m/s across`,
+    }),
+    sliderField('And upward', selected.vy, (v) => ctx.setObject(selected.id, { vy: v }), {
+      min: -50, max: 50, step: 0.5, key: `o:vy:${selected.id}`, format: (v) => `${fmtFixed(v, 1)} m/s up`,
+    }),
+    el('div', {
+      class: 'field__hint',
+      text: 'Starting position and velocity apply while the clock is at zero. Once '
+        + 'it is running they are no longer a description of anything on screen, so '
+        + 'they wait for the next reset — everything else takes effect immediately.',
+    }),
+  ]) : null;
+
+  return section(`Other objects (${extras.length} of ${MAX_OBJECTS - 1})`, [
+    el('div', { class: 'objects' }, rows.length ? rows : [el('p', { class: 'muted', text: 'Nothing else on the bench yet.' })]),
+    buttonRow([
+      button('Add an object', () => ctx.addObject(), {
+        small: true, primary: true,
+        title: extras.length >= MAX_OBJECTS - 1 ? 'The bench is full' : 'Put another object on the bench',
+      }),
+      extras.length ? button('Clear them all', () => ctx.clearObjects(), { small: true }) : null,
+    ].filter(Boolean)),
+    editor,
+    sliderField('Bounciness e', p.restitution, (v) => ctx.set('restitution', v), {
       min: 0, max: 1, step: 0.05, key: 'restitution',
       format: (v) => `e = ${fmtFixed(v, 2)}`,
-      info: 'Separation speed divided by approach speed. e = 1 conserves kinetic '
-        + 'energy as well as momentum; e = 0 means they move off together.',
+      info: 'Separation speed divided by approach speed, shared by everything on '
+        + 'the bench. e = 1 conserves kinetic energy as well as momentum; e = 0 '
+        + 'means they move off together.',
     }),
-  ], { key: 'second' });
+  ].filter(Boolean), { key: 'objects' });
+}
+
+const shapeLabel = (id) => (SHAPES.find((x) => x.id === id) || SHAPES[0]).label;
+
+/**
+ * Drawn obstacles.
+ *
+ * Drawing is armed rather than modal: the button turns the canvas into a
+ * drawing surface until you turn it off again, so several walls can be drawn
+ * without going back to the sidebar between each one.
+ */
+function wallsSection(ctx) {
+  const { params: p, state } = ctx;
+  const walls = p.walls || [];
+  const armed = state.ui.tool === 'wall';
+
+  return section(`Walls and obstacles (${walls.length})`, [
+    buttonRow([
+      el('button', {
+        class: `btn btn-sm${armed ? ' is-armed' : ''}`, type: 'button',
+        'data-field': 'tool:wall',
+        title: 'Drag on the drawing to lay down a wall',
+        on: { click: () => ctx.setTool(armed ? 'none' : 'wall') },
+      }, armed ? 'Drawing — click to stop' : 'Draw a wall'),
+      button('Add a box', () => ctx.addBox(), { small: true, title: 'Four walls around what is on the bench' }),
+      walls.length ? button('Clear', () => ctx.clearWalls(), { small: true }) : null,
+    ].filter(Boolean)),
+
+    el('div', {
+      class: 'field__hint',
+      text: armed
+        ? 'Drag across the drawing. A wall is a straight segment with two ends — '
+          + 'an object rests on it exactly as it rests on the ground, and rolls '
+          + 'off the end of it.'
+        : `Up to ${MAX_WALLS}. Each one behaves like the ground: same normal force, `
+          + 'same friction, same settling.',
+    }),
+
+    walls.length ? el('div', { class: 'wall-list' }, walls.map((w, i) => el('span', { class: 'wall-chip' }, [
+      el('span', { text: `${fmtFixed(wallLength(w), 2)} m at ${fmtFixed(wallAngle(w), 0)}°` }),
+      el('button', {
+        class: 'link-btn', type: 'button', title: 'Remove this wall',
+        'data-field': `wall:${i}`,
+        on: { click: () => ctx.removeWall(i) },
+      }, '×'),
+    ]))) : null,
+  ].filter(Boolean), { key: 'walls' });
+}
+
+/**
+ * Cannons.
+ *
+ * A cannon gives an object a velocity and then has nothing more to do with it,
+ * which is the same lesson as the timed push one step earlier: whatever happens
+ * afterwards is gravity, drag and walls, never a memory of having been fired.
+ */
+function cannonsSection(ctx) {
+  const { params: p, state } = ctx;
+  const cannons = p.cannons || [];
+
+  const editors = cannons.map((c, i) => el('div', { class: 'object-edit' }, [
+    el('div', { class: 'object-row' }, [
+      el('span', { class: 'object-row__swatch', style: { background: 'var(--cannon)' } }),
+      el('span', { class: 'object-row__name' }, [
+        el('span', { text: `Cannon ${i + 1}` }),
+        el('span', {
+          class: 'object-row__meta',
+          text: `${fmtFixed(c.speed, 1)} m/s at ${fmtFixed(c.angleDeg, 0)}°, `
+            + (c.everySeconds > 0 ? `every ${fmtFixed(c.everySeconds, 2)} s` : 'one shot'),
+        }),
+      ]),
+      button('Remove', () => ctx.removeCannon(i), { small: true }),
+    ]),
+    sliderField('Muzzle speed', c.speed, (v) => ctx.setCannon(i, { speed: v }), {
+      min: 0, max: 60, step: 0.5, key: `c:speed:${i}`, format: (v) => `${fmtFixed(v, 1)} m/s`,
+      info: 'An initial velocity, and nothing more. No force acts once the shot '
+        + 'has left the barrel.',
+    }),
+    sliderField('Angle', c.angleDeg, (v) => ctx.setCannon(i, { angleDeg: v }), {
+      min: -180, max: 180, step: 5, key: `c:angle:${i}`, format: (v) => `${v}°`,
+    }),
+    sliderField('Fires every', c.everySeconds, (v) => ctx.setCannon(i, { everySeconds: v }), {
+      min: 0, max: 10, step: 0.25, key: `c:every:${i}`,
+      format: (v) => (v > 0 ? `${fmtFixed(v, 2)} s` : 'once, at the start'),
+    }),
+    numberField('Shot mass', c.mass, (v) => ctx.setCannon(i, { mass: v }), {
+      unit: 'kg', min: 0.001, max: 1000, step: 0.1, key: `c:mass:${i}`,
+    }),
+    sliderField('Shot size', c.size, (v) => ctx.setCannon(i, { size: v }), {
+      min: 0.02, max: 2, step: 0.02, key: `c:size:${i}`, format: (v) => `${fmtFixed(v, 2)} m`,
+    }),
+    selectField('Shot shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), c.shapeId,
+      (v) => ctx.setCannon(i, { shapeId: v }), { key: `c:shape:${i}` }),
+    el('div', { class: 'grid-2' }, [
+      sliderField('At x', c.x, (v) => ctx.setCannon(i, { x: v }), {
+        min: -40, max: 40, step: 0.5, key: `c:x:${i}`, format: (v) => `${fmtFixed(v, 1)} m`,
+      }),
+      sliderField('At y', c.y, (v) => ctx.setCannon(i, { y: v }), {
+        min: -20, max: 40, step: 0.25, key: `c:y:${i}`, format: (v) => `${fmtFixed(v, 2)} m`,
+      }),
+    ]),
+  ]));
+
+  return section(`Cannons (${cannons.length})`, [
+    buttonRow([
+      button('Add a cannon', () => ctx.addCannon(), {
+        small: true, primary: true,
+        title: cannons.length >= MAX_CANNONS ? 'That is as many as the bench takes' : 'Fires objects into the scene',
+      }),
+      cannons.length ? button('Clear', () => ctx.clearCannons(), { small: true }) : null,
+    ].filter(Boolean)),
+    el('div', {
+      class: 'field__hint',
+      text: `The bench holds ${MAX_OBJECTS} objects in total, cannon shots included. `
+        + 'When it is full the cannons stop firing and say so rather than quietly '
+        + 'dropping shots.',
+    }),
+    ...editors,
+  ], { key: 'cannons', open: cannons.length > 0 });
+}
+
+/**
+ * Driving one of the objects by hand.
+ *
+ * Both modes produce a force, which joins the same vector sum as weight and
+ * friction, gets its own arrow, and has its work booked on the same ledger.
+ * Moving the object directly instead would give it infinite acceleration and no
+ * momentum history, and every arrow around it would then be describing a motion
+ * that F = ma had no part in.
+ */
+function controlSection(ctx) {
+  const { params: p, world } = ctx;
+  const control = p.control || { mode: 'none', targetId: 'main', strength: 15 };
+  const mode = modeById(control.mode);
+  const bodies = world.bodies.filter((b) => !b.fixed && b.kind !== 'planet');
+
+  return section('Take the controls', [
+    selectField('Connect the object to', CONTROL_MODES.map((m) => ({ value: m.id, label: m.label })),
+      control.mode, (v) => ctx.setControl({ mode: v }), { key: 'control:mode', hint: mode.note }),
+
+    control.mode !== 'none' ? selectField('Which object',
+      bodies.map((b) => ({ value: b.id, label: b.id === 'main' ? 'The main object' : `${b.id} · ${fmtFixed(b.mass, 2)} kg` })),
+      control.targetId, (v) => ctx.setControl({ targetId: v }), { key: 'control:target' }) : null,
+
+    control.mode !== 'none' ? sliderField('Strength', control.strength, (v) => ctx.setControl({ strength: v }), {
+      min: 0, max: 120, step: 1, key: 'control:strength',
+      format: (v) => `${fmtFixed(v, 0)} m/s² of engine`,
+      info: 'Set per kilogram, so a car and a marble handle the same. The force '
+        + 'that produces is mass × this, and it is shown as an arrow like any '
+        + 'other force.',
+    }) : null,
+
+    control.mode === 'keyboard' ? el('div', {
+      class: 'field__hint',
+      text: 'Click the drawing first, then hold the arrow keys or WASD. There is '
+        + 'no brake: letting go removes the force, and only friction, drag or a '
+        + 'wall will slow it down. Draw a ramp and a floor, make the object a '
+        + 'car, and you can drive over them.',
+    }) : null,
+
+    control.mode === 'mouse' ? el('div', {
+      class: 'field__hint',
+      text: 'The object is towed after the pointer by a spring, with damping so it '
+        + 'settles rather than orbiting. It will not reach the cursor instantly, '
+        + 'because a force cannot do that.',
+    }) : null,
+  ].filter(Boolean), { key: 'control', open: control.mode !== 'none' });
 }
 
 function viewSection(ctx) {
@@ -335,6 +630,22 @@ export function readouts(ctx) {
     }));
   }
 
+  const buoyancy = main.forces.find((x) => x.id === 'buoyancy');
+  if (buoyancy && buoyancy.magnitude > 1e-9) {
+    tiles.push(stat('Buoyancy', `${fmtFixed(buoyancy.magnitude, 3)} N`, {
+      swatch: '--force-buoyancy',
+      note: `Holds up ${fmtFixed(buoyancy.magnitude / Math.max(1e-9, main.weight) * 100, 0)}% of its weight`,
+    }));
+  }
+
+  const driving = main.forces.find((x) => x.id === 'control');
+  if (driving && driving.magnitude > 1e-9) {
+    tiles.push(stat('Your control', `${fmtFixed(driving.magnitude, 2)} N`, {
+      swatch: '--force-control',
+      note: fmtDirectionWords(driving.vec),
+    }));
+  }
+
   if (f.has('friction') || f.has('fluid')) {
     tiles.push(stat('Gone to heat', `${fmtFixed(sums.elsewhere.heat + sums.elsewhere.impact, 2)} J`, {
       swatch: '--force-friction',
@@ -350,10 +661,10 @@ export function readouts(ctx) {
     }));
   }
 
-  if (f.has('applied') && sums.supplied > 1e-9) {
-    tiles.push(stat('Put in by the push', `${fmtFixed(sums.supplied, 2)} J`, {
+  if (Math.abs(sums.supplied) > 1e-9) {
+    tiles.push(stat('Put in from outside', `${fmtFixed(sums.supplied, 2)} J`, {
       swatch: '--force-applied',
-      note: 'Work you did on it: F·d',
+      note: 'Work done on it by the push and by you: F·d',
     }));
   }
 
@@ -414,12 +725,54 @@ export function banners(ctx) {
     }
   }
 
-  if (f.has('mutual-gravity') && !f.has('planet')) {
+  if (ctx.space) {
+    out.push(banner('info',
+      'Deep space: no field, no floor. Nothing here will change its velocity '
+      + 'unless you make it — which makes this the cleanest place to watch what a '
+      + 'single force actually does. Anything with an up and a down is drawn from '
+      + 'above, because side-on would be a picture of a situation that does not '
+      + 'exist.'));
+  }
+
+  const bump = ctx.recorder.events.find((e) => e.type === 'cannon-full');
+  if (bump) {
+    out.push(banner('warn', `The bench is full at ${bump.limit} objects, so the cannons `
+      + 'have stopped firing. Remove something, or clear the objects, to make room.'));
+  }
+
+  if (f.has('control') && p.control?.mode !== 'none') {
+    const target = findBody(ctx.world, p.control.targetId);
+    if (target) {
+      const force = main.forces.find((x) => x.id === 'control');
+      const status = controlStatus({
+        mode: p.control.mode,
+        force: force ? force.vec : { x: 0, y: 0 },
+        body: target,
+        pointer: ctx.pointer,
+        keys: ctx.keys,
+      });
+      if (status) out.push(banner('info', status));
+    }
+  }
+
+  if (f.has('fluid')) {
+    const lift = main.forces.find((x) => x.id === 'buoyancy');
+    const weight = main.forces.find((x) => x.id === 'weight');
+    if (lift && weight && lift.magnitude > weight.magnitude && weight.magnitude > 1e-9) {
+      out.push(banner('ok',
+        'It is going up. Nothing was switched on to make that happen — the fluid '
+        + 'pushes up on everything in it by the weight of what it displaces, and '
+        + 'this object displaces more than it weighs. Floating and sinking are the '
+        + 'same force with the comparison coming out the other way.'));
+    }
+  }
+
+  if (f.has('mutual-gravity') && !f.has('planet') && !ctx.space) {
     const c = everydayComparison(p.mass, p.otherMass, Math.abs(p.otherX));
     out.push(banner('warn', `These two masses really do attract, with ${c.text}`));
   }
 
-  if (f.has('planet') && !f.has('ground')) {
+  if (f.has('planet') && !f.has('ground') && !ctx.space) {
     const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
     out.push(banner('ok', `Same equation as the last step. With ${p.planetMass.toExponential(2)} kg `
       + `at a radius of ${(p.planetRadius / 1000).toPrecision(3)} km it gives `
@@ -432,7 +785,7 @@ export function banners(ctx) {
     }
   }
 
-  if (f.has('ground')) {
+  if (f.has('ground') || ctx.world.walls?.length) {
     const contact = main.contact;
     if (contact?.touching && contact.frictionMode === 'static' && f.has('friction')) {
       out.push(banner('ok', `Not sliding. Friction is supplying exactly what is needed — `
@@ -523,7 +876,7 @@ export function explains(ctx) {
       + 'whole reason everything falls together.'));
   }
 
-  if (f.has('ground')) {
+  if (f.has('ground') && !ctx.space) {
     const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
     const rad = (p.slopeDeg * Math.PI) / 180;
     const weight = p.mass * world.g;
@@ -551,7 +904,42 @@ export function explains(ctx) {
       + 'ever matter and the ground is convenient.'));
   }
 
-  if (f.has('friction')) {
+  if (f.has('fluid') && main) {
+    const fluid = FLUIDS.find((x) => x.id === p.fluidId) || FLUIDS[0];
+    const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+    const displaced = fluid.density * object.volume;
+    const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
+    out.push(explain({
+      title: 'Why anything floats',
+      plain: [
+        'The pressure in a fluid rises with depth, so the fluid presses harder on '
+        + 'the bottom of a submerged object than on its top. The difference is an '
+        + 'upward force, and it comes out equal to the weight of the fluid the '
+        + 'object pushed out of the way.',
+        'Notice what is not in that: what the object is made of. Only its volume '
+        + 'matters. That is why a steel ship floats and a steel bolt does not — '
+        + 'same material, wildly different volume for the same mass.',
+      ],
+      formula: 'F_b = ρ_fluid · V · g',
+      validWhen: 'A body completely surrounded by fluid. A partly submerged one '
+        + 'displaces only the volume under the surface, which is what makes a boat '
+        + 'settle at a waterline instead of leaping out — this app assumes full '
+        + 'immersion and says so.',
+      worked: `Volume of the object   ${object.volume.toPrecision(4)} m³\n`
+        + `Fluid it displaces     ${displaced.toPrecision(4)} kg  (${fluid.label.toLowerCase()}, ρ = ${fluid.density})\n`
+        + `Upward push            ${fmtFixed(displaced * world.g, 4)} N\n`
+        + `Its own weight         ${fmtFixed(p.mass * world.g, 4)} N\n\n`
+        + (displaced > p.mass
+          ? 'The push wins, so it rises.'
+          : `The weight wins, so it sinks — but ${fmtFixed((displaced / p.mass) * 100, 0)}% of it is `
+            + 'already being carried by the fluid.'),
+      becomes: 'The same statement, one level down, is just that pressure increases '
+        + 'with depth. Archimedes\' principle is what you get when you add up that '
+        + 'pressure over the whole surface of the object.',
+    }));
+  }
+
+  if (f.has('friction') && !ctx.space) {
     out.push(equationPanel(equation('friction'),
       `N = ${fmtFixed(main?.forces.find((x) => x.id === 'normal')?.magnitude ?? 0, 2)} N\n\n`
       + `Static limit   μs · N = ${fmtFixed(p.muS, 2)} × ${fmtFixed(main?.forces.find((x) => x.id === 'normal')?.magnitude ?? 0, 2)}`

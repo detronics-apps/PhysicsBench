@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById, floats } from '../js/shapes.js';
+import { SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById, floats, outline } from '../js/shapes.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -70,19 +70,82 @@ test('materials span the range that makes same-size-different-mass possible', ()
   assert.ok(MATERIALS.length >= 8);
   const heaviest = MATERIALS.reduce((a, b) => (a.density > b.density ? a : b));
   const lightest = MATERIALS.reduce((a, b) => (a.density < b.density ? a : b));
-  assert.ok(heaviest.density / lightest.density > 500);
+  // Helium to osmium is a factor of over a hundred thousand, which is what
+  // makes "same size, wildly different mass" — and floating — set up at all.
+  assert.ok(heaviest.density / lightest.density > 100000);
   assert.equal(materialById('nonsense').id, 'aluminium');
 });
 
-test('floating is decided by density, and the app admits it does not model it', () => {
+test('floating is decided by density, and by nothing else', () => {
   const wood = floats(500, 997);
   assert.equal(wood.floats, true);
-  assert.match(wood.text, /does not model buoyancy/);
+  assert.match(wood.text, /rises/);
 
   const steel = floats(7850, 997);
   assert.equal(steel.floats, false);
   close(steel.ratio, 7850 / 997, 1e-9);
-  assert.match(steel.text, /does not model/);
+  // Even a sinking object is partly held up, which is the half of Archimedes
+  // that people forget: the stone really is lighter underwater.
+  assert.match(steel.text, /easier to lift underwater/);
 
+  // Nothing floats in a vacuum, because there is nothing to displace.
   assert.equal(floats(1000, 0).floats, false);
+  assert.match(floats(1000, 0).text, /vacuum/);
+});
+
+test('a car and a balloon are mostly not there, and buoyancy knows it', () => {
+  const cube = describe({ shapeId: 'cube', size: 2, mass: 100 });
+  const car = describe({ shapeId: 'car', size: 2, mass: 100 });
+  // A car's bounding box is nothing like its volume, and using the box would
+  // overstate the fluid it displaces by more than ten times.
+  assert.ok(car.volume < cube.volume / 10);
+  assert.ok(car.density > cube.density * 10);
+
+  // The two car outlines are different drawings of the same object.
+  assert.ok(outline('car', { topDown: false }));
+  assert.notEqual(outline('car', { topDown: true }), outline('car', { topDown: false }));
+  // A sphere has no outline to draw, because a circle is a better primitive.
+  assert.equal(outline('sphere'), null);
+  // Every other shape has one, or it would be drawn as a rectangle.
+  for (const s of SHAPES) {
+    assert.ok(s.circle || typeof outline(s.id) === 'string', s.id + ' has no outline');
+  }
+});
+
+
+test('every outline fills its own box, so the aspect is only applied once', () => {
+  /*
+   * An outline that only spans part of −0.5..0.5 gets squashed twice: once by
+   * its own coordinates and again by the shape's aspect ratio. That drew the
+   * car at a sixth of its height — a skirting board with wheels — and it is
+   * invisible in the code, because both halves look correct on their own.
+   */
+  const extent = (d) => {
+    const numbers = d.trim().split(/[\s,]+/).filter((tok) => !/^[A-Za-z]$/.test(tok)).map(Number);
+    const xs = numbers.filter((_, i) => i % 2 === 0);
+    const ys = numbers.filter((_, i) => i % 2 === 1);
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+  };
+
+  for (const shape of SHAPES) {
+    for (const topDown of [false, true]) {
+      const d = outline(shape.id, { topDown });
+      if (!d) continue;
+      const box = extent(d);
+      assert.ok(Math.abs(box.minX + 0.5) < 1e-9, `${shape.id} left edge at ${box.minX}`);
+      assert.ok(Math.abs(box.maxX - 0.5) < 1e-9, `${shape.id} right edge at ${box.maxX}`);
+      assert.ok(Math.abs(box.minY + 0.5) < 1e-9, `${shape.id} top edge at ${box.minY}`);
+      assert.ok(Math.abs(box.maxY - 0.5) < 1e-9, `${shape.id} bottom edge at ${box.maxY}`);
+    }
+  }
+});
+
+test('a shape rests on the ground rather than sinking into it', () => {
+  // The support height is how far the centre sits above the surface, and the
+  // drawn height is size × aspect. If they disagree, the object visibly floats
+  // above the floor or has its bottom through it.
+  for (const shape of SHAPES) {
+    const drawnHalfHeight = (1 * shape.aspect) / 2;
+    close(shape.support(1), drawnHalfHeight, 1e-9);
+  }
 });
