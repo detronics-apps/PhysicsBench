@@ -1,0 +1,11 @@
+{
+  "name": "physics-bench",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An interactive physics laboratory: change a variable, watch what happens, measure it, then see the equation that describes it.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "python -m http.server 8846"
+  }
+}

@@ -1,0 +1,61 @@
+/* The printable sheet: the drawing, the numbers, the graphs and the working —
+   nothing that only makes sense on a screen. */
+@media print {
+  .app-header,
+  .sidebar,
+  .segmented,
+  .transport,
+  .stage-tools,
+  .btn,
+  .info,
+  .info__bubble,
+  .toast,
+  .modal-backdrop { display: none !important; }
+
+  html, body { height: auto; background: #fff; color: #000; }
+  body { display: block; }
+
+  .app-main { display: block; }
+  .viewport { display: block; padding: 0; overflow: visible; }
+  .viewport__stage {
+    border: none;
+    padding: 0;
+    background: #fff;
+    break-inside: avoid;
+    min-height: 0;
+  }
+  .viewport__stage svg { max-width: 100% !important; }
+
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5mm;
+    margin-top: 5mm;
+    break-inside: avoid;
+  }
+  .stat, .panel, .explain, .disclosure, .graph__canvas, .compare-row { border-color: #999; box-shadow: none; }
+
+  .graph { break-inside: avoid; margin-top: 5mm; }
+  .graph__canvas svg { max-width: 100% !important; }
+
+  /* The teaching panels are the point of the sheet, so they print open. */
+  .explain, .disclosure { break-inside: avoid; margin-top: 4mm; }
+  .explain > .explain__body,
+  .disclosure > .disclosure__body { display: block !important; }
+  .explain > summary, .disclosure > summary { font-weight: 700; }
+  .explain__formula, .explain__worked { background: #f4f4f4; border-color: #999; }
+  .kind { border-left-color: #666; }
+  .numbers__row { background: #f8f8f8; border-color: #999; }
+  .prompt { background: #f4f4f4; border-color: #999; break-inside: avoid; }
+
+  .table th, .table td { border-color: #999; }
+  .banner, .approx-flag { border-color: #999; background: #fff; color: #000; }
+
+  .app-footer {
+    border-top: 1px solid #999;
+    color: #444;
+    margin-top: 5mm;
+  }
+
+  @page { margin: 12mm; }
+}
