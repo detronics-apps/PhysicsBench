@@ -18,6 +18,7 @@
  */
 
 import { vec, sub, scale, dot, len, norm, perp, sum, ZERO } from './vec.js';
+import { drag as fluidDrag } from './drag.js';
 
 /**
  * The visual language, in one place.
@@ -84,20 +85,28 @@ export function weightForce(mass, field) {
  * the body *relative to the fluid*, and defaulting the wind to zero is an
  * assumption the disclosure names rather than something hidden in here.
  */
-export function dragForce(velocity, { density = 0, cd = 0, area = 0, wind = ZERO } = {}) {
+export function dragForce(velocity, {
+  density = 0, viscosity = 0, cd = 0, area = 0, diameter = 0, wind = ZERO,
+} = {}) {
   const relative = sub(velocity, wind);
   const speed = len(relative);
-  if (speed < 1e-9 || density <= 0 || cd <= 0 || area <= 0) return force('drag', vec(0, 0));
-  const magnitude = 0.5 * density * cd * area * speed * speed;
-  return force('drag', scale(norm(relative), -magnitude));
+  if (speed < 1e-9 || density <= 0 || area <= 0) return force('drag', vec(0, 0));
+
+  const result = fluidDrag({
+    speed, density, viscosity, area, diameter, cdShape: cd > 0 ? cd : null,
+  });
+
+  const f = force('drag', scale(norm(relative), -result.force),
+    `${result.regime.label}. Re ≈ ${result.re < 10 ? result.re.toFixed(2) : result.re.toPrecision(3)}, `
+    + `C_d ≈ ${result.cd.toPrecision(3)}. ${result.regime.text}`);
+  // The flow conditions travel with the force, so the readout can say which
+  // regime it is in rather than the interface having to recompute it.
+  f.flow = result;
+  return f;
 }
 
-/** Terminal speed: where drag has grown to exactly balance weight. */
-export function terminalSpeed(mass, g, { density = 0, cd = 0, area = 0 } = {}) {
-  const k = 0.5 * density * cd * area;
-  if (k <= 0 || !(g > 0)) return Infinity;
-  return Math.sqrt((mass * g) / k);
-}
+/** Terminal speed, re-exported: the search lives with the drag model. */
+export { terminalSpeed } from './drag.js';
 
 /** Hooke's law. `x` is the extension from the natural length, as a vector. */
 export const springForce = (extension, k) => force('spring', scale(extension, -k));
@@ -123,12 +132,22 @@ export function forcesOn(body, env = {}, contact = null) {
 
   /* Step one: everything that does not depend on the surface. */
   const applied = body.applied && len(body.applied) > 0 ? force('applied', body.applied) : null;
-  const drag = env.fluidDensity > 0 && body.cd > 0 && body.area > 0
-    ? dragForce(velocity, { density: env.fluidDensity, cd: body.cd, area: body.area, wind: env.wind })
+  const drag = env.fluidDensity > 0 && body.area > 0
+    ? dragForce(velocity, {
+      density: env.fluidDensity,
+      viscosity: env.viscosity ?? 0,
+      cd: body.cd,
+      area: body.area,
+      diameter: body.diameter || body.radius * 2,
+      wind: env.wind,
+    })
     : null;
   const extra = (body.extraForces || []).map((f) => force(f.id || 'applied', f.vec, f.note || ''));
 
-  const list = [weightForce(mass, field)];
+  const extraGravity = (body.extraForces || []).some((f) => f.id === 'weight');
+  // A zero uniform field alongside a real pull is not a force, it is an absence
+  // — and listing it would put a "Weight 0.00 N" row above the real one.
+  const list = extraGravity && len(scale(field, mass)) < 1e-12 ? [] : [weightForce(mass, field)];
   if (applied) list.push(applied);
   if (drag && drag.magnitude > 0) list.push(drag);
   list.push(...extra);
@@ -198,10 +217,42 @@ export function forcesOn(body, env = {}, contact = null) {
   });
 }
 
-function finish(list, net, mass, contact) {
+/**
+ * Two contributions of the same kind are one force, not two.
+ *
+ * A body being pulled by several masses feels one gravitational force — their
+ * vector sum — not a list of them. Left unmerged, the inspector shows two rows
+ * both labelled "Weight", the arrow picker toggles them together but draws them
+ * separately, and `by('weight')` returns whichever happened to be added first.
+ * That last one hid a real gravitational pull behind a zero for an afternoon.
+ */
+function mergeById(list) {
+  const out = [];
+  const seen = new Map();
+  for (const f of list) {
+    const at = seen.get(f.id);
+    if (at === undefined) {
+      seen.set(f.id, out.length);
+      out.push({ ...f, sources: f.towards ? [f.towards] : [] });
+      continue;
+    }
+    const merged = out[at];
+    merged.vec = { x: merged.vec.x + f.vec.x, y: merged.vec.y + f.vec.y };
+    merged.magnitude = len(merged.vec);
+    if (f.towards) merged.sources.push(f.towards);
+    // Keep whichever note actually says something; a zero contribution's
+    // apology is not worth more than a real one's explanation.
+    if (!merged.note || (f.note && f.magnitude > merged.magnitude * 0.5)) merged.note = f.note || merged.note;
+    if (f.flow) merged.flow = f.flow;
+  }
+  return out;
+}
+
+function finish(rawList, net, mass, contact) {
+  const list = mergeById(rawList);
   return {
     forces: list,
-    net: force('net', net),
+    net: force('net', sum(list.map((f) => f.vec))),
     // F = ma, used in the direction it is actually used: a = F_net / m.
     acceleration: mass > 0 ? scale(net, 1 / mass) : ZERO,
     contact,

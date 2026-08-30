@@ -658,3 +658,111 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 .modal__title { margin: 0 0 var(--space-3); font-size: 17px; }
 .modal__row { display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap; }
+
+/* --- the stepper ------------------------------------------------------- *
+ * Eight steps, all of them reachable at any time. Nothing here is unlocked
+ * and nothing is a reward — going back to look at the push again with the
+ * friction still set up is a reasonable thing to want.                     */
+
+.stepper {
+  display: flex; gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* Grow to fill, never shrink below the label: eight labels squashed onto one
+   row sit on top of each other, which looks like a font problem and is a flex
+   problem.                                              pitfalls.md #2       */
+.stepper__step {
+  flex: 1 0 auto;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: 36px;
+  padding: 6px var(--space-3);
+  font: inherit; font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stepper__step:hover { background: var(--panel-3); color: var(--text-dim); }
+.stepper__step.is-done { color: var(--text-dim); }
+.stepper__step.is-current {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.stepper__n {
+  flex: 0 0 auto;
+  width: 19px; height: 19px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--panel-3);
+  color: var(--text-faint);
+  font-size: 11px; font-weight: 700;
+}
+.stepper__step.is-current .stepper__n { background: var(--accent-strong); color: var(--accent-ink); }
+.stepper__step.is-done .stepper__n { background: var(--accent-soft); color: var(--accent-strong); }
+
+.prompt__nav { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
+
+/* --- the arrow picker -------------------------------------------------- *
+ * Sits directly above the drawing, because it is a way of looking at the
+ * drawing rather than a setting.                                           */
+
+.vectors {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.vectors__head { display: flex; align-items: center; gap: var(--space-2); }
+.vectors__title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.vectors__group { display: flex; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+.vectors__label {
+  flex: 0 0 52px;
+  font-size: 11px; font-weight: 600; color: var(--text-faint);
+  padding-top: 5px;
+}
+.vectors__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); flex: 1 1 auto; }
+.vectors__foot { margin-top: var(--space-2); }
+
+/* A chip that carries the arrow's own colour, so the picker and the drawing
+   cannot end up describing different things. */
+.vchip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font: inherit; font-size: 12px;
+  padding: 4px var(--space-3) 4px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.vchip:hover { background: var(--panel-2); }
+.vchip__key {
+  width: 12px; height: 3px; border-radius: 2px;
+  background: var(--vchip, var(--accent));
+  opacity: 0.35;
+}
+.vchip[aria-pressed="true"] {
+  border-color: var(--vchip, var(--accent-strong));
+  color: var(--text);
+  font-weight: 600;
+}
+.vchip[aria-pressed="true"] .vchip__key { opacity: 1; height: 4px; }
+
+@media (max-width: 640px) {
+  .vectors__label { flex-basis: 100%; padding-top: 0; }
+}

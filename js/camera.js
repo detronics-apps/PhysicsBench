@@ -33,14 +33,18 @@ export function createCamera({
   // Low enough that any scene fits. A 2 km drop is a legitimate experiment, and
   // a floor that stopped it fitting would push the balls off the canvas rather
   // than protect anything.
-  minScale = 0.01,
+  minScale = 1e-9,
 } = {}) {
   const spanX = Math.max(1e-6, world.maxX - world.minX);
   const spanY = Math.max(1e-6, world.maxY - world.minY);
   const usableW = Math.max(1, viewWidth - padding * 2);
   const usableH = Math.max(1, viewHeight - padding * 2);
 
-  const scale = Math.min(maxScale, Math.max(minScale, Math.min(usableW / spanX, usableH / spanY)));
+  // The fitting scale always wins over the floor. A floor that stops a scene
+  // fitting does not protect anything — it pushes the contents off the canvas,
+  // which is the failure it was meant to prevent, arriving from the other side.
+  const fits = Math.min(usableW / spanX, usableH / spanY);
+  const scale = Math.min(maxScale, fits) || Math.max(minScale, fits);
 
   // Centre whatever is left over, so a scene narrower than the panel sits in
   // the middle rather than jammed against the left edge.
@@ -108,12 +112,14 @@ export function boundsFor(bodies, { ground = null, minWidth = 6, minHeight = 3, 
   let maxY = -Infinity;
 
   for (const b of bodies) {
+    if (!Number.isFinite(b.pos?.x) || !Number.isFinite(b.pos?.y)) continue;
     const r = Math.max(b.radius || 0, (b.width || 0) / 2, (b.height || 0) / 2);
     minX = Math.min(minX, b.pos.x - r);
     maxX = Math.max(maxX, b.pos.x + r);
     minY = Math.min(minY, b.pos.y - r);
     maxY = Math.max(maxY, b.pos.y + r);
     for (const p of b.trail || []) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
       minX = Math.min(minX, p.x);
       maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y);

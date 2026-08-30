@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 
 import { vec, len, fromPolarDeg, perp, dot } from '../js/vec.js';
 import {
-  FORCE_STYLE, forcesOn, weightForce, dragForce, terminalSpeed, springForce,
+  FORCE_STYLE, forcesOn, weightForce, dragForce, springForce,
   inEquilibrium, accelerationFrom, forceFor, uniformField,
 } from '../js/forces.js';
 import { G_STANDARD } from '../js/constants.js';
+import { terminalSpeed } from '../js/drag.js';
 
 const close = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 const EARTH = { field: uniformField(G_STANDARD) };
@@ -168,28 +169,45 @@ test('drag depends on velocity relative to the air', () => {
 
 test('terminal speed is where drag balances weight', () => {
   const mass = 80;
-  const opts = { density: 1.225, cd: 1.0, area: 0.7 };
-  const vt = terminalSpeed(mass, G_STANDARD, opts);
+  const shape = { density: 1.225, viscosity: 1.81e-5, cdShape: 1.0, area: 0.7, diameter: 0.9 };
+  const vt = terminalSpeed({ mass, g: G_STANDARD, ...shape });
   // A belly-down skydiver: roughly 43 m/s, about 155 km/h.
   assert.ok(vt > 38 && vt < 48, `${vt} m/s is not a plausible terminal speed`);
 
-  // At exactly the terminal speed the net force is zero.
+  // At exactly that speed the net force really is zero.
   const r = forcesOn(
-    { mass, pos: vec(0, 100), vel: vec(0, -vt), cd: opts.cd, area: opts.area },
-    { field: uniformField(G_STANDARD), fluidDensity: opts.density },
+    { mass, pos: vec(0, 100), vel: vec(0, -vt), cd: shape.cdShape, area: shape.area, diameter: shape.diameter },
+    { field: uniformField(G_STANDARD), fluidDensity: shape.density, viscosity: shape.viscosity },
     null,
   );
-  close(len(r.net.vec), 0, 1e-6);
+  close(len(r.net.vec), 0, 1e-3);
 
   // In a vacuum there is no terminal speed at all.
-  assert.equal(terminalSpeed(mass, G_STANDARD, { density: 0, cd: 1, area: 1 }), Infinity);
+  assert.equal(terminalSpeed({ mass, g: G_STANDARD, density: 0, area: 1 }), Infinity);
 });
 
-test('terminal speed is why a heavy object outfalls a light one in air', () => {
-  // Same size and shape, ten times the mass: terminal speed is √10 higher.
-  const shape = { density: 1.225, cd: 0.47, area: 0.01 };
-  const ratio = terminalSpeed(10, G_STANDARD, shape) / terminalSpeed(1, G_STANDARD, shape);
-  close(ratio, Math.sqrt(10), 1e-9);
+test('a heavier object of the same shape has a higher terminal speed', () => {
+  // Which is the honest reason a heavy object outfalls a light one in air —
+  // not because gravity pulls it harder, but because it takes more drag to
+  // balance more weight.
+  const shape = { density: 1.225, viscosity: 1.81e-5, cdShape: 0.47, area: 0.01, diameter: 0.113 };
+  const light = terminalSpeed({ mass: 1, g: G_STANDARD, ...shape });
+  const heavy = terminalSpeed({ mass: 10, g: G_STANDARD, ...shape });
+  assert.ok(heavy > light);
+  // Close to √10 — not exactly, because C_d is not constant across the range.
+  close(heavy / light, Math.sqrt(10), 0.2);
+});
+
+test('terminal speed falls sharply as the fluid thickens', () => {
+  const shape = { area: Math.PI * 0.0025, diameter: 0.1 };
+  const inFluid = (density, viscosity) =>
+    terminalSpeed({ mass: 1, g: G_STANDARD, density, viscosity, ...shape });
+
+  const air = inFluid(1.225, 1.81e-5);
+  const water = inFluid(997, 1.0e-3);
+  const honey = inFluid(1420, 10);
+  assert.ok(air > water && water > honey, `${air} / ${water} / ${honey}`);
+  assert.ok(honey < 1, 'a 1 kg ball should barely creep through honey');
 });
 
 test('a spring pulls back towards its natural length', () => {

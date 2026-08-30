@@ -20,18 +20,29 @@
  * we know this one is behaving.
  */
 
-import { vec, add, sub, scale, dot, len, norm, perp, ZERO } from './vec.js';
+import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
 import { forcesOn, uniformField } from './forces.js';
+import { attractionVector, surfaceGravity } from './gravitation.js';
 import { substeps } from './integrator.js';
 import { collide1D } from './collide.js';
-import { G_STANDARD } from './constants.js';
+import { G_STANDARD, C_LIGHT } from './constants.js';
 
 /** A body counts as resting when it is this close to a surface. */
 const CONTACT_TOLERANCE = 1e-3;
 /** Below this approach speed a bounce is treated as settling, not bouncing. */
 const BOUNCE_THRESHOLD = 0.05;
 
-export const KINDS = ['ball', 'box', 'cart'];
+/**
+ * The speed at which this simulation stops being able to tell the truth.
+ *
+ * A tenth of the speed of light. Classical mechanics is still good to about
+ * half a per cent there and getting worse fast, and a learner who invents a
+ * neutron star deserves to be told that rather than shown a number with no
+ * meaning behind it — or, worse, a NaN that quietly empties the drawing.
+ */
+const CLASSICAL_LIMIT = C_LIGHT / 10;
+
+export const KINDS = ['ball', 'box', 'cart', 'planet'];
 
 /** One body, with every field defaulted so a scenario can name only what matters. */
 export function body(spec = {}) {
@@ -60,7 +71,11 @@ export function body(spec = {}) {
     restitution: clamp01(spec.restitution ?? 0.5),
     muS: Math.max(0, spec.muS ?? 0.4),
     muK: Math.max(0, spec.muK ?? 0.3),
-    fixed: !!spec.fixed,
+    // A planet is immovable unless told otherwise. Newton's third law does
+    // apply to it — the object pulls back just as hard — but a 1 kg mass
+    // accelerates the Earth by 10⁻²⁴ m/s², and pretending otherwise would
+    // cost more in confusion than it buys in honesty. The disclosure says so.
+    fixed: spec.fixed ?? spec.kind === 'planet',
     // Purely for the drawing: which of the palette's body colours to use.
     colour: spec.colour ?? 0,
     trail: spec.trail ? [...spec.trail] : [],
@@ -90,7 +105,12 @@ export function createWorld(spec = {}) {
       g,
       field: spec.field || uniformField(g),
       fluidDensity: Math.max(0, spec.fluidDensity ?? 0),
+      viscosity: Math.max(0, spec.viscosity ?? 0),
       wind: spec.wind || ZERO,
+      // When true, bodies pull on each other by G·m₁·m₂/r² instead of sitting
+      // in a uniform field. That is the difference between "gravity is a
+      // number pointing down" and "gravity is what masses do to each other".
+      mutualGravity: !!spec.mutualGravity,
     },
     ground: spec.ground === null ? null : {
       y: spec.ground?.y ?? 0,
@@ -109,7 +129,12 @@ export function createWorld(spec = {}) {
     collisionRestitution: clamp01(spec.collisionRestitution ?? 1),
     // Energy that has left the mechanical account, and where it went. Never a
     // loss — always a destination.
-    ledger: { heat: 0, impact: 0 },
+    // Energy that has left the mechanical account, and where it went — plus
+    // what has been put *in* by an applied force. Without that last one the
+    // totals cannot balance while anything is being pushed, and an app that
+    // prints "total energy" next to a number that visibly climbs has taught
+    // the opposite of what it meant to.
+    ledger: { heat: 0, impact: 0, input: 0 },
     trailLimit: spec.trailLimit ?? 0,
     events: [],
   };
@@ -152,7 +177,33 @@ export function forcesFor(world, b) {
   const contact = isResting(world.ground, b)
     ? { normal: groundNormal(world.ground), muS: combine(world.ground.muS, b.muS), muK: combine(world.ground.muK, b.muK) }
     : null;
-  return forcesOn(b, world.env, b.fixed ? null : contact);
+
+  /*
+   * Mutual gravitation is added as an extra force rather than folded into the
+   * field, so it shows up in the inspector as its own labelled arrow — pointing
+   * at the thing that is pulling. That is the whole point of the stage: the
+   * force has a source you can see, and it is not "downward" until one of the
+   * masses is big enough to make every direction but one irrelevant.
+   */
+  const extraForces = world.env.mutualGravity
+    ? world.bodies
+      .filter((other) => other.id !== b.id && other.mass > 0)
+      .map((other) => ({
+        id: 'weight',
+        vec: attractionVector(b, other),
+        towards: other.id,
+        note: `Attraction towards ${other.label || other.id}. Both bodies feel `
+          + 'exactly this, in opposite directions — the reason only one of them '
+          + 'visibly moves is F = ma afterwards, not the pull itself.',
+      }))
+      .filter((f) => Number.isFinite(f.vec.x) && Number.isFinite(f.vec.y))
+    : [];
+
+  return forcesOn(
+    { ...b, extraForces: [...(b.extraForces || []), ...extraForces] },
+    world.env,
+    b.fixed ? null : contact,
+  );
 }
 
 /**
@@ -235,13 +286,59 @@ export function step(world, dt) {
      * the scheme stable through contacts, and is exact for constant
      * acceleration — so free fall here agrees with the closed-form answer.
      */
-    const pos = add(b.pos, scale(add(b.vel, vel), dt / 2));
+    let pos = add(b.pos, scale(add(b.vel, vel), dt / 2));
+
+    /*
+     * Two guards, and both of them exist to say something rather than to hide
+     * something.
+     *
+     * A field strong enough to matter — a neutron star, or an invented world —
+     * accelerates the object past the point where classical mechanics describes
+     * anything, and shortly afterwards past the point where a double can hold
+     * the answer. Left alone that arrives as a NaN position, which empties the
+     * drawing with no explanation at all.
+     */
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)
+      || !Number.isFinite(vel.x) || !Number.isFinite(vel.y)) {
+      events.push({ type: 'diverged', id: b.id, t: world.t });
+      return { ...b, vel: ZERO, diverged: true };
+    }
+    if (len(vel) > CLASSICAL_LIMIT) {
+      events.push({ type: 'relativistic', id: b.id, speed: len(vel), t: world.t });
+      vel = scale(norm(vel), CLASSICAL_LIMIT);
+      pos = add(b.pos, scale(add(b.vel, vel), dt / 2));
+    }
 
     // Friction turns mechanical energy into heat. It goes on the ledger with a
     // destination rather than quietly vanishing from the totals.
     const friction = result.by('friction');
     if (friction && friction.magnitude > 0 && slid > 0) {
       ledger.heat += friction.magnitude * slid;
+    }
+
+    /*
+     * Drag heats the fluid, and that has to appear on the books too.
+     *
+     * Friction had a destination from the start and drag did not, which meant
+     * the totals balanced perfectly on a rough floor and drifted the moment the
+     * object was put in air — the one place a learner would most reasonably ask
+     * "where did that energy go?". It goes into the fluid, as heat, exactly as
+     * friction's goes into the surfaces.
+     */
+    const fluidResistance = result.by('drag');
+    if (fluidResistance && fluidResistance.magnitude > 0) {
+      const travelled = { x: (b.vel.x + vel.x) / 2 * dt, y: (b.vel.y + vel.y) / 2 * dt };
+      ledger.heat += Math.abs(fluidResistance.vec.x * travelled.x + fluidResistance.vec.y * travelled.y);
+    }
+
+    // Work done *on* the system by whatever is doing the pushing. W = F·d,
+    // taken along the mid-step displacement so it matches the energy the object
+    // actually gained. This is the other side of the ledger: energy is not
+    // being created when you push something, it is arriving from you.
+    const applied = result.by('applied');
+    if (applied && applied.magnitude > 0) {
+      const step = { x: (b.vel.x + vel.x) / 2 * dt, y: (b.vel.y + vel.y) / 2 * dt };
+      ledger.input += applied.vec.x * step.x + applied.vec.y * step.y;
     }
 
     return { ...b, pos, vel };
@@ -287,19 +384,39 @@ function resolveGround(bodies, index, world, ledger, events) {
 
     if (Math.abs(approach) > BOUNCE_THRESHOLD) {
       vel = add(tangentPart, scale(n, -approach * e));
-      // Energy the bounce did not return has gone into the ground and the ball.
-      ledger.impact += 0.5 * b.mass * approach * approach * (1 - e * e);
       events.push({ type: 'bounce', id: b.id, speed: Math.abs(approach), e, t: world.t });
     } else {
       // Too slow to bounce: it settles. Without this a ball jitters forever on
       // the floor, gaining a pixel of height every frame.
       vel = tangentPart;
-      ledger.impact += 0.5 * b.mass * approach * approach;
       events.push({ type: 'settle', id: b.id, t: world.t });
     }
   }
 
+  bookContact(b, pos, vel, world, ledger);
   bodies[index] = { ...b, pos, vel };
+}
+
+/**
+ * Put on the ledger exactly the mechanical energy a contact removed — no more.
+ *
+ * The obvious version, ½m·v_approach²·(1−e²), is wrong by a little every step,
+ * and the little adds up. Pushing a penetrating body back out to the surface
+ * *raises* it, which hands it potential energy that nothing paid for; charging
+ * the ledger for the kinetic energy alone then books that free lift as though
+ * it had been lost, and the totals creep upwards through a long contact.
+ *
+ * Measuring the whole mechanical change instead — kinetic and potential
+ * together, before and after — cannot drift, because it is the definition of
+ * what went missing rather than an estimate of it.
+ */
+function bookContact(before, pos, vel, world, ledger) {
+  const kineticBefore = 0.5 * before.mass * len2(before.vel);
+  const kineticAfter = 0.5 * before.mass * len2(vel);
+  // PE = −m·(field · position), so a move against the field costs energy.
+  const potentialChange = -before.mass * dot(world.env.field, sub(pos, before.pos));
+  const lost = (kineticBefore - kineticAfter) - potentialChange;
+  if (lost > 0) ledger.impact += lost;
 }
 
 function resolveBounds(bodies, index, world, ledger, events) {
@@ -328,7 +445,7 @@ function resolveBounds(bodies, index, world, ledger, events) {
   }
 
   if (hit) {
-    ledger.impact += 0.5 * b.mass * (len(b.vel) ** 2 - len(vel) ** 2);
+    bookContact(b, pos, vel, world, ledger);
     events.push({ type: 'wall', id: b.id, side: hit, t: world.t });
     bodies[index] = { ...b, pos, vel };
   }
@@ -360,7 +477,11 @@ function resolvePairs(bodies, world, ledger, events) {
       const approach = dot(sub(a.vel, b.vel), n);
       if (approach <= 0) continue;                    // already separating
 
-      const e = world.collisionRestitution;
+      // Below the bounce threshold the contact is a rest, not an impact. Without
+      // this a ball sitting on a planet jitters for ever, gaining a fraction of
+      // a millimetre every frame — the same bug the ground already guards
+      // against, arriving through a different door.
+      const e = Math.abs(approach) > BOUNCE_THRESHOLD ? world.collisionRestitution : 0;
       const ua = dot(a.vel, n);
       const ub = dot(b.vel, n);
       const solved = collide1D(a.mass, ua, b.mass, ub, e);
@@ -392,7 +513,7 @@ function resolvePairs(bodies, world, ledger, events) {
   }
 }
 
-const radiusAlong = (b) => (b.kind === 'ball' ? b.radius : b.width / 2);
+const radiusAlong = (b) => (b.kind === 'ball' || b.kind === 'planet' ? b.radius : b.width / 2);
 
 /* -------------------------------------------------------------- reading -- */
 
@@ -443,6 +564,7 @@ export function totals(world) {
     potential += b.mass * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
   }
   const moved = world.ledger.heat + world.ledger.impact;
+  const supplied = world.ledger.input;
   return {
     momentum: vec(px, py),
     momentumX: px,
@@ -450,8 +572,14 @@ export function totals(world) {
     potential,
     mechanical: kinetic + potential,
     elsewhere: { ...world.ledger },
-    // Nothing is lost: mechanical plus relocated is the constant.
+    // Everything the system currently holds or has passed on.
     total: kinetic + potential + moved,
+    // What has been put in from outside. An applied force is an outside agent
+    // doing work, so the conserved quantity is the difference, not the total.
+    supplied,
+    // The number that does not move. Whatever is pushed, heated or dropped,
+    // this stays where it started.
+    balance: kinetic + potential + moved - supplied,
   };
 }
 

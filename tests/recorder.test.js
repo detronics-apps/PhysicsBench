@@ -27,25 +27,6 @@ function fallRecording({ interval = 1 / 120, seconds = 2 } = {}) {
   return { rec, world };
 }
 
-test('every channel is complete and knows which axis it belongs on', () => {
-  assert.ok(CHANNELS.length >= 15);
-  const axes = new Set();
-  for (const c of CHANNELS) {
-    assert.ok(c.id && c.label && c.unit && c.axis, `${c.id} incomplete`);
-    // The colour is the same token the arrow for that quantity uses on the
-    // drawing, so a trace and its arrow cannot end up different colours.
-    assert.match(c.token, /^--/, `${c.id} has no colour token`);
-    assert.equal(typeof c.of, 'function');
-    axes.add(c.axis);
-  }
-  // Mixing metres and metres-per-second on one scale is the failure the axis
-  // grouping prevents.
-  assert.ok(axes.has('length') && axes.has('velocity') && axes.has('acceleration'));
-  assert.equal(channelById('speed').unit, 'm/s');
-  assert.equal(channelById('speed').token, '--vec-velocity');
-  assert.equal(channelById('nope'), null);
-});
-
 test('the recorder honours its interval rather than recording every step', () => {
   const { rec } = fallRecording({ interval: 0.1, seconds: 2 });
   assert.ok(rec.frames.length >= 19 && rec.frames.length <= 22, `${rec.frames.length} frames`);

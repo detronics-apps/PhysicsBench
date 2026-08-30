@@ -2,7 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { vec } from '../js/vec.js';
-import { G, G_STANDARD, EARTH_MASS, EARTH_MEAN_RADIUS } from '../js/constants.js';
+import { G, G_STANDARD } from '../js/constants.js';
+import { worldById } from '../js/gravitation.js';
+
+const EARTH = worldById('earth');
+const EARTH_MASS = EARTH.mass;
+const EARTH_MEAN_RADIUS = EARTH.radius;
 import {
   kinetic, kineticFromVec, rotationalKinetic, gravitationalPE, gravitationalPEExact,
   springPE, work, power, speedFromKE, heightFromSpeed, speedFromHeight,

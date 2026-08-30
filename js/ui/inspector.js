@@ -160,10 +160,19 @@ export function renderTotals(totals, { mode = 'learn' } = {}) {
     }
   }
 
-  host.appendChild(row('Total energy', `${fmtFixed(totals.total, 2)} J`, {
+  if (totals.supplied > 1e-9) {
+    host.appendChild(row('…put in from outside', `${fmtFixed(totals.supplied, 2)} J`, {
+      token: '--force-applied',
+      note: 'Work done on the system by whatever is pushing it. Energy is not '
+        + 'being created here — it is arriving from somewhere else.',
+    }));
+  }
+
+  host.appendChild(row('The books', `${fmtFixed(totals.balance, 2)} J`, {
     total: true,
-    note: 'This number does not change. Whatever leaves the mechanical account '
-      + 'appears on the line above it.',
+    note: 'Everything the system holds or has passed on, minus what was put in '
+      + 'from outside. This number does not change — whatever is pushed, heated '
+      + 'or dropped.',
   }));
 
   return host;
