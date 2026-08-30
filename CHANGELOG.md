@@ -18,7 +18,7 @@ Rebuilt as one bench that grows in eight steps, rather than thirteen separate la
   showing when one is hidden.
 - **The graphs stay**, and momentum and energy now appear from the moment anything can move rather
   than arriving as a later topic.
-- **The tests were cut from 333 to 229** — the ones that checked prose lengths, label completeness
+- **The tests were cut from 333 to 239** — the ones that checked prose lengths, label completeness
   and registry consistency are gone, and the physics invariants are all still there.
 
 ### New physics

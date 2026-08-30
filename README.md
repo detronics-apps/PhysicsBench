@@ -105,7 +105,7 @@ nothing to install:
 npm test
 ```
 
-229 cases across 17 modules, and they are invariants rather than examples: momentum is conserved
+239 cases across 18 modules, and they are invariants rather than examples: momentum is conserved
 at every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a migrated state round-trips unchanged, and every arrow stays
