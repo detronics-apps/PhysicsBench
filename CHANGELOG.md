@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.1
+
+- **A cannon could not hit the only object on the bench.** Whether bodies were solid depended on how
+  many of them there were — which looks like a free optimisation, since one body has nothing to
+  collide with, and is a correctness bug: cannons add their shots while the world is running, long
+  after that count was taken. A bench holding one object and a cannon was therefore built with
+  collisions switched off, and every shot sailed straight through the thing it was aimed at. The
+  pair loop over a single body is empty anyway, so the check bought nothing even when it was right.
+- **The collisions switch was somewhere nobody would look for it.** It sat at the bottom of a panel
+  headed "Other objects (0 of 19)", and a cannon shot hitting the object that was already there
+  involves no other objects at all. It now has a section of its own, next to the cannons that feed
+  it, with a note on what a given coefficient of restitution actually keeps.
+- **"Fires every: once, at the start" was cut off** at the eleven-character field beside the slider.
+
 ## 2.3.0
 
 Real surfaces instead of a bare number, solidity you can switch off, and the third step now shows

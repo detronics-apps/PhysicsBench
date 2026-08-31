@@ -487,19 +487,52 @@ test('the drop height changes how long you watch, not how fast it falls', () => 
 
 test('solidity can be switched off, except where the model needs it', () => {
   const p = defaults().bench;
-  const two = [{ id: 'a' }, { id: 'b' }];
 
-  assert.equal(collisionsOn({ ...p, collisions: true }, featuresAt('collide'), two), true);
-  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('collide'), two), false);
+  assert.equal(collisionsOn({ ...p, collisions: true }, featuresAt('collide')), true);
+  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('collide')), false);
 
   // Not a preference under mutual gravitation: 1/r² has no limit at zero
   // separation, and bodies that can pass through each other find it.
-  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('two-masses'), two), true);
+  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('two-masses')), true);
   assert.equal(collisionsForced(featuresAt('two-masses')), true);
   assert.equal(collisionsForced(featuresAt('collide')), false);
+});
 
-  // One object has nothing to collide with.
-  assert.equal(collisionsOn({ ...p, collisions: true }, featuresAt('collide'), [{ id: 'a' }]), false);
+test('a cannon can hit the only object on the bench', () => {
+  /*
+   * It could not. Whether bodies were solid used to depend on how many of them
+   * there were, which looked like a free optimisation — one body has nothing to
+   * collide with — and was a correctness bug. Cannons add their shots while the
+   * world runs, long after that count was taken, so a bench holding one object
+   * and a cannon was built with collisions off and every shot sailed straight
+   * through the thing it was aimed at.
+   */
+  const bench = (collisions) => ({
+    ...defaults().bench,
+    collisions,
+    objects: [],
+    worldMode: 'planet',
+    fluidId: 'vacuum',
+    pushSeconds: 0,
+    v0: 0,
+    walls: [],
+    cannons: [{
+      id: 'cannon1', x: -4, y: 0.2, angleDeg: 0, speed: 9,
+      mass: 0.5, size: 0.2, shapeId: 'sphere', everySeconds: 0,
+    }],
+  });
+
+  const fire = (collisions) => {
+    let w = build('collide', bench(collisions)).world;
+    for (let i = 0; i < 300; i += 1) w = advance(w, 1 / 100);
+    return findBody(w, 'main').pos.x;
+  };
+
+  // A single object and a cannon: the flag must be on before any shot exists.
+  assert.equal(build('collide', bench(true)).world.bodyCollisions, true);
+  assert.ok(fire(true) > 1, `the shot missed: the object is still at ${fire(true)}`);
+  // And off, it really does pass through.
+  assert.equal(fire(false), 0);
 });
 
 test('the switch reaches the world, on a rebuild and while live', () => {

@@ -375,7 +375,7 @@ export function build(stageId, p) {
      * small one away at half the speed of light. Letting them touch instead is
      * both the honest model and the one that behaves.
      */
-    bodyCollisions: collisionsOn(p, f, bodies),
+    bodyCollisions: collisionsOn(p, f),
     collisionRestitution: p.restitution,
     bodies,
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
@@ -403,15 +403,22 @@ export function build(stageId, p) {
  * pile-up and a swarm — and because turning it off makes the cannon's shots
  * fly through the scene rather than scattering off it.
  *
+ * It does not depend on how many bodies there are, and used to. Counting them
+ * looked like a free optimisation — one body has nothing to collide with — and
+ * was a correctness bug: cannons add their shots while the world is running,
+ * long after the count was taken, so a bench holding one object and a cannon
+ * was built with collisions off and every shot sailed straight through. The
+ * pair loop over a single body is empty anyway, so the check bought nothing
+ * even when it was right.
+ *
  * With one exception, which is not a preference. G·m₁·m₂/r² has a singularity
  * at r = 0: let two bodies interpenetrate under mutual gravity and the
  * attraction climbs without limit, flinging the small one away at a fraction of
  * the speed of light. Where that is the model, solidity is part of it.
  */
-export function collisionsOn(p, f, bodies = []) {
+export function collisionsOn(p, f) {
   if (f.has('mutual-gravity')) return true;
-  if (p.collisions === false) return false;
-  return bodies.filter((b) => !b.fixed).length > 1;
+  return p.collisions !== false;
 }
 
 /** Is the collisions switch being overruled, and why? */
@@ -533,7 +540,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
       return source ? { ...c, ...source, id: c.id, fired: c.fired } : c;
     }),
     collisionRestitution: Math.max(0, Math.min(1, p.restitution)),
-    bodyCollisions: collisionsOn(p, f, world.bodies),
+    bodyCollisions: collisionsOn(p, f),
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
   };
 }

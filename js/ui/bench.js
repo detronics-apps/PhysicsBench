@@ -44,6 +44,7 @@ export function controls(ctx) {
     f.has('sandbox') ? objectsSection(ctx) : null,
     f.has('sandbox') ? wallsSection(ctx) : null,
     f.has('sandbox') ? cannonsSection(ctx) : null,
+    f.has('sandbox') || f.has('collide') ? collisionSection(ctx) : null,
     f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
   ].filter(Boolean);
@@ -425,24 +426,35 @@ function objectsSection(ctx) {
       extras.length ? button('Clear them all', () => ctx.clearObjects(), { small: true }) : null,
     ].filter(Boolean)),
     editor,
-    /*
-     * Solidity, switchable.
-     *
-     * "What if they passed straight through each other?" is a fair thing to
-     * want to see, and with twenty objects it is the difference between a
-     * pile-up and a swarm. Overruled where mutual gravitation is the model,
-     * because there it is not a preference — see the hint.
-     */
-    toggleField('Objects collide with each other', collisionsOn(p, ctx.features, ctx.world.bodies), (v) => ctx.set('collisions', v), {
+  ].filter(Boolean), { key: 'objects' });
+}
+
+const shapeLabel = (id) => (SHAPES.find((x) => x.id === id) || SHAPES[0]).label;
+
+/**
+ * Whether things bounce off each other, and how hard.
+ *
+ * Its own section rather than a line at the bottom of the object list, because
+ * it applies to everything on the bench — a cannon shot hitting the one object
+ * that was already there involves no "other objects" at all, and a reader
+ * looking for it after firing one had no reason to open a panel headed
+ * "Other objects (0 of 19)".
+ */
+function collisionSection(ctx) {
+  const { params: p } = ctx;
+  const forced = collisionsForced(ctx.features);
+
+  return section('Collisions', [
+    toggleField('Objects bounce off each other', collisionsOn(p, ctx.features), (v) => ctx.set('collisions', v), {
       key: 'collisions',
-      hint: collisionsForced(ctx.features)
+      hint: forced
         ? 'Held on at this step, and not as a preference: gravity goes as 1/r², '
           + 'which has no limit at zero separation. Two bodies that can pass '
           + 'through each other find that singularity and one of them leaves at a '
           + 'fraction of the speed of light.'
-        : 'Off, and everything — including whatever the cannons fire — passes '
-          + 'straight through everything else. Nothing about gravity, drag or '
-          + 'friction changes; only contact stops happening.',
+        : 'Everything on the bench, and everything the cannons fire. Switch it '
+          + 'off and they all pass straight through each other — nothing about '
+          + 'gravity, drag or friction changes, only contact stops happening.',
       info: 'Applies to every pair on the bench, cannon shots included.',
     }),
 
@@ -453,10 +465,20 @@ function objectsSection(ctx) {
         + 'the bench. e = 1 conserves kinetic energy as well as momentum; e = 0 '
         + 'means they move off together.',
     }),
-  ].filter(Boolean), { key: 'objects' });
-}
 
-const shapeLabel = (id) => (SHAPES.find((x) => x.id === id) || SHAPES[0]).label;
+    el('div', {
+      class: 'field__hint',
+      text: p.restitution >= 0.999
+        ? 'Perfectly elastic: kinetic energy comes out exactly as it went in. '
+          + 'Almost nothing real is, which is why the energy graph normally has a '
+          + 'step in it and the momentum graph does not.'
+        : `At e = ${fmtFixed(p.restitution, 2)} an impact keeps `
+          + `${fmtFixed(p.restitution ** 2 * 100, 0)}% of the kinetic energy along the line of `
+          + 'the collision. All of the momentum survives either way — that is the '
+          + 'difference the two graphs are there to show.',
+    }),
+  ], { key: 'collisions' });
+}
 
 /**
  * Drawn obstacles.
@@ -537,7 +559,9 @@ function cannonsSection(ctx) {
     }),
     sliderField('Fires every', c.everySeconds, (v) => ctx.setCannon(i, { everySeconds: v }), {
       min: 0, max: 10, step: 0.25, key: `c:every:${i}`,
-      format: (v) => (v > 0 ? `${fmtFixed(v, 2)} s` : 'once, at the start'),
+      // The readout beside a slider is a field eleven characters wide, so this
+      // is the short version; the section's own hint carries the long one.
+      format: (v) => (v > 0 ? `every ${fmtFixed(v, 2)} s` : 'one shot'),
     }),
     numberField('Shot mass', c.mass, (v) => ctx.setCannon(i, { mass: v }), {
       unit: 'kg', min: 0.001, max: 1000, step: 0.1, key: `c:mass:${i}`,
