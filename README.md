@@ -199,7 +199,7 @@ nothing to install:
 npm test
 ```
 
-354 cases across 24 modules, and they are invariants rather than examples: momentum is conserved at
+357 cases across 24 modules, and they are invariants rather than examples: momentum is conserved at
 every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a

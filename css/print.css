@@ -1,10 +1,26 @@
 /* The printable sheet: the drawing, the numbers, the graphs and the working —
    nothing that only makes sense on a screen. */
 @media print {
+  /*
+   * Nothing above the drawing goes on the sheet.
+   *
+   * The stepper, the question that opens the step and the arrow picker are all
+   * ways of getting to a result rather than parts of one — a printed page is
+   * where you already are, so navigation on it is noise. The sheet starts with
+   * the drawing.
+   */
   .app-header,
   .sidebar,
+  .stepper,
+  .prompt,
+  #ask,
+  #vectors,
+  .vectors,
   .segmented,
   .transport,
+  /* The host as well as the bar: it also carries the transport's hint line,
+     which would otherwise print on its own with nothing to belong to. */
+  #transport,
   .stage-tools,
   .btn,
   .info,
@@ -46,7 +62,6 @@
   .explain__formula, .explain__worked { background: #f4f4f4; border-color: #999; }
   .kind { border-left-color: #666; }
   .numbers__row { background: #f8f8f8; border-color: #999; }
-  .prompt { background: #f4f4f4; border-color: #999; break-inside: avoid; }
 
   .table th, .table td { border-color: #999; }
   .banner, .approx-flag { border-color: #999; background: #fff; color: #000; }
@@ -88,4 +103,27 @@
   .print-no-graphs #graphs { display: none !important; }
   .print-no-working .explain-host,
   .print-no-working .banners { display: none !important; }
+}
+
+/* ------------------------------------------------------------------------
+ * One section to a page.
+ *
+ * A forced break at the very start of the flow is ignored by the fragmenter,
+ * so whichever section happens to be first — the drawing normally, the graphs
+ * if the drawing has been switched off — does not leave a blank sheet in front
+ * of it. Each of the others starts fresh.
+ * ---------------------------------------------------------------------- */
+@media print {
+  #graphs,
+  .measurements,
+  .print-summary,
+  .explain-host {
+    break-before: page;
+    page-break-before: always;    /* for older print engines */
+  }
+
+  /* The drawing and what it means stay together, and so does each graph. */
+  .viewport__stage, #legend { break-inside: avoid; }
+  #legend { break-before: avoid; margin-top: 3mm; }
+  .banners { break-before: avoid; }
 }

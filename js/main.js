@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.5.2';
+export const APP_VERSION = '2.5.3';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -91,15 +91,25 @@ const THEME_GLYPH = { system: '◐', light: '○', dark: '●' };
 /* --------------------------------------------------------------- chrome -- */
 
 function buildHeader() {
+  /*
+   * A disc, not a button with a word in it.
+   *
+   * It is the one control in the header that is not about the work — three
+   * states, cycled, and the glyph says which one you are in. Its meaning lives
+   * in the title and the accessible name, where it costs no width at all and is
+   * still there for anyone who needs it.
+   */
   const themeButton = el('button', {
-    class: 'btn', type: 'button', id: 'theme-toggle',
-    title: 'System, light or dark. Set it explicitly before screen-recording.',
+    class: 'btn btn--icon', type: 'button', id: 'theme-toggle',
+    title: `${THEME_LABEL[state.theme]}. Click to change — system, light or dark. `
+      + 'Set it explicitly before screen-recording.',
+    'aria-label': THEME_LABEL[state.theme],
     on: {
       click: () => update((draft) => {
         draft.theme = THEME_ORDER[(THEME_ORDER.indexOf(draft.theme) + 1) % THEME_ORDER.length];
       }, { sim: 'none' }),
     },
-  }, dualLabel(THEME_LABEL[state.theme], THEME_GLYPH[state.theme]));
+  }, el('span', { class: 'btn__glyph', 'aria-hidden': 'true', text: THEME_GLYPH[state.theme] }));
   dom.themeButton = themeButton;
 
   return el('header', { class: 'app-header' }, [
@@ -627,9 +637,11 @@ export function render({ controls = true } = {}) {
   renderStages();
 
   if (dom.themeButton) {
-    const [long, short] = dom.themeButton.querySelectorAll('.btn-label');
-    if (long) long.textContent = THEME_LABEL[state.theme];
-    if (short) short.textContent = THEME_GLYPH[state.theme];
+    const glyph = dom.themeButton.querySelector('.btn__glyph');
+    if (glyph) glyph.textContent = THEME_GLYPH[state.theme];
+    dom.themeButton.setAttribute('aria-label', THEME_LABEL[state.theme]);
+    dom.themeButton.title = `${THEME_LABEL[state.theme]}. Click to change — system, light or dark. `
+      + 'Set it explicitly before screen-recording.';
   }
 
   const ctx = context();
@@ -666,7 +678,12 @@ export function render({ controls = true } = {}) {
   for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
 
   clear(dom.summary);
-  dom.summary.appendChild(el('h2', { class: 'measurements__title', text: 'What was set' }));
+  dom.summary.appendChild(el('h2', {
+    class: 'measurements__title',
+    // Nothing above the drawing prints, so this is where the sheet says which
+    // experiment it is a sheet of.
+    text: `What was set — step ${stageIndex(state.stage) + 1}, ${stageById(state.stage).label}`,
+  }));
   for (const group of inputSummary(state.stage, state.bench)) {
     dom.summary.appendChild(el('div', { class: 'print-summary__group' }, [
       el('h3', { class: 'print-summary__title', text: group.title }),

@@ -90,3 +90,37 @@ test('the section store reports "not set" rather than guessing', () => {
   assert.ok(!getter.includes('??'),
     'the getter fills in a default, so `section` cannot tell unset from closed');
 });
+
+/**
+ * The printed sheet starts at the drawing.
+ *
+ * Everything above it — the stepper, the question that opens the step, the
+ * arrow picker — is a way of getting to a result rather than part of one, and a
+ * printed page is somewhere you already are. Checked in the stylesheet because
+ * there is no print rendering to inspect from a test runner.
+ */
+test('nothing above the drawing reaches the printed page', () => {
+  const css = read('../css/print.css');
+  const hidden = css.match(/@media print \{([\s\S]*?)display: none !important;/)[1];
+  for (const selector of ['.stepper', '#ask', '#vectors', '.app-header', '.sidebar', '#transport']) {
+    assert.ok(hidden.includes(selector), `${selector} still prints`);
+  }
+});
+
+test('each printed section starts on its own page', () => {
+  const css = read('../css/print.css');
+  const block = css.match(/#graphs,[\s\S]*?\}/)[0];
+  for (const selector of ['#graphs', '.measurements', '.print-summary', '.explain-host']) {
+    assert.ok(block.includes(selector), `${selector} does not start a page`);
+  }
+  assert.match(block, /break-before: page/);
+  // Older engines need the superseded property as well.
+  assert.match(block, /page-break-before: always/);
+});
+
+test('the sheet says which experiment it is, without anything above the drawing', () => {
+  // The step name moved into the printed summary when the header stopped
+  // printing, so a sheet on its own still identifies itself.
+  const main = read('../js/main.js');
+  assert.match(main, /What was set — step \$\{stageIndex\(state\.stage\) \+ 1\}, \$\{stageById\(state\.stage\)\.label\}/);
+});

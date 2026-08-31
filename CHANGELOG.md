@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.5.3
+
+- **The printed sheet now starts at the drawing.** The stepper, the question that opens the step and
+  the arrow picker are ways of getting to a result rather than parts of one, and a printed page is
+  somewhere you already are. The transport's host went with them — it was carrying the hint line
+  beneath the bar, which would otherwise have printed on its own with nothing to belong to. Since
+  nothing above the drawing survives, the printed input summary now names the step, so a sheet on
+  its own still says which experiment it is of.
+- **Each section starts a fresh page**: the graphs, the measurements, what was set, and the working.
+  A forced break at the very start of the flow is ignored by the fragmenter, so whichever section
+  happens to be first — the drawing normally, the graphs if the drawing has been switched off —
+  does not leave a blank sheet in front of it.
+- **The theme control is a disc with one glyph**, rather than a button with a word in it. It is the
+  only thing in the header that is not about the work; its meaning is in the title and the
+  accessible name, where it costs no width.
+
 ## 2.5.2
 
 - **"The drawing" folded itself away on every click.** A panel's `open` option was winning over the
