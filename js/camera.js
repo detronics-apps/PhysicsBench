@@ -250,8 +250,8 @@ export function gridStep(cam, targetPixels = 70) {
 }
 
 /** The grid lines actually visible, so the renderer never loops off-screen. */
-export function gridLines(cam) {
-  const step = gridStep(cam);
+export function gridLines(cam, override = null) {
+  const step = override > 0 ? override : gridStep(cam);
   const box = visibleWorld(cam);
   const xs = [];
   const ys = [];

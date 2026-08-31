@@ -27,7 +27,7 @@ import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPn
 
 import {
   STAGES, stageById, stageIndex, featuresAt, build, applyPush, applyLive, structuralKey,
-  channelsFor, vectorsFor, MAX_OBJECTS,
+  channelsFor, vectorsFor, inputSummary, MAX_OBJECTS,
 } from './stages.js';
 import { controlForce } from './control.js';
 import { describe as describeObject } from './shapes.js';
@@ -39,7 +39,7 @@ import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime } from './recorder.js';
-import { renderScene, sceneLegend, sceneCamera } from './ui/scene-svg.js';
+import { renderScene, sceneLegend, sceneCamera, autoView } from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
 import { renderTransport, transportNote } from './ui/transport.js';
@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.4.2';
+export const APP_VERSION = '2.5.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -67,6 +67,8 @@ const input = {
   pointer: null,
   keys: new Set(),
   drawing: null,
+  // A pan in progress: where in the world the drag started.
+  panning: null,
   // Whether the pointer button is being held down over the drawing. The
   // pointer control aims while you hover and pushes only while you hold.
   pressed: false,
@@ -152,12 +154,53 @@ function renderStages() {
   });
 }
 
+/**
+ * Which steps have been opened before, so the sidebar is only rearranged once.
+ *
+ * Session-scoped on purpose. Coming back to a step should show it the way you
+ * left it, not the way it was introduced to you.
+ */
+const visited = new Set();
+
+/** The keys of the panels currently in the sidebar. */
+const sectionKeys = () =>
+  new Set([...document.querySelectorAll('#controls [data-section]')].map((n) => n.dataset.section));
+
+/**
+ * Open what this step adds, and close what it inherited.
+ *
+ * By the last step the sidebar is eleven panels long, and every one of them was
+ * introduced by an earlier step and left open. Arriving somewhere new and
+ * having to hunt down the one panel that is new is the opposite of what the
+ * stepper is for — so the new ones are opened and the rest are folded away,
+ * once, on the first visit. Everything is still there, and anything reopened
+ * stays open.
+ */
+function focusNewSections(previous) {
+  for (const node of document.querySelectorAll('#controls [data-section]')) {
+    const key = node.dataset.section;
+    // The drawing options are housekeeping rather than part of any step, and
+    // they were closed to begin with.
+    if (key === 'view') continue;
+    const isNew = !previous.has(key);
+    node.open = isNew;
+    state.ui.sections[`${state.stage}:${key}`] = isNew;
+  }
+  saveSoon();
+}
+
 function goToStage(id) {
+  const previous = sectionKeys();
+  const firstVisit = !visited.has(id);
+  visited.add(id);
+
   update((draft) => {
     draft.stage = id;
     draft.transport.scrubT = null;
     draft.transport.playing = false;
   }, { sim: 'full' });
+
+  if (firstVisit) focusNewSections(previous);
 }
 
 /**
@@ -191,6 +234,14 @@ function buildViewport() {
   dom.banners = el('div', { class: 'banners', id: 'banners' });
   dom.explain = el('div', { class: 'explain-host', id: 'explain' });
 
+  /*
+   * The inputs, written out as values rather than as controls.
+   *
+   * Hidden on screen — the sidebar is already there and is better at it — and
+   * printed, because a sheet showing a result without the settings that
+   * produced it is a sheet nobody can check or repeat.
+   */
+  dom.summary = el('section', { class: 'print-only print-summary', id: 'print-summary' });
   dom.inspector = el('div', { class: 'measurements__detail', id: 'inspector-body' });
   dom.measurements = el('section', { class: 'measurements', id: 'measurements' }, [
     el('div', { class: 'measurements__head' }, [
@@ -216,6 +267,7 @@ function buildViewport() {
     dom.banners,
     dom.graphs,
     dom.measurements,
+    dom.summary,
     dom.explain,
   ]);
   return dom.viewport;
@@ -229,7 +281,10 @@ function buildFooter() {
     }),
     el('nav', {}, [
       button('Share link', () => copyLink(), { small: true, title: 'Copy a link that reopens this exact experiment' }),
-      button('Print', () => printSheet(), { small: true, title: 'Print the drawing, the numbers, the graphs and the working' }),
+      button('Print / PDF', () => printWhatIsWanted(), {
+        small: true,
+        title: 'Print, or save as PDF — choose what goes on it under "The drawing"',
+      }),
       button('SVG', () => downloadSvg(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
       button('PNG', () => downloadPng(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
       button('CSV', () => downloadCsv(sim.recorder, channelsFor(state.stage, state.bench).flatMap((g) => g.ids), `physics-${state.stage}`), { small: true, title: 'Download the measurements as a spreadsheet' }),
@@ -610,6 +665,18 @@ export function render({ controls = true } = {}) {
   clear(dom.controls);
   for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
 
+  clear(dom.summary);
+  dom.summary.appendChild(el('h2', { class: 'measurements__title', text: 'What was set' }));
+  for (const group of inputSummary(state.stage, state.bench)) {
+    dom.summary.appendChild(el('div', { class: 'print-summary__group' }, [
+      el('h3', { class: 'print-summary__title', text: group.title }),
+      el('dl', { class: 'dims' }, group.rows.flatMap(([label, value]) => [
+        el('dt', { text: label }),
+        el('dd', { text: value }),
+      ])),
+    ]));
+  }
+
   clear(dom.explain);
   for (const node of bench.explains(ctx)) dom.explain.appendChild(node);
   if (sim.scenario?.disclosure) dom.explain.appendChild(disclosurePanel(sim.scenario.disclosure));
@@ -625,6 +692,7 @@ function paint(force = false) {
 
   clear(dom.stage);
   const armed = state.ui.tool === 'wall';
+  dom.stage.classList.toggle('is-panning', state.ui.tool === 'pan');
   const canControl = !!sim.scenario?.features?.has('control');
   const driving = canControl && state.bench.control?.mode !== 'none';
   const withKeys = canControl && state.bench.control?.mode === 'keyboard';
@@ -699,6 +767,19 @@ function paint(force = false) {
   updateTransport();
 }
 
+/**
+ * Switch to a held view without moving it.
+ *
+ * Zooming from an automatic view has to start somewhere, and the only sensible
+ * somewhere is exactly what is on screen — otherwise the first click on the
+ * zoom button jumps somewhere else before it zooms.
+ */
+function takeManualView(draft) {
+  if (draft.view.camera.mode === 'manual') return;
+  const now = autoView(shownWorld(), 'main');
+  draft.view.camera = { mode: 'manual', ...now };
+}
+
 /** Renumber the extra objects so their ids always match their position. */
 const renumber = (list) => list.map((o, i) => ({ ...o, id: `o${i + 2}` }));
 
@@ -761,6 +842,22 @@ function context() {
       draft.ui.tool = tool;
       input.drawing = null;
     }, { sim: 'none' }),
+
+    /* ---------------------------------------------------------- the view -- */
+    zoomBy: (factor) => update((draft) => {
+      takeManualView(draft);
+      draft.view.camera.span = Math.min(1e9, Math.max(1e-4, draft.view.camera.span / factor));
+    }, { sim: 'none' }),
+    panBy: (dx, dy) => update((draft) => {
+      takeManualView(draft);
+      draft.view.camera.cx += dx * draft.view.camera.span;
+      draft.view.camera.cy += dy * draft.view.camera.span;
+    }, { sim: 'none' }),
+    // Home is not "zoom to fit once" — it hands the framing back to the scene,
+    // so it keeps following whatever happens next.
+    goHome: () => update((draft) => { draft.view.camera.mode = 'auto'; }, { sim: 'none' }),
+    setGrid: (value) => update((draft) => { draft.view.grid = value; }, { sim: 'none' }),
+    setPrint: (part, on) => update((draft) => { draft.view.print[part] = on; }, { sim: 'none' }),
     removeWall: (index) => update((draft) => {
       draft.bench.walls = draft.bench.walls.filter((_, i) => i !== index);
     }),
@@ -887,6 +984,27 @@ function updateTransport() {
   }
 }
 
+/**
+ * Print exactly the parts that are switched on.
+ *
+ * "Save as PDF" is a printer as far as a browser is concerned, so this is the
+ * whole of PDF export: mark the body with what to leave out, let the print
+ * stylesheet do the rest, and put it back afterwards. A second renderer that
+ * drew its own PDF would be a second thing to keep in step with this one, and
+ * it would start disagreeing about something within a week.
+ */
+function printWhatIsWanted() {
+  const wanted = state.view.print;
+  const off = Object.keys(wanted).filter((k) => !wanted[k]).map((k) => `print-no-${k}`);
+  document.body.classList.add(...off, 'is-printing');
+  const restore = () => document.body.classList.remove(...off, 'is-printing');
+  window.addEventListener('afterprint', restore, { once: true });
+  // Belt and braces: some browsers never fire afterprint from a cancelled
+  // dialog, and a page stuck with sections hidden would look broken.
+  setTimeout(restore, 60000);
+  printSheet();
+}
+
 /* --------------------------------------------------------------- clock -- */
 
 /**
@@ -976,7 +1094,7 @@ function pointerToWorld(event) {
   point.x = event.clientX;
   point.y = event.clientY;
   const inView = point.matrixTransform(ctm.inverse());
-  const cam = sceneCamera(shownWorld());
+  const cam = sceneCamera(shownWorld(), 'main', state.view);
   const world = toWorld(cam, { x: inView.x, y: inView.y });
   return Number.isFinite(world.x) && Number.isFinite(world.y) ? world : null;
 }
@@ -984,6 +1102,23 @@ function pointerToWorld(event) {
 function wireInput() {
   dom.stage.addEventListener('pointermove', (event) => {
     input.pointer = pointerToWorld(event);
+
+    /*
+     * Panning moves the view so that the world point under the pointer stays
+     * under it — which is the only version of dragging a picture that feels
+     * like dragging a picture. Measured against the grab point rather than the
+     * previous frame, so it cannot drift.
+     */
+    if (input.panning && input.pointer) {
+      const dx = input.pointer.x - input.panning.from.x;
+      const dy = input.pointer.y - input.panning.from.y;
+      state.view.camera.cx -= dx;
+      state.view.camera.cy -= dy;
+      saveSoon();
+      paint(true);
+      return;
+    }
+
     if (input.drawing && input.pointer) {
       input.drawing = { ...input.drawing, to: input.pointer };
       paint(true);
@@ -998,6 +1133,15 @@ function wireInput() {
   });
 
   dom.stage.addEventListener('pointerdown', (event) => {
+    if (state.ui.tool === 'pan') {
+      const at = pointerToWorld(event);
+      if (!at) return;
+      event.preventDefault();
+      dom.stage.setPointerCapture?.(event.pointerId);
+      update((draft) => { takeManualView(draft); }, { sim: 'none' });
+      input.panning = { from: at };
+      return;
+    }
     if (state.ui.tool === 'wall') {
       const at = pointerToWorld(event);
       if (!at) return;
@@ -1047,6 +1191,7 @@ function wireInput() {
   };
 
   const release = () => {
+    if (input.panning) { input.panning = null; render(); return; }
     if (!input.pressed) return;
     input.pressed = false;
     paint(true);
@@ -1145,6 +1290,7 @@ function init() {
   wireInput();
   rebuild();
   render();
+  visited.add(state.stage);
   save();
 
   // The share link has done its job once it has been read; leaving it in the
@@ -1186,5 +1332,5 @@ window.PhysicsBench = {
   setEngaged: (on) => { input.engaged = !!on; },
   press: (key) => input.keys.add(key),
   release: (key) => input.keys.delete(key),
-  camera: () => sceneCamera(shownWorld()),
+  camera: () => sceneCamera(shownWorld(), 'main', state.view),
 };

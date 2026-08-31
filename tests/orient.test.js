@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  facing, normalise, angleDelta, easeAngle, rollAngle, alongSurface, MOVING, ALIGNMENTS,
+  facing, normalise, angleDelta, easeAngle, settleAngle, rollAngle, alongSurface,
+  MOVING, ALIGNMENTS,
 } from '../js/orient.js';
 
 const close = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -121,4 +122,39 @@ test('the direction along a surface is perpendicular to its normal', () => {
   const n = { x: -Math.sin(deg(30)), y: Math.cos(deg(30)) };
   const t = alongSurface(n);
   close(t.x * n.x + t.y * n.y, 0, 1e-12);
+});
+
+test('the mirror flip is a jump, not something to ease through', () => {
+  /*
+   * A shape pointing just left of straight up and one pointing just right of it
+   * are drawn a couple of degrees apart, but the target angles that describe
+   * them sit on opposite sides of zero — the mirror accounts for the other
+   * 180°. Easing between those two descriptions sends the shape the long way
+   * round through every angle in between while the mirror has already switched:
+   * a slow barrel-roll that arrives correct and looks broken the whole way.
+   */
+  const before = facing({ align: 'travel', velocity: { x: 0.02, y: 1 } });   // 89°
+  const after = facing({ align: 'travel', velocity: { x: -0.02, y: 1 } });   // 91°
+  assert.equal(before.flip, false);
+  assert.equal(after.flip, true);
+
+  // Eased, it would crawl. Settled, it arrives at once.
+  const eased = easeAngle(before.angle, after.angle, 1 / 60);
+  assert.ok(Math.abs(angleDelta(eased, after.angle)) > 1);
+  close(settleAngle(before.angle, after, before.flip, 1 / 60), after.angle, 1e-12);
+
+  // Which is only safe because what is drawn is continuous across it: the
+  // rendered nose is the angle plus 180° when mirrored, and those match.
+  const renderedBefore = before.angle;
+  const renderedAfter = normalise(after.angle + Math.PI);
+  assert.ok(Math.abs(angleDelta(renderedBefore, renderedAfter)) < 0.05,
+    `the drawing jumps by ${angleDelta(renderedBefore, renderedAfter)} rad`);
+});
+
+test('with the mirror unchanged it still eases', () => {
+  const wanted = { angle: 2, flip: false };
+  const stepped = settleAngle(0, wanted, false, 1 / 8, 6);
+  close(stepped, 0.75, 1e-9);
+  // And a held attitude is held.
+  close(settleAngle(0.4, { angle: 0, flip: false, hold: true }, false, 1), 0.4, 1e-12);
 });

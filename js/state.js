@@ -39,6 +39,9 @@ const CHANNEL_IDS = CHANNELS.map((c) => c.id);
 const CONTROL_IDS = CONTROL_MODES.map((m) => m.id);
 export const MAX_CANNONS = 6;
 
+/** The parts of the page that can be printed, each switchable. */
+export const PRINT_PARTS = ['drawing', 'inputs', 'measurements', 'graphs', 'working'];
+
 /** Every arrow that can be drawn, and whether it starts switched on. */
 export const VECTOR_IDS = ['velocity', 'acceleration', 'momentum', 'applied', 'control', 'weight', 'normal', 'friction', 'rolling', 'drag', 'buoyancy', 'net'];
 
@@ -80,6 +83,35 @@ export const defaults = () => ({
     showTrail: true,
     showGrid: true,
     graphs: true,
+
+    /*
+     * How far apart the metre grid is drawn. 'auto' picks a spacing that keeps
+     * the lines 40–120 px apart whatever the zoom, which is right for reading
+     * and wrong for comparing two runs at different scales.
+     */
+    grid: 'auto',
+
+    /*
+     * Where the drawing is looking.
+     *
+     * 'auto' frames whatever is on the bench, which is what you want until it
+     * is not: a cannon shot arcing away or a planet arriving pulls the view out
+     * until the thing you were watching is a speck, and there was no way back
+     * except resetting the whole experiment. 'manual' holds a centre and a
+     * width, and Home returns to following the scene.
+     */
+    camera: { mode: 'auto', cx: 0, cy: 0, span: 6 },
+
+    /*
+     * What goes on the printed sheet — which is also what goes into a PDF,
+     * since "save as PDF" is a printer as far as a browser is concerned. No
+     * library is involved and none is needed: the page already knows how to lay
+     * itself out on paper, and a second renderer would be a second thing to
+     * keep in step with the first.
+     */
+    print: {
+      drawing: true, inputs: true, measurements: true, graphs: true, working: true,
+    },
   },
 
   /** The one object on the bench, and everything that has been added to it. */
@@ -139,8 +171,17 @@ export const defaults = () => ({
     // The fluid.
     fluidId: 'air',
 
-    // Bounciness, shared by everything that can hit anything.
+    // Bounciness, where every object does not bring its own.
     restitution: 0.6,
+
+    /*
+     * Where bounciness comes from.
+     *
+     *   material  each impact uses the two objects' own materials, so A into B
+     *             and A into C are different collisions
+     *   fixed     one number for the whole scene
+     */
+    bounceMode: 'material',
 
     /*
      * Whether solid objects bounce off each other at all.
@@ -160,7 +201,7 @@ export const defaults = () => ({
      * metres up" means the same thing on a tilted ramp as on a flat floor.
      */
     objects: [
-      { id: 'o2', mass: 3, size: 0.4, shapeId: 'sphere', x: 4, y: 0, vx: 0, vy: 0 },
+      { id: 'o2', mass: 3, size: 0.4, shapeId: 'sphere', materialId: 'rubber', x: 4, y: 0, vx: 0, vy: 0 },
     ],
 
     /** Drawn obstacles: ramps, barriers, the walls of a box. */
@@ -230,11 +271,22 @@ export function migrate(incoming) {
       showTrail: bool(incoming.view?.showTrail, true),
       showGrid: bool(incoming.view?.showGrid, true),
       graphs: bool(incoming.view?.graphs, true),
+      grid: incoming.view?.grid === 'auto' || !(Number(incoming.view?.grid) > 0)
+        ? 'auto'
+        : Math.min(1000, Number(incoming.view.grid)),
+      camera: {
+        mode: oneOf(incoming.view?.camera?.mode, ['auto', 'manual'], 'auto'),
+        cx: clamp(incoming.view?.camera?.cx, -1e6, 1e6, 0),
+        cy: clamp(incoming.view?.camera?.cy, -1e6, 1e6, 0),
+        span: clamp(incoming.view?.camera?.span, 1e-4, 1e9, 6),
+      },
+      print: Object.fromEntries(PRINT_PARTS.map((k) =>
+        [k, bool(incoming.view?.print?.[k], true)])),
     },
 
     bench: {
       mass: mass(b.mass, d.mass),
-      size: clamp(b.size, 0.01, 20, d.size),
+      size: clamp(b.size, 0.01, 200, d.size),
       shapeId: oneOf(b.shapeId, SHAPE_IDS, d.shapeId),
       materialId: oneOf(b.materialId, MATERIAL_IDS, d.materialId),
       x0: clamp(b.x0, -500, 500, d.x0),
@@ -265,6 +317,7 @@ export function migrate(incoming) {
 
       restitution: clamp(b.restitution, 0, 1, d.restitution),
       collisions: bool(b.collisions, d.collisions),
+      bounceMode: oneOf(b.bounceMode, ['material', 'fixed'], d.bounceMode),
 
       // Version 2 kept exactly one collision partner in five loose fields.
       // Carry it into the list rather than dropping it, so an old share link
@@ -284,7 +337,7 @@ export function migrate(incoming) {
       : [],
     ui: {
       sections: sectionFlags(incoming.ui?.sections),
-      tool: oneOf(incoming.ui?.tool, ['none', 'wall'], 'none'),
+      tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'pan'], 'none'),
     },
   };
 }
@@ -312,6 +365,7 @@ function objectsFrom(b, d) {
       mass: mass(o.mass, 1),
       size: clamp(o.size, 0.01, 20, 0.4),
       shapeId: oneOf(o.shapeId, SHAPE_IDS, 'sphere'),
+      materialId: oneOf(o.materialId, MATERIAL_IDS, 'rubber'),
       x: clamp(o.x, -500, 500, 0),
       y: clamp(o.y, -500, 500, 0),
       vx: clamp(o.vx, -500, 500, 0),
@@ -350,6 +404,7 @@ function cannonsFrom(incoming) {
       mass: mass(c.mass, 0.5),
       size: clamp(c.size, 0.01, 5, 0.2),
       shapeId: oneOf(c.shapeId, SHAPE_IDS, 'sphere'),
+      materialId: oneOf(c.materialId, MATERIAL_IDS, 'steel'),
       everySeconds: clamp(c.everySeconds, 0, 60, 1),
     }));
 }

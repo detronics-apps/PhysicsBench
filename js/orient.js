@@ -83,6 +83,28 @@ export function normalise(angle) {
 export const angleDelta = (from, to) => normalise(to - from);
 
 /**
+ * Where a body should be drawn this frame, given where it was drawn last.
+ *
+ * Almost always an eased step towards the target — except across the moment the
+ * mirror flips, where it must be a jump.
+ *
+ * A shape pointing just left of straight up and one pointing just right of it
+ * are drawn a couple of degrees apart, but they are described by target angles
+ * on opposite sides of zero: the mirror accounts for the other 180°. Easing
+ * between those two descriptions sends the shape the long way round through
+ * every angle in between, while the mirror has already switched — which is a
+ * whole slow barrel-roll, arriving correct, and looking broken the entire way.
+ *
+ * The rendered orientation is continuous across that switch, so jumping the
+ * number is invisible. It is the easing that is the artefact.
+ */
+export function settleAngle(current, wanted, wasFlipped, dt, radiansPerSecond = 6) {
+  if (wanted.hold) return normalise(Number.isFinite(current) ? current : wanted.angle);
+  if (!!wasFlipped !== !!wanted.flip) return normalise(wanted.angle);
+  return easeAngle(current, wanted.angle, dt, radiansPerSecond);
+}
+
+/**
  * Ease an angle towards a target at a limited rate.
  *
  * Rate-limited rather than proportional, so a box dropped onto a ramp swings

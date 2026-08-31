@@ -198,6 +198,32 @@ export const SHAPES = [
 export const shapeById = (id) => SHAPES.find((s) => s.id === id) || SHAPES[0];
 
 /**
+ * A real example of each shape, at its real size and mass.
+ *
+ * Picking "car" and getting something 40 cm long weighing a kilogram teaches
+ * the wrong thing twice over: the drawing is not a car, and the density that
+ * falls out of it is not a car's either. Choosing a shape now sets both to
+ * something that exists, and both stay adjustable afterwards.
+ *
+ * The densities these produce are the interesting part, and they are all real:
+ * a car works out at about 180 kg/m³ because a car is mostly air, and a party
+ * balloon at 0.27 kg/m³ because it is mostly helium — which is what lets it
+ * float in air at 1.225.
+ */
+export const TYPICAL = {
+  sphere: { size: 0.22, mass: 0.43, of: 'a football' },
+  cube: { size: 0.3, mass: 12, of: 'a packed crate' },
+  plate: { size: 0.3, mass: 0.6, of: 'a sheet of plywood' },
+  streamlined: { size: 0.5, mass: 8, of: 'a wooden teardrop' },
+  cylinder: { size: 0.3, mass: 8, of: 'a short log' },
+  car: { size: 4.4, mass: 1400, of: 'a family hatchback' },
+  balloon: { size: 0.3, mass: 0.003, of: 'a helium party balloon' },
+  spaceship: { size: 37, mass: 78000, of: 'a Space Shuttle orbiter' },
+};
+
+export const typicalFor = (id) => TYPICAL[id] || TYPICAL.sphere;
+
+/**
  * How a shape meets the ground, and what that changes.
  *
  * The honest answer to "does a bigger box grip better?" is no, and it is one of
@@ -331,19 +357,63 @@ export function dragComparison(shapeId, size) {
  * different mass" — and floating — possible to set up at all.
  */
 export const MATERIALS = [
-  { id: 'helium', label: 'Helium', density: 0.166 },
-  { id: 'air', label: 'Air', density: 1.225 },
-  { id: 'polystyrene', label: 'Expanded polystyrene', density: 20 },
-  { id: 'balsa', label: 'Balsa', density: 160 },
-  { id: 'pine', label: 'Pine', density: 500 },
-  { id: 'water', label: 'Water (ice)', density: 917 },
-  { id: 'concrete', label: 'Concrete', density: 2400 },
-  { id: 'glass', label: 'Glass', density: 2500 },
-  { id: 'aluminium', label: 'Aluminium', density: 2700 },
-  { id: 'steel', label: 'Steel', density: 7850 },
-  { id: 'lead', label: 'Lead', density: 11340 },
-  { id: 'osmium', label: 'Osmium', density: 22590 },
+  { id: 'helium', label: 'Helium', density: 0.166, bounce: 0.1 },
+  { id: 'air', label: 'Air', density: 1.225, bounce: 0.1 },
+  { id: 'rubber', label: 'Rubber', density: 1100, bounce: 0.85 },
+  { id: 'polystyrene', label: 'Expanded polystyrene', density: 20, bounce: 0.25 },
+  { id: 'balsa', label: 'Balsa', density: 160, bounce: 0.35 },
+  { id: 'pine', label: 'Pine', density: 500, bounce: 0.5 },
+  { id: 'water', label: 'Water (ice)', density: 917, bounce: 0.4 },
+  { id: 'clay', label: 'Modelling clay', density: 1700, bounce: 0.02 },
+  { id: 'concrete', label: 'Concrete', density: 2400, bounce: 0.4 },
+  { id: 'glass', label: 'Glass', density: 2500, bounce: 0.85 },
+  { id: 'aluminium', label: 'Aluminium', density: 2700, bounce: 0.6 },
+  { id: 'steel', label: 'Steel', density: 7850, bounce: 0.75 },
+  { id: 'lead', label: 'Lead', density: 11340, bounce: 0.2 },
+  { id: 'osmium', label: 'Osmium', density: 22590, bounce: 0.6 },
 ];
+
+/**
+ * How bouncy a collision between two materials is.
+ *
+ * The coefficient of restitution belongs to the *pair*, not to either object —
+ * a rubber ball on concrete and the same ball on modelling clay behave nothing
+ * alike, and neither number is a property the ball carries around with it. So
+ * each material here has a bounciness against a hard, unyielding surface, and
+ * the pair value is the geometric mean of the two.
+ *
+ * That mean is a rule of thumb, not a law, and it is declared as an
+ * approximation. What it does get right is the shape of the thing: pairing
+ * anything with clay gives a dead collision, because a nearly zero factor
+ * dominates the product however lively the other side is. That is exactly how
+ * dropping a superball into putty behaves.
+ *
+ * Two caveats the numbers cannot carry. Restitution falls as the impact gets
+ * faster — the same ball is measurably less bouncy thrown hard than dropped —
+ * and it depends on shape and temperature as well as material. These are the
+ * low-speed, room-temperature figures.
+ */
+export function pairBounce(aId, bId) {
+  const a = materialById(aId);
+  const b = materialById(bId);
+  const value = Math.sqrt(Math.max(0, a.bounce ?? 0.5) * Math.max(0, b.bounce ?? 0.5));
+  return Math.min(1, Math.max(0, value));
+}
+
+/** What that pairing is like, for the hint beside it. */
+export function describeBounce(aId, bId) {
+  const e = pairBounce(aId, bId);
+  const a = materialById(aId).label.toLowerCase();
+  const b = materialById(bId).label.toLowerCase();
+  const kept = Math.round(e * e * 100);
+  if (e < 0.1) {
+    return `${a} on ${b} is e ≈ ${e.toFixed(2)} — very nearly dead. They come away `
+      + 'together and almost all of the kinetic energy goes into deforming them.';
+  }
+  return `${a} on ${b} is e ≈ ${e.toFixed(2)}, so an impact keeps about ${kept}% of the `
+    + 'kinetic energy along the line of the collision. All of the momentum '
+    + 'survives either way.';
+}
 
 // Named rather than positional: an index here means adding a material to the
 // list quietly changes what an unknown id falls back to, which is the kind of

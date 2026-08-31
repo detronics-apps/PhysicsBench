@@ -475,3 +475,41 @@ test('a cannon firing upward pays for the height as well as the speed', () => {
   close(totals(w).supplied, 36 + 2 * g * 4, 1e-6);
   close(totals(w).balance, start, 1e-6);
 });
+
+test('a rolling ball turns the way it is going, by the distance it covers', () => {
+  /*
+   * `perp` returns the *left* perpendicular, so on a level floor it points
+   * backwards — and using it to measure how far the ball had rolled spun the
+   * spoke the wrong way. The friction code never noticed, because it only ever
+   * compares that tangent's sign against itself.
+   */
+  const unwrap = (a) => { let x = a; while (x > Math.PI) x -= 2 * Math.PI; while (x <= -Math.PI) x += 2 * Math.PI; return x; };
+
+  const roll = (v0) => {
+    let w = createWorld({
+      g, field: vec(0, -g), fluidDensity: 0,
+      ground: { y: 0, slopeDeg: 0, muS: 0.5, muK: 0.3, rolling: 0.01, restitution: 0 },
+      bodies: [{ id: 'a', kind: 'ball', mass: 1, radius: 0.2, pos: vec(0, 0.2), vel: vec(v0, 0), rolls: true, cd: 0, area: 0 }],
+    });
+    const from = findBody(w, 'a').pos.x;
+    let last = findBody(w, 'a').spin;
+    let turned = 0;
+    for (let i = 0; i < 120; i += 1) {
+      w = advance(w, 1 / 120);
+      const b = findBody(w, 'a');
+      turned += unwrap(b.spin - last);
+      last = b.spin;
+    }
+    return { moved: findBody(w, 'a').pos.x - from, turned, radius: 0.2 };
+  };
+
+  const right = roll(3);
+  assert.ok(right.moved > 1, 'it did not roll');
+  // s = Rθ, and rolling to the right turns it clockwise, which is negative.
+  close(right.turned, -right.moved / right.radius, 1e-6);
+  assert.ok(right.turned < 0, 'it rolled right and turned anticlockwise');
+
+  const left = roll(-3);
+  close(left.turned, -left.moved / left.radius, 1e-6);
+  assert.ok(left.turned > 0, 'it rolled left and turned clockwise');
+});

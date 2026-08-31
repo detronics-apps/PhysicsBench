@@ -18,11 +18,13 @@ import { boxWalls, wallAngle, wallLength, MAX_WALLS } from '../segments.js';
 import {
   SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
 } from '../friction.js';
-import { contactKind } from '../shapes.js';
 import { collisionsOn, collisionsForced } from '../stages.js';
 import { buoyantMass } from '../forces.js';
-import { SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats } from '../shapes.js';
-import { MAX_CANNONS } from '../state.js';
+import {
+  SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats,
+  typicalFor, contactKind, materialById, pairBounce, describeBounce,
+} from '../shapes.js';
+import { MAX_CANNONS, PRINT_PARTS } from '../state.js';
 import { FLUIDS, fluidById, drag as fluidDrag, terminalSpeed } from '../drag.js';
 import { WORLDS, describeWorld, surfaceGravity, everydayComparison, massForGravity } from '../gravitation.js';
 import { inspect, totals, findBody } from '../world.js';
@@ -57,11 +59,9 @@ function objectSection(ctx, object, f) {
   const { params: p, set } = ctx;
   return section('The object', [
     numberField('Mass', p.mass, (v) => set('mass', v), {
-      unit: 'kg', min: 0.001, max: 1e6, step: 0.5, key: 'mass',
+      unit: 'kg', min: 0.001, max: 1e7, step: 0.5, key: 'mass',
       info: 'How strongly it resists being accelerated. This is the one property '
         + 'the object has before anything happens to it.',
-      hint: `${fmtFixed(object.density, 0)} kg/m³ at this size — `
-        + `${object.volume.toPrecision(3)} m³ of it.`,
     }),
 
     /*
@@ -71,34 +71,152 @@ function objectSection(ctx, object, f) {
      * a fluid, and until there is one of those it has nothing to act on. The
      * hint says which of those two situations you are in.
      */
-    f.has('shape') ? selectField('Shape', SHAPES.map((s) => ({ value: s.id, label: s.label })), p.shapeId, (v) => set('shapeId', v), {
-      key: 'shapeId',
-      hint: shapeMattersHere(ctx) ? object.shape.note : shapeDoesNothingYet(ctx),
-    }) : null,
+    /*
+     * The shape is available from the first step, and for most of them it
+     * changes nothing about the motion — which is worth being able to find out
+     * rather than being protected from. An object's shape acts on a surface or
+     * a fluid, and until there is one of those it has nothing to act on.
+     *
+     * Choosing one sets the size and mass to a real example of it. A car forty
+     * centimetres long weighing a kilogram teaches the wrong thing twice: the
+     * drawing is not a car, and the density that falls out of it is not a car's
+     * either. Both stay adjustable immediately afterwards.
+     */
+    f.has('shape') ? selectField('Shape',
+      SHAPES.map((x) => ({ value: x.id, label: `${x.label} — C_d ${x.cd}` })),
+      p.shapeId,
+      (v) => {
+        const t = typicalFor(v);
+        ctx.setMany({ shapeId: v, size: t.size, mass: t.mass });
+      },
+      {
+        key: 'shapeId',
+        hint: `Set to ${typicalFor(p.shapeId).of}, at its real size and mass — change `
+          + 'either freely. '
+          + (shapeMattersHere(ctx) ? object.shape.note : shapeDoesNothingYet(ctx)),
+      }) : null,
 
     sliderField('Size', p.size, (v) => set('size', v), {
-      min: 0.05, max: 4, step: 0.05, key: 'size',
-      format: (v) => `${fmtFixed(v, 2)} m across`,
+      // The range follows the shape, because one slider that covers a party
+      // balloon and a Space Shuttle has no useful precision at either end.
+      min: 0.05,
+      max: Math.max(4, Math.round(typicalFor(p.shapeId).size * 2)),
+      step: Math.max(0.01, typicalFor(p.shapeId).size / 100),
+      key: 'size',
+      format: (v) => `${fmtFixed(v, 2)} m long`,
       info: 'Changes the volume, the frontal area and how it sits on a surface — '
-        + 'but not the mass, which is set directly above.',
+        + 'but not the mass, which is set directly above. So making it bigger '
+        + 'makes it less dense.',
+    }),
+
+    /*
+     * What the object actually is, in the numbers that follow from the two
+     * controls above it. Density is the one worth having on screen from the
+     * first step: it is the whole of floating and sinking later on, and it is
+     * the first quantity in the app that is a *ratio* rather than a reading.
+     */
+    el('div', { class: 'dims' }, [
+      el('dt', { text: 'Volume' }),
+      el('dd', { text: `${object.volume.toPrecision(3)} m³` }),
+      el('dt', { text: 'Density' }),
+      el('dd', { text: `${fmtFixed(object.density, object.density < 10 ? 2 : 0)} kg/m³` }),
+      el('dt', { text: 'Drag coefficient' }),
+      el('dd', { text: `C_d ${object.cd}` }),
+      el('dt', { text: 'Frontal area' }),
+      el('dd', { text: `${object.area.toPrecision(3)} m²` }),
+    ]),
+    el('div', {
+      class: 'field__hint',
+      text: `${fmtFixed(object.mass, 3)} kg spread through ${object.volume.toPrecision(3)} m³ `
+        + `is ${fmtFixed(object.density, object.density < 10 ? 2 : 0)} kg/m³ — `
+        + densityComparison(object.density),
     }),
 
     // Drag is the only thing C_d·A is about, so it only appears once there is
     // something to be dragged through.
     f.has('fluid') && !ctx.space ? el('div', { class: 'field__hint', text: dragComparison(p.shapeId, p.size).text }) : null,
 
+    /*
+     * The material is no longer decorative. It supplies the density the button
+     * below uses, and — from step eight — how bouncy this object is when
+     * something hits it, which is half of every collision it takes part in.
+     */
+    selectField('Material',
+      MATERIALS.map((m) => ({ value: m.id, label: `${m.label} — ${m.density} kg/m³, bounce ${m.bounce}` })),
+      p.materialId, (v) => set('materialId', v), {
+        key: 'materialId',
+        hint: f.has('collide')
+          ? `What it is made of. It decides how bouncy every collision this object `
+            + `takes part in is — against another ${materialById(p.materialId).label.toLowerCase()} `
+            + `object that is e ≈ ${fmtFixed(pairBounce(p.materialId, p.materialId), 2)} — and it `
+            + 'supplies the density for the button below. The mass stays whatever you set it to.'
+          : 'Supplies the density for the button below, and from the last step it '
+            + 'also decides how bouncy this object is in a collision. The mass '
+            + 'stays whatever you set it to.',
+      }),
     buttonRow([
-      button('Match a material', () => {
+      button('Set the mass from this material', () => {
         // A quick way to get a believable mass: pick a density, keep the size.
-        const material = MATERIALS.find((m) => m.id === p.materialId) || MATERIALS[0];
-        ctx.setMany({ mass: object.volume * material.density });
-      }, { small: true, title: 'Set the mass from the size and a real density' }),
+        ctx.setMany({ mass: object.volume * materialById(p.materialId).density });
+      }, { small: true, title: 'Mass = volume × density, at the current size' }),
     ]),
-    selectField('Material', MATERIALS.map((m) => ({ value: m.id, label: `${m.label} — ${m.density} kg/m³` })), p.materialId, (v) => set('materialId', v), {
-      key: 'materialId',
-      hint: 'Only used by the button above. The mass stays whatever you set it to.',
-    }),
   ].filter(Boolean), { key: 'object' });
+}
+
+/**
+ * What a density is *like*, because the number on its own means very little
+ * until it has been stood next to something.
+ */
+function densityComparison(density) {
+  const marks = [
+    [0.5, 'lighter than air, so it would float away in a still room'],
+    [50, 'about expanded polystyrene: almost all of it is empty space'],
+    [200, 'in the range a car or a boat averages out at — mostly air inside'],
+    [600, 'about the density of dry softwood, which floats'],
+    [997, 'a little lighter than water, so it would just float'],
+    [2000, 'heavier than water, so it sinks — about the range of brick or glass'],
+    [5000, 'about the range of stone and light metals'],
+    [12000, 'in the range of steel and lead'],
+    [Infinity, 'denser than lead, which almost nothing solid is'],
+  ];
+  return (marks.find(([limit]) => density < limit) || marks[marks.length - 1])[1];
+}
+
+/**
+ * Every pairing actually on the bench, and what each one is worth.
+ *
+ * A table rather than a number, because the whole point of taking bounciness
+ * from the materials is that there is no longer *a* number — there is one per
+ * pair, and seeing them side by side is what makes that concrete.
+ */
+function bouncePairs(ctx) {
+  const { params: p } = ctx;
+  const here = [
+    { name: 'The object', materialId: p.materialId },
+    ...(p.objects || []).map((o, i) => ({ name: `Object ${i + 2}`, materialId: o.materialId })),
+  ];
+
+  const rows = [];
+  for (let i = 0; i < here.length; i += 1) {
+    for (let j = i; j < here.length; j += 1) {
+      const a = here[i];
+      const b = here[j];
+      rows.push({
+        pair: i === j ? `${a.name} with another like it` : `${a.name} into ${b.name.toLowerCase()}`,
+        materials: `${materialById(a.materialId).label.toLowerCase()} / ${materialById(b.materialId).label.toLowerCase()}`,
+        e: fmtFixed(pairBounce(a.materialId, b.materialId), 2),
+      });
+    }
+  }
+
+  return el('div', {}, [
+    table([
+      { label: 'Which pair', key: 'pair' },
+      { label: 'Materials', key: 'materials' },
+      { label: 'e', key: 'e', num: true },
+    ], rows.slice(0, 12)),
+    rows.length > 12 ? el('div', { class: 'field__hint', text: `…and ${rows.length - 12} more pairings.` }) : null,
+  ].filter(Boolean));
 }
 
 /** Is there anything at this step for the object's shape to act on? */
@@ -436,8 +554,17 @@ function objectsSection(ctx) {
     numberField('Mass', selected.mass, (v) => ctx.setObject(selected.id, { mass: v }), {
       unit: 'kg', min: 0.001, max: 1e6, step: 0.5, key: `o:mass:${selected.id}`,
     }),
-    selectField('Shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), selected.shapeId,
-      (v) => ctx.setObject(selected.id, { shapeId: v }), { key: `o:shape:${selected.id}` }),
+    selectField('Shape', SHAPES.map((x) => ({ value: x.id, label: `${x.label} — C_d ${x.cd}` })), selected.shapeId,
+      (v) => {
+        const t = typicalFor(v);
+        ctx.setObject(selected.id, { shapeId: v, size: t.size, mass: t.mass });
+      }, { key: `o:shape:${selected.id}`, hint: `Sets it to ${typicalFor(selected.shapeId).of}.` }),
+    selectField('Material',
+      MATERIALS.map((x) => ({ value: x.id, label: `${x.label} — bounce ${x.bounce}` })),
+      selected.materialId, (v) => ctx.setObject(selected.id, { materialId: v }), {
+        key: `o:material:${selected.id}`,
+        hint: describeBounce(p.materialId, selected.materialId),
+      }),
     sliderField('Size', selected.size, (v) => ctx.setObject(selected.id, { size: v }), {
       min: 0.05, max: 4, step: 0.05, key: `o:size:${selected.id}`, format: (v) => `${fmtFixed(v, 2)} m`,
     }),
@@ -503,24 +630,52 @@ function collisionSection(ctx) {
       info: 'Applies to every pair on the bench, cannon shots included.',
     }),
 
-    sliderField('Bounciness e', p.restitution, (v) => ctx.set('restitution', v), {
+    /*
+     * Where bounciness comes from.
+     *
+     * A coefficient of restitution has never been a property of one object: a
+     * rubber ball on concrete and the same ball on modelling clay are different
+     * collisions, and neither number is something the ball carries about with
+     * it. So the default is to take it from the two materials that actually
+     * meet — which makes A into B genuinely different from A into C.
+     */
+    selectField('Bounciness comes from', [
+      { value: 'material', label: "Each object's own material" },
+      { value: 'fixed', label: 'One value for the whole bench' },
+    ], p.bounceMode, (v) => ctx.set('bounceMode', v), {
+      key: 'bounceMode',
+      hint: p.bounceMode === 'fixed'
+        ? 'One number for every impact, whatever is hitting what. Simpler, and a '
+          + 'fair way to ask what a given e does — but it is not how restitution '
+          + 'works: it belongs to the pair, not to the scene.'
+        : 'Each impact uses the two objects that are meeting, as √(e₁·e₂). Pair '
+          + 'anything with modelling clay and the collision is dead, because a '
+          + 'near-zero factor dominates the product however lively the other side '
+          + 'is — which is how a superball dropped into putty behaves.',
+    }),
+
+    p.bounceMode === 'fixed' ? sliderField('Bounciness e', p.restitution, (v) => ctx.set('restitution', v), {
       min: 0, max: 1, step: 0.05, key: 'restitution',
       format: (v) => `e = ${fmtFixed(v, 2)}`,
       info: 'Separation speed divided by approach speed, shared by everything on '
         + 'the bench. e = 1 conserves kinetic energy as well as momentum; e = 0 '
         + 'means they move off together.',
-    }),
+    }) : bouncePairs(ctx),
 
     el('div', {
       class: 'field__hint',
-      text: p.restitution >= 0.999
-        ? 'Perfectly elastic: kinetic energy comes out exactly as it went in. '
-          + 'Almost nothing real is, which is why the energy graph normally has a '
-          + 'step in it and the momentum graph does not.'
-        : `At e = ${fmtFixed(p.restitution, 2)} an impact keeps `
-          + `${fmtFixed(p.restitution ** 2 * 100, 0)}% of the kinetic energy along the line of `
-          + 'the collision. All of the momentum survives either way — that is the '
-          + 'difference the two graphs are there to show.',
+      text: p.bounceMode === 'fixed'
+        ? (p.restitution >= 0.999
+          ? 'Perfectly elastic: kinetic energy comes out exactly as it went in. '
+            + 'Almost nothing real is, which is why the energy graph normally has a '
+            + 'step in it and the momentum graph does not.'
+          : `At e = ${fmtFixed(p.restitution, 2)} an impact keeps `
+            + `${fmtFixed(p.restitution ** 2 * 100, 0)}% of the kinetic energy along the line of `
+            + 'the collision. All of the momentum survives either way — that is the '
+            + 'difference the two graphs are there to show.')
+        : 'Whatever the pairing, all of the momentum survives and only the kinetic '
+          + 'energy is at stake. That is the difference the two graphs are there '
+          + 'to show, and it does not depend on what anything is made of.',
     }),
   ], { key: 'collisions' });
 }
@@ -616,6 +771,12 @@ function cannonsSection(ctx) {
     }),
     selectField('Shot shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), c.shapeId,
       (v) => ctx.setCannon(i, { shapeId: v }), { key: `c:shape:${i}` }),
+    selectField('Shot material',
+      MATERIALS.map((x) => ({ value: x.id, label: `${x.label} — bounce ${x.bounce}` })),
+      c.materialId, (v) => ctx.setCannon(i, { materialId: v }), {
+        key: `c:material:${i}`,
+        hint: describeBounce(ctx.params.materialId, c.materialId),
+      }),
     el('div', { class: 'grid-2' }, [
       sliderField('At x', c.x, (v) => ctx.setCannon(i, { x: v }), {
         min: -40, max: 40, step: 0.5, key: `c:x:${i}`, format: (v) => `${fmtFixed(v, 1)} m`,
@@ -697,13 +858,90 @@ function controlSection(ctx) {
 
 function viewSection(ctx) {
   const { state, setView } = ctx;
+  const cam = state.view.camera;
+  const span = cam.mode === 'manual' ? cam.span : (ctx.autoSpan ?? null);
+
   return section('The drawing', [
+    /*
+     * Zoom and pan, because the automatic framing is right until it is not.
+     * A shot arcing away or a planet arriving pulls the view out until the
+     * thing being watched is a speck, and before this there was no way back
+     * short of resetting the experiment.
+     *
+     * Home does not mean "fit once" — it hands the framing back to the scene,
+     * so it goes on following whatever happens next.
+     */
+    el('div', { class: 'tool-row' }, [
+      button('Zoom in', () => ctx.zoomBy(1.5), { small: true, title: 'Closer' }),
+      button('Zoom out', () => ctx.zoomBy(1 / 1.5), { small: true, title: 'Wider' }),
+      el('button', {
+        class: `btn btn-sm${state.ui.tool === 'pan' ? ' is-armed' : ''}`,
+        type: 'button',
+        'data-field': 'tool:pan',
+        title: 'Drag the drawing to move the view',
+        on: { click: () => ctx.setTool(state.ui.tool === 'pan' ? 'none' : 'pan') },
+      }, state.ui.tool === 'pan' ? 'Panning — click to stop' : 'Pan'),
+      button('Home', () => ctx.goHome(), {
+        small: true, primary: cam.mode === 'manual',
+        title: 'Back to following the scene automatically',
+      }),
+    ]),
+    el('div', {
+      class: 'field__hint',
+      text: cam.mode === 'manual'
+        ? `Held at ${fmtFixed(cam.span, cam.span < 10 ? 2 : 0)} m across, centred on `
+          + `(${fmtFixed(cam.cx, 1)}, ${fmtFixed(cam.cy, 1)}). It will stay there while things `
+          + 'move — press Home to follow the scene again.'
+        : 'Following the scene: the view widens and narrows to hold whatever is on '
+          + 'the bench. Zoom or pan and it will hold still instead.',
+    }),
+
+    selectField('Grid spacing', [
+      { value: 'auto', label: 'Automatic — always readable' },
+      ...[0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100].map((v) => ({ value: String(v), label: `${v} m` })),
+    ], String(state.view.grid), (v) => ctx.setGrid(v === 'auto' ? 'auto' : Number(v)), {
+      key: 'view:gridsize',
+      hint: state.view.grid === 'auto'
+        ? 'Chosen to keep the lines 40 to 120 pixels apart at any zoom, which is '
+          + 'right for reading a distance off and wrong for comparing two runs at '
+          + 'different scales — fix it to a number for that.'
+        : `Fixed at ${state.view.grid} m, so the same distance looks the same at any `
+          + 'zoom. Zoom far enough out and the lines will be too dense to read.',
+    }),
+
     toggleField('Numbers on the arrows', state.view.showValues, (v) => setView('showValues', v), { key: 'view:values' }),
     toggleField('Trail', state.view.showTrail, (v) => setView('showTrail', v), { key: 'view:trail' }),
     toggleField('Metre grid', state.view.showGrid, (v) => setView('showGrid', v), { key: 'view:grid' }),
     toggleField('Graphs', state.view.graphs, (v) => setView('graphs', v), { key: 'view:graphs' }),
+
+    /*
+     * What goes on paper, which is the same thing as what goes into a PDF: a
+     * browser treats "save as PDF" as a printer. Nothing here is a second
+     * renderer — the page already knows how to lay itself out on paper, and a
+     * separate PDF writer would be one more thing to keep in step with it.
+     */
+    el('div', { class: 'print-choices' }, [
+      el('div', { class: 'field__label', text: 'What to print or save as PDF' }),
+      ...PRINT_PARTS.map((part) => toggleField(PRINT_LABEL[part], state.view.print[part],
+        (v) => ctx.setPrint(part, v), { key: `print:${part}` })),
+      el('div', {
+        class: 'field__hint',
+        text: 'Use Print / PDF at the bottom of the page. In the dialog, choose '
+          + '"Save as PDF" as the destination. The inputs are written out as '
+          + 'values on the sheet — a result without the settings that produced '
+          + 'it is not something anyone can check or repeat.',
+      }),
+    ]),
   ], { key: 'view', open: false });
 }
+
+const PRINT_LABEL = {
+  drawing: 'The drawing',
+  inputs: 'What was set — every input',
+  measurements: 'What it is doing — the measurements',
+  graphs: 'The graphs',
+  working: 'The working and the assumptions',
+};
 
 /* ---------------------------------------------------------- the readouts -- */
 
@@ -969,6 +1207,42 @@ export function explains(ctx) {
     plain: [stage.discover, stage.watch],
     open: true,
   }));
+
+  if (main) {
+    const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+    out.push(explain({
+      title: 'Mass, size, and the thing that connects them',
+      plain: [
+        'Mass and size are set separately here, and that is deliberate: they are '
+        + 'independent, and the quantity that relates them has a name. Density is '
+        + 'mass divided by volume — how much stuff is packed into how much room.',
+        'It is the first number in this app that is a *ratio* rather than a '
+        + 'reading, and it is worth getting used to early, because almost '
+        + 'everything later turns on it. Whether something floats is a comparison '
+        + 'of densities and nothing else. Two objects of the same size and wildly '
+        + 'different mass behave differently for every reason except gravity, '
+        + 'which ignores mass entirely.',
+        'Change the size slider without touching the mass: the same stuff is '
+        + 'spread through more room, so the density falls. Nothing about the '
+        + 'motion changes yet — but by step seven it will decide which way the '
+        + 'object goes.',
+      ],
+      formula: 'ρ = m / V',
+      validWhen: 'A uniform object. A real car is not uniform at all, and the '
+        + 'figure here is its average — 1400 kg spread through the space a car '
+        + 'occupies, most of which is air.',
+      worked: `Mass      ${fmtFixed(object.mass, 3).padStart(12)} kg\n`
+        + `Volume    ${object.volume.toPrecision(4).padStart(12)} m³   (${object.shape.label.toLowerCase()}, ${fmtFixed(object.size, 2)} m)\n`
+        + `Density   ${fmtFixed(object.density, object.density < 10 ? 3 : 0).padStart(12)} kg/m³\n\n`
+        + `${densityComparison(object.density)}\n`
+        + `Water is 997 and air is 1.225, so this is `
+        + `${object.density < 997 ? 'lighter' : 'heavier'} than water and `
+        + `${object.density < 1.225 ? 'lighter' : 'heavier'} than air.`,
+      becomes: 'Density is not a fundamental property either — it is a bulk '
+        + 'average over a great many atoms, and it changes with temperature and '
+        + 'pressure. For a gas it changes a great deal.',
+    }));
+  }
 
   if (f.has('applied') && main) {
     out.push(equationPanel(equation('newton-2'),

@@ -1,5 +1,52 @@
 # Changelog
 
+## 2.5.0
+
+Eleven things, of which four were bugs.
+
+### Fixed
+
+- **A shape rotating past straight up did a slow barrel-roll.** Pointing just left of vertical and
+  just right of it are drawn two degrees apart, but the target angles describing them sit on
+  opposite sides of zero — the mirror accounts for the other 180°. Easing between the two
+  descriptions sent the shape the long way round while the mirror had already switched. The drawing
+  is continuous across that switch, so the number now jumps and the easing is skipped.
+- **A rolling ball turned the wrong way.** `perp` returns the *left* perpendicular, so on a level
+  floor it points backwards, and it was being used to measure how far the ball had rolled. The
+  friction code never noticed because it only ever compares that tangent's sign against itself.
+- **The view could only zoom itself.** A shot arcing away or a planet arriving pulled the framing
+  out until the experiment was a speck, with no way back short of resetting it.
+- **The pair table rendered blank**, because the table helper takes column objects and keyed rows
+  and I gave it arrays.
+
+### What changed
+
+- **Step 5 is "Surface" and step 6 is "Friction."**
+- **Zoom, pan, Home and a grid-size control.** Home is not "fit once" — it hands the framing back to
+  the scene so it goes on following. The grid can be fixed to a spacing, which is what you want when
+  comparing two runs at different scales and not what you want otherwise.
+- **Bounciness comes from what things are made of.** A coefficient of restitution has never belonged
+  to one object: rubber into rubber is 0.85, rubber into steel 0.80, rubber into modelling clay
+  0.13. Every object, and every cannon, picks a material, and a table shows what each pairing on the
+  bench is worth. The single-value slider is still there as an option.
+- **Friction and the normal force are drawn from the contact**, not from the centre of mass — at the
+  trailing corner of a sliding box, which is where a textbook draws them and where a reader looks.
+- **Each step opens the panels it adds and folds away the ones it inherited**, once, on the first
+  visit. By the last step the sidebar is eleven panels long and all of them were introduced earlier.
+- **Density is on screen from the first step**, with volume, C_d and frontal area beside it, and a
+  panel explaining what a density is and why it is the first *ratio* in the app.
+- **C_d is on every shape in the picker**, and choosing a shape sets it to a real example at a real
+  size and mass — a car is 4.4 m and 1400 kg, which works out at 183 kg/m³ because a car is mostly
+  air, and a party balloon at 0.3 kg/m³, which is why it floats.
+- **Print and PDF choose what to include**: the drawing, the inputs, the measurements, the graphs,
+  the working. The inputs are written out as values, because a result without the settings that
+  produced it is not something anyone can check or repeat. "Save as PDF" is a printer as far as a
+  browser is concerned, so there is no second renderer to keep in step.
+
+Verified across 244 rendered frames and 256 graphs — every step, both worlds, all eight shapes,
+manual and automatic framing, fixed and material bounciness: no NaN, nothing outside the canvas but
+cannon shots, no label collisions, every export clean.
+
 ## 2.4.2
 
 - **The shape can be changed at every step, not only from step five.** For the first three it

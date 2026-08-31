@@ -33,7 +33,9 @@
 import { vec } from './vec.js';
 import { createWorld } from './world.js';
 import { disclosure, equations } from './models.js';
-import { describe as describeObject, shapeById, materialById, floats, rollsOn } from './shapes.js';
+import {
+  describe as describeObject, shapeById, materialById, floats, rollsOn, pairBounce,
+} from './shapes.js';
 import { matchSurface, rollingFor } from './friction.js';
 import { fluidById } from './drag.js';
 import { describeWorld, uniformFieldValid, everydayComparison } from './gravitation.js';
@@ -105,7 +107,7 @@ export const STAGES = [
   },
   {
     id: 'surface',
-    label: 'Stand it on something',
+    label: 'Surface',
     short: 'Surface',
     features: ['applied', 'planet', 'ground', 'shape', 'space'],
     ask: 'If gravity is still pulling, what holds it up?',
@@ -120,7 +122,7 @@ export const STAGES = [
   },
   {
     id: 'friction',
-    label: 'Make the surface grip',
+    label: 'Friction',
     short: 'Friction',
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction'],
     ask: 'What happens if the surface holds on?',
@@ -201,6 +203,7 @@ export function objectList(p, f) {
     mass: p.mass,
     size: p.size,
     shapeId: p.shapeId,
+    materialId: p.materialId,
     x: p.x0 ?? 0,
     y: f.has('ground') ? 0 : (p.y0 ?? 0),
     vx: p.v0 ?? 0,
@@ -215,6 +218,7 @@ export function objectList(p, f) {
         mass: o.mass,
         size: o.size,
         shapeId: o.shapeId,
+        materialId: o.materialId,
         x: o.x,
         y: o.y,
         vx: o.vx,
@@ -297,10 +301,19 @@ function bodyFor(spec, p, f, { space, surfaceRest, hasGround }) {
     // first is a drawing rule; the second is a different contact mechanism.
     align: object.align,
     rolls: object.rolls,
+    materialId: spec.materialId,
     angle: startAngle(p, f, { hasGround, align: object.align }),
     pos: surfaceRest(object, spec),
     vel: vec(spec.vx ?? 0, spec.vy ?? 0),
-    restitution: p.restitution,
+    /*
+     * How bouncy this body is against something hard. The pair value for an
+     * actual impact is the geometric mean of the two, worked out in the world
+     * stepper — so what happens depends on both objects, which is what a
+     * coefficient of restitution has always meant.
+     */
+    restitution: p.bounceMode === 'fixed'
+      ? p.restitution
+      : materialById(spec.materialId).bounce ?? p.restitution,
     muS: f.has('friction') ? p.muS : 0,
     muK: f.has('friction') ? p.muK : 0,
     colour: spec.colour,
@@ -383,7 +396,15 @@ export function build(stageId, p) {
   }
 
   const walls = f.has('sandbox') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [];
-  const cannons = f.has('sandbox') ? (p.cannons || []).slice(0, 6) : [];
+  const cannons = f.has('sandbox')
+    ? (p.cannons || []).slice(0, 6).map((c) => ({
+      ...c,
+      // Resolved here rather than in the stepper, which has no material table.
+      restitution: p.bounceMode === 'fixed'
+        ? p.restitution
+        : materialById(c.materialId).bounce ?? p.restitution,
+    }))
+    : [];
 
   const world = createWorld({
     g,
@@ -414,6 +435,7 @@ export function build(stageId, p) {
      */
     bodyCollisions: collisionsOn(p, f),
     collisionRestitution: p.restitution,
+    materialBounce: p.bounceMode !== 'fixed',
     bodies,
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
   });
@@ -549,6 +571,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
       rolls: fresh.rolls,
       label: fresh.label,
       restitution: fresh.restitution,
+      materialId: fresh.materialId,
       muS: fresh.muS,
       muK: fresh.muK,
       pos: atStart ? fresh.pos : b.pos,
@@ -589,6 +612,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
       return source ? { ...c, ...source, id: c.id, fired: c.fired } : c;
     }),
     collisionRestitution: Math.max(0, Math.min(1, p.restitution)),
+    materialBounce: p.bounceMode !== 'fixed',
     bodyCollisions: collisionsOn(p, f),
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
   };
@@ -704,11 +728,15 @@ function discloseFor(stageId, p, { object, planet, fluid, gravityMode, space, wa
   if (f.has('collide')) {
     models.push('restitution');
     assumptions.push('no-heat');
+    if (p.bounceMode !== 'fixed') approximations.push('mean-restitution');
     numbers.push({
       label: 'Coefficient of restitution',
-      value: String(p.restitution),
+      value: p.bounceMode === 'fixed'
+        ? String(p.restitution)
+        : `from the materials — ${fmtFixed(pairBounce(p.materialId, p.materialId), 2)} for two of these`,
       note: 'Separation speed divided by approach speed. e = 1 conserves kinetic '
-        + 'energy as well as momentum; e = 0 means the objects move off together.',
+        + 'energy as well as momentum; e = 0 means the objects move off together. '
+        + 'It belongs to the pair that meets, not to either object on its own.',
     });
   }
 
@@ -798,6 +826,109 @@ export const pushState = (world, p, features) => {
 };
 
 /* --------------------------------------------------------- the readouts -- */
+
+/**
+ * Every input that is doing something at this step, as labelled rows.
+ *
+ * Built here rather than read off the sidebar, because the sidebar is made of
+ * form controls: a printed page needs the values, not the widgets, and it needs
+ * only the ones that are actually in play. A page listing a friction
+ * coefficient for a step that has no surface would be a page inviting the
+ * reader to draw a conclusion from a number that did nothing.
+ */
+export function inputSummary(stageId, p) {
+  const f = featuresAt(stageId);
+  const space = f.has('space') && p.worldMode === 'space';
+  const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+  const fluid = f.has('fluid') ? fluidById(p.fluidId) : null;
+  const planet = f.has('planet') && !space
+    ? describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId })
+    : null;
+
+  const groups = [];
+  const add = (title, rows) => {
+    const kept = rows.filter(Boolean);
+    if (kept.length) groups.push({ title, rows: kept });
+  };
+
+  add('The object', [
+    ['Mass', `${fmtFixed(p.mass, p.mass < 10 ? 3 : 0)} kg`],
+    ['Shape', object.shape.label],
+    ['Size', `${fmtFixed(p.size, 2)} m`],
+    ['Volume', `${object.volume.toPrecision(3)} m³`],
+    ['Density', `${fmtFixed(object.density, object.density < 10 ? 2 : 0)} kg/m³`],
+    ['Material', materialById(p.materialId).label],
+    ['Drag coefficient', `C_d ${object.cd}`],
+    ['Meets a surface by', contactKindLabel(p.shapeId)],
+  ]);
+
+  if (f.has('applied')) {
+    add('The push', [
+      ['How hard', `${fmtFixed(p.pushForce, 2)} N`],
+      ['Direction', `${fmtFixed(p.pushAngleDeg, 0)}°`],
+      ['Duration', `${fmtFixed(p.pushSeconds, 2)} s`],
+      ['Starting velocity', `${fmtFixed(p.v0, 2)} m/s`],
+    ]);
+  }
+
+  if (f.has('second-mass') && !f.has('ground')) {
+    add('The second mass', [
+      ['Mass', `${p.otherMass.toPrecision(4)} kg`],
+      ['Size', `${fmtFixed(p.otherSize, 2)} m`],
+      ['Separation', `${fmtFixed(p.otherX, 2)} m`],
+    ]);
+  }
+
+  add('The world', space
+    ? [['Where', 'Deep space — no field, no floor']]
+    : (planet ? [
+      ['World', planet.label],
+      ['Mass', `${p.planetMass.toExponential(3)} kg`],
+      ['Radius', `${(p.planetRadius / 1000).toPrecision(4)} km`],
+      ['Surface gravity', `${fmtFixed(planet.g, 4)} m/s² — computed from the two above`],
+      f.has('planet') && !f.has('ground') ? ['Released from', `${fmtFixed(p.dropHeight, 2)} m up`] : null,
+    ] : [['Gravity', 'Not acting — nothing here to be attracted to']]));
+
+  if (f.has('ground') && !space) {
+    add('The surface', [
+      ['Tilt', `${fmtFixed(p.slopeDeg, 0)}°`],
+      f.has('friction') ? ['Static friction', `μs ${fmtFixed(p.muS, 2)}`] : null,
+      f.has('friction') ? ['Kinetic friction', `μk ${fmtFixed(p.muK, 2)}`] : null,
+      f.has('friction') ? ['Rolling resistance', `C_rr ${rollingFor(matchSurface(p.muS, p.muK))}`] : null,
+    ]);
+  }
+
+  if (fluid) {
+    add('The fluid', [
+      ['Fluid', fluid.label],
+      ['Density', `${fluid.density} kg/m³`],
+      ['Viscosity', `${fluid.viscosity} Pa·s`],
+    ]);
+  }
+
+  if (f.has('sandbox')) {
+    add('The bench', [
+      ['Other objects', String((p.objects || []).length)],
+      ['Walls drawn', String((p.walls || []).length)],
+      ['Cannons', String((p.cannons || []).length)],
+      ['Objects collide', collisionsOn(p, f) ? 'yes' : 'no'],
+      ['Bounciness from', p.bounceMode === 'fixed'
+        ? `one value, e = ${fmtFixed(p.restitution, 2)}`
+        : 'the materials of whatever meets'],
+    ]);
+  }
+
+  if (f.has('control') && p.control?.mode !== 'none') {
+    add('The controls', [
+      ['Driving', p.control.mode === 'mouse' ? 'thrust towards the pointer' : 'arrow keys or WASD'],
+      ['Strength', `${fmtFixed(p.control.strength, 0)} m/s² of engine`],
+    ]);
+  }
+
+  return groups;
+}
+
+const contactKindLabel = (shapeId) => (rollsOn(shapeId) ? 'rolling' : 'sliding');
 
 /**
  * Which quantities are worth showing at this step.

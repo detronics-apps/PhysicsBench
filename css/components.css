@@ -1025,3 +1025,7 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 .viewport__stage[tabindex="0"]:not(.is-engaged) {
   cursor: pointer;
 }
+
+/* Panning: the drawing becomes something you grab. */
+.viewport__stage.is-panning svg { cursor: grab; }
+.viewport__stage.is-panning:active svg { cursor: grabbing; }

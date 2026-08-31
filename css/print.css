@@ -59,3 +59,33 @@
 
   @page { margin: 12mm; }
 }
+
+/* ------------------------------------------------------------------------
+ * What appears only on paper, and what can be left off it.
+ *
+ * The classes are put on <body> just before printing and taken off after, so
+ * nothing about the screen depends on them.
+ * ---------------------------------------------------------------------- */
+.print-only { display: none; }
+
+@media print {
+  .print-only { display: block; }
+
+  .print-summary { break-inside: avoid; margin-top: 6mm; }
+  .print-summary__group { break-inside: avoid; margin-top: 4mm; }
+  .print-summary__title {
+    margin: 0 0 1mm;
+    font-size: 10pt;
+    font-weight: 700;
+  }
+  .print-summary .dims { margin: 0; }
+
+  .print-no-drawing .viewport__stage,
+  .print-no-drawing #legend,
+  .print-no-drawing #vectors { display: none !important; }
+  .print-no-inputs .print-summary { display: none !important; }
+  .print-no-measurements .measurements { display: none !important; }
+  .print-no-graphs #graphs { display: none !important; }
+  .print-no-working .explain-host,
+  .print-no-working .banners { display: none !important; }
+}

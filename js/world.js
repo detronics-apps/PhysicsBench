@@ -23,7 +23,7 @@
 import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
 import { forcesOn, uniformField, buoyantMass } from './forces.js';
 import { wall as makeWall, nearestContact, isRealWall } from './segments.js';
-import { facing, easeAngle, rollAngle } from './orient.js';
+import { facing, settleAngle, rollAngle, alongSurface } from './orient.js';
 import { attractionVector, surfaceGravity } from './gravitation.js';
 import { substeps } from './integrator.js';
 import { collide1D } from './collide.js';
@@ -99,6 +99,9 @@ export function body(spec = {}) {
     volume: spec.volume ?? (4 / 3) * Math.PI * radius ** 3,
     // Which outline to draw, so the renderer does not have to guess from kind.
     shapeId: spec.shapeId || null,
+    // What it is made of, which is half of how bouncy any impact it takes part
+    // in turns out to be.
+    materialId: spec.materialId || null,
     // Whatever the pointer or the keyboard is asking of this body, as a force.
     controlForce: spec.controlForce || ZERO,
     restitution: clamp01(spec.restitution ?? 0.5),
@@ -194,6 +197,9 @@ export function createWorld(spec = {}) {
     shotCount: spec.shotCount ?? 0,
     bodyCollisions: spec.bodyCollisions ?? false,
     collisionRestitution: clamp01(spec.collisionRestitution ?? 1),
+    // When true, each impact uses the two bodies' own bounciness rather than
+    // one number for the whole scene.
+    materialBounce: spec.materialBounce ?? false,
     // Energy that has left the mechanical account, and where it went. Never a
     // loss — always a destination.
     // Energy that has left the mechanical account, and where it went — plus
@@ -225,6 +231,10 @@ export function cannon(spec = {}) {
     mass: Math.max(1e-6, Number.isFinite(spec.mass) ? spec.mass : 0.5),
     size: Math.max(0.01, Number.isFinite(spec.size) ? spec.size : 0.2),
     shapeId: spec.shapeId || 'sphere',
+    materialId: spec.materialId || null,
+    // Resolved from the material by the caller, so the stepper does not need a
+    // material table to fire something with the right bounciness.
+    restitution: Number.isFinite(spec.restitution) ? spec.restitution : undefined,
     // Zero means a single shot when the run starts; anything else is a rate.
     everySeconds: Math.max(0, Number.isFinite(spec.everySeconds) ? spec.everySeconds : 1),
     fired: spec.fired ?? 0,
@@ -498,9 +508,23 @@ export function step(world, dt) {
       velocity: vel,
       hasField: len(world.env.field) > 0,
     });
-    const angle = wanted.hold ? b.angle : easeAngle(b.angle, wanted.angle, dt);
-    const spin = b.rolls && surface
-      ? rollAngle(b.spin, ((dot(b.vel, surface) + dot(vel, surface)) / 2) * dt, b.radius)
+    const angle = settleAngle(b.angle, wanted, b.flip, dt);
+    /*
+     * How far it has rolled, measured along the surface in the direction that
+     * agrees with +x on level ground.
+     *
+     * `perp` returns the *left* perpendicular, so on a flat floor it points
+     * backwards; using it here spun the ball the wrong way for the distance it
+     * had covered — visibly, since the spoke is the only thing that says
+     * "rolling" rather than "sliding". The friction code is indifferent to
+     * which way its tangent points, because it only ever compares signs against
+     * itself, so nothing else noticed.
+     */
+    const rollTangent = result.contact.touching && result.contact.normal
+      ? alongSurface(result.contact.normal)
+      : null;
+    const spin = b.rolls && rollTangent
+      ? rollAngle(b.spin, ((dot(b.vel, rollTangent) + dot(vel, rollTangent)) / 2) * dt, b.radius)
       : b.spin;
 
     return { ...b, pos, vel, angle, flip: wanted.flip, spin };
@@ -608,7 +632,11 @@ function fireCannons(world, bodies, t, events, ledger) {
       diameter: c.size,
       pos: vec(c.x, c.y),
       vel: muzzleVelocity(c),
-      restitution: world.collisionRestitution,
+      materialId: c.materialId,
+      // Its own bounciness, so a steel shot and a clay shot hit differently.
+      restitution: world.materialBounce && c.restitution !== undefined
+        ? c.restitution
+        : world.collisionRestitution,
       colour: 3,
       projectile: true,
       rolls: c.shapeId === 'sphere' || c.shapeId === 'cylinder',
@@ -809,7 +837,19 @@ function resolvePairs(bodies, world, ledger, events) {
       // this a ball sitting on a planet jitters for ever, gaining a fraction of
       // a millimetre every frame — the same bug the ground already guards
       // against, arriving through a different door.
-      const e = Math.abs(approach) > BOUNCE_THRESHOLD ? world.collisionRestitution : 0;
+      /*
+       * Bounciness belongs to the pair that is meeting, not to the scene.
+       *
+       * Each body carries how bouncy it is against something hard, and the
+       * geometric mean of the two is what this impact gets — so rubber into
+       * rubber is lively, rubber into clay is dead, and neither is decided by a
+       * single slider that applies to everything at once. `combine` is that
+       * mean, and it is the same one two surfaces already use for friction.
+       */
+      const pairE = world.materialBounce
+        ? combine(a.restitution, b.restitution)
+        : world.collisionRestitution;
+      const e = Math.abs(approach) > BOUNCE_THRESHOLD ? pairE : 0;
       const ua = dot(a.vel, n);
       const ub = dot(b.vel, n);
       const solved = collide1D(a.mass, ua, b.mass, ub, e);

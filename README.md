@@ -18,8 +18,8 @@ its slider is still where you left it.
 | 2 | **Push it** | What happens if I push harder, or make it heavier? |
 | 3 | **A second mass** | Do two masses pull on each other? |
 | 4 | **Grow it into a planet** | What has to change before that pull turns into weight? |
-| 5 | **Stand it on something** | If gravity is still pulling, what holds it up? |
-| 6 | **Make the surface grip** | What happens if the surface holds on? |
+| 5 | **Surface** | If gravity is still pulling, what holds it up? |
+| 6 | **Friction** | What happens if the surface holds on? |
 | 7 | **Fluids and objects** | Air, water, honey — what actually changes? |
 | 8 | **Playground** | Everything at once — what survives a collision, and what does not? |
 
@@ -199,7 +199,7 @@ nothing to install:
 npm test
 ```
 
-347 cases across 24 modules, and they are invariants rather than examples: momentum is conserved at
+350 cases across 24 modules, and they are invariants rather than examples: momentum is conserved at
 every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a

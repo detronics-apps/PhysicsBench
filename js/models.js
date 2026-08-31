@@ -409,6 +409,23 @@ export const ASSUMPTIONS = Object.fromEntries([
 
 export const APPROXIMATIONS = Object.fromEntries([
   entry(
+    'mean-restitution', 'approximation', 'Bounciness from the geometric mean',
+    'Each material carries how bouncy it is against something hard, and a '
+      + 'collision between two of them uses √(e₁·e₂).',
+    'The coefficient of restitution belongs to the pair, not to either object, '
+      + 'and there is no table of every pairing. The mean gets the important '
+      + 'behaviour right: anything paired with modelling clay is dead, because a '
+      + 'near-zero factor dominates the product however lively the other side '
+      + 'is — which is how a superball dropped into putty actually behaves.',
+    'A measured value for a specific pair can differ from the mean by a good '
+      + 'deal. Restitution also falls as the impact gets faster, so the same '
+      + 'ball is measurably less bouncy thrown hard than dropped, and it varies '
+      + 'with shape and temperature. These are low-speed, room-temperature '
+      + 'figures for a single value that is really a whole curve.',
+    'How much of an impact is returned depends on how the two bodies deform and '
+      + 'how much of that deformation is elastic.',
+  ),
+  entry(
     'g-rounded', 'approximation', 'Using 10 m/s² instead of 9.80665',
     'Gravitational acceleration is set to exactly 10 m/s² for this experiment.',
     'It makes the arithmetic doable in your head, so the relationship stays '

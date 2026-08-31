@@ -36,6 +36,7 @@ import { horizonSag } from '../gravitation.js';
 import { outline } from '../shapes.js';
 import { wallBounds, alongWall } from '../segments.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
+import { alongSurface } from '../orient.js';
 import { fmtFixed } from '../format.js';
 
 const VIEW_W = 880;
@@ -119,7 +120,7 @@ export function renderScene(world, {
    */
   const planets = world.bodies.filter((b) => b.kind === 'planet');
   const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
-  const cam = sceneCamera(world, focusId);
+  const cam = sceneCamera(world, focusId, view);
 
   /*
    * Whether the scene has a "down" in it.
@@ -133,7 +134,7 @@ export function renderScene(world, {
   const topDown = !world.ground && Math.abs(world.env?.field?.y ?? 0) < 1e-9;
 
   for (const planet of planets) root.appendChild(drawPlanet(cam, planet));
-  if (view.showGrid !== false) root.appendChild(drawGrid(cam));
+  if (view.showGrid !== false) root.appendChild(drawGrid(cam, view.grid));
   if (world.ground) root.appendChild(drawGround(cam, world.ground));
   if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
   if (drawing) root.appendChild(drawPending(cam, drawing));
@@ -197,7 +198,33 @@ export function renderScene(world, {
  * one of them was changed, and a wall landing a little away from where it was
  * drawn is a maddening bug to find. There is one.
  */
-export function sceneCamera(world, focusId = 'main') {
+/**
+ * A box of the panel's own shape, centred where the reader put it.
+ *
+ * Given the same aspect ratio as the usable canvas, so `createCamera`'s two
+ * fitting scales come out equal and the width asked for is the width drawn.
+ */
+export function manualBox({ cx, cy, span }) {
+  const usableW = VIEW_W - SCENE_PADDING * 2;
+  const usableH = VIEW_H - SCENE_PADDING * 2;
+  const width = Math.max(1e-6, span);
+  const height = width * (usableH / usableW);
+  return {
+    minX: cx - width / 2,
+    maxX: cx + width / 2,
+    minY: cy - height / 2,
+    maxY: cy + height / 2,
+  };
+}
+
+/** The centre and width of a box, for handing back to a manual view. */
+export const boxView = (box) => ({
+  cx: (box.minX + box.maxX) / 2,
+  cy: (box.minY + box.maxY) / 2,
+  span: Math.max(1e-6, box.maxX - box.minX),
+});
+
+export function sceneCamera(world, focusId = 'main', view = null) {
   const planets = world.bodies.filter((b) => b.kind === 'planet');
   const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
   const focus = ordinary.find((b) => b.id === focusId) || ordinary[0];
@@ -218,9 +245,15 @@ export function sceneCamera(world, focusId = 'main') {
       world.walls, world.cannons,
     );
 
+  const framed = view?.camera?.mode === 'manual' ? manualBox(view.camera) : box;
   return createCamera({
-    world: box, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
+    world: framed, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
   });
+}
+
+/** What the automatic framing would be, for Home and for entering manual mode. */
+export function autoView(world, focusId = 'main') {
+  return boxView(sceneCamera(world, focusId).world);
 }
 
 /**
@@ -375,9 +408,9 @@ const formatBig = (metres) => {
   return `${metres.toExponential(2)} m`;
 };
 
-function drawGrid(cam) {
+function drawGrid(cam, override = 'auto') {
   const group = svg('g', { class: 'scene__grid', 'aria-hidden': 'true' });
-  const { xs, ys, step, box } = gridLines(cam);
+  const { xs, ys, step, box } = gridLines(cam, override === 'auto' ? null : override);
   for (const x of xs) {
     const a = toScreen(cam, { x, y: box.minY });
     const b = toScreen(cam, { x, y: box.maxY });
@@ -761,14 +794,34 @@ function drawVectors(world, cam, { vectors, view, ordinary, labels, labelIds = n
     const origin = toScreen(cam, body.pos);
     const labelled = showValues && (!labelIds || labelIds.has(body.id));
 
+    /*
+     * Contact forces are drawn from the contact, not from the centre of mass.
+     *
+     * Friction and the normal force do not act at the middle of an object; they
+     * act where it touches something, and drawing them from the centre quietly
+     * says otherwise. It is the same picture a textbook draws — the normal
+     * force rising out of the surface and friction lying along it, both rooted
+     * at the point of contact — and it is also the only way the two stop
+     * overlapping the weight arrow that genuinely does act at the centre.
+     *
+     * Where the object slides, friction is drawn from the trailing edge of the
+     * contact rather than its middle, which is where a reader looks for it.
+     */
+    const contactAt = result.contact.touching && result.contact.normal
+      ? contactPoint(cam, body, result.contact.normal, body.vel)
+      : null;
+    const rootFor = (id) => (contactAt && CONTACT_FORCES.has(id) ? contactAt : origin);
+
     const wanted = result.forces.filter((f) => vectors[f.id] && scales.force.visible(f.magnitude));
     wanted.forEach((f, i) => {
-      group.appendChild(arrow(origin, f.vec, scales.force.lengthFor(f.magnitude), `var(${f.token})`, {
+      const rooted = rootFor(f.id);
+      group.appendChild(arrow(rooted, f.vec, scales.force.lengthFor(f.magnitude), `var(${f.token})`, {
         label: labelled ? `${f.symbol} ${fmtFixed(f.magnitude, f.magnitude < 10 ? 2 : 1)} N` : null,
         // Fanned slightly so two forces along one line stay separable — weight
         // and the normal force are exactly opposite and exactly equal on a
-        // resting body, and drawn on one line they look like one arrow.
-        offset: fanOffset(i, wanted.length),
+        // resting body, and drawn on one line they look like one arrow. Not
+        // needed for the ones rooted at the contact: they are already apart.
+        offset: rooted === origin ? fanOffset(i, wanted.length) : 0,
         labels,
       }));
     });
@@ -822,6 +875,33 @@ function makeScale(magnitudes, maxPixels) {
 }
 
 const fanOffset = (index, total) => (total <= 1 ? 0 : (index - (total - 1) / 2) * 7);
+
+/** The forces that act where the object touches something, not at its centre. */
+const CONTACT_FORCES = new Set(['normal', 'friction', 'rolling']);
+
+/**
+ * Where the object meets the surface, in screen pixels.
+ *
+ * Straight down the normal by the body's support height, then along the surface
+ * to the trailing edge of the contact — the back corner of a sliding box, which
+ * is where friction is drawn in every textbook and where a reader looks for it.
+ * A round body has no trailing edge worth speaking of, so it stays at the point
+ * of contact directly beneath the centre.
+ */
+function contactPoint(cam, body, normal, velocity) {
+  const support = body.support ?? body.radius ?? 0;
+  const along = alongSurface(normal);
+  const speed = velocity ? velocity.x * along.x + velocity.y * along.y : 0;
+
+  // Only a body with a flat face has a back corner to speak of.
+  const halfFace = body.kind === 'ball' || !body.width ? 0 : body.width / 2;
+  const back = Math.abs(speed) > 1e-3 ? -Math.sign(speed) * halfFace * 0.85 : 0;
+
+  return toScreen(cam, {
+    x: body.pos.x - normal.x * support + along.x * back,
+    y: body.pos.y - normal.y * support + along.y * back,
+  });
+}
 
 /**
  * One arrow: shaft, head, and a label request at the tip.
