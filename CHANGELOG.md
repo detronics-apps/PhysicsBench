@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.0.0
+
+The first public release.
+
+An interactive mechanics laboratory that builds one experiment up in eight steps — a mass, a push,
+a second mass, growing that second mass into a planet, a surface, friction, fluids, and a playground
+with everything switched on at once. Parameters accumulate: what you set in step one is still set in
+step eight, and nothing resets when you change it, so an experiment can be adjusted while it runs.
+
+- **Eight steps on one object**, so mass, force, gravity, surfaces, friction, drag and collisions
+  arrive as one story rather than eight subjects.
+- **Watch the planet happen.** The second mass swings underneath the first and inflates through
+  twenty-four orders of magnitude while the object above it holds exactly the same size on screen
+  and the surface beneath it flattens. Nothing is added to make weight appear.
+- **Every force as its own labelled arrow**, switchable, drawn to one scale per quantity so their
+  lengths can be compared — and contact forces drawn from the contact rather than the centre.
+- **Real materials.** Sixteen friction pairs from a skate on ice to a racing slick, each with the
+  range its published values actually span; fluids with a density *and* a viscosity, so drag changes
+  law between air and honey; and restitution taken from the two materials that meet, so A into B is
+  a different collision from A into C.
+- **A playground**: drawn walls and ramps, cannons, twenty objects each with its own shape, size and
+  material, and pointer or keyboard controls to drive one — all of them forces, all on the books.
+- **Graphs against time**, synchronised to the animation, with a scrubbable timeline.
+- **A measurements panel** carrying momentum, energy and an invariant that does not move whatever is
+  pushed, heated, dropped or fired.
+- **Export** to SVG, PNG, CSV, a shareable link, and a printable PDF with per-section toggles.
+
+### The promise it is built around
+
+Nothing here should have to be unlearned later. g is computed from a world's mass and radius rather
+than looked up. Friction does not depend on contact area, and the app demonstrates that rather than
+asserting it. Every equation carries its domain of validity and the wider statement it is a special
+case of, and every step separately declares what is **reality**, what is a **model**, what has been
+**assumed away** and what has been **approximated** — enforced in code, not by intention.
+
+No build step, no dependencies, no network requests after load, and nothing leaves the browser.
+
+---
+
+*The entries below are the development history, kept because the reasons in them are still the
+reasons the code is the way it is. Their version numbers were internal — none of them was ever
+published, and this release is the first.*
+
 ## 2.5.3
 
 - **The printed sheet now starts at the drawing.** The stepper, the question that opens the step and
@@ -450,8 +493,8 @@ Rebuilt as one bench that grows in eight steps, rather than thirteen separate la
 Verified across 297 rendered frames spanning 99 parameter combinations — nothing outside its
 canvas, no NaN reaching the DOM, every export free of unresolved custom properties.
 
-## 1.0.0
+## The first build
 
-First release: thirteen labs over one simulation core, with the reality / model / assumption /
+Thirteen labs over one simulation core, with the reality / model / assumption /
 approximation disclosure, a live Physics Inspector, synchronised graphs, three modes, side-by-side
 comparison and predict-first challenges.
