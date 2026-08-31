@@ -644,7 +644,9 @@ function scalePath(d, cx, cy, width, height) {
 
 function drawBody(cam, body, selected, topDown, labels) {
   const group = svg('g', {
-    class: 'scene__body',
+    // Marked, because a shot is the one thing allowed to be drawn outside the
+    // canvas and anything checking that needs to be able to tell.
+    class: body.projectile ? 'scene__body scene__body--shot' : 'scene__body',
     // A spent shot fades out over three seconds before it is removed. Drawn
     // here rather than animated in CSS, so an export of a paused frame shows
     // exactly what was on screen.
@@ -732,8 +734,19 @@ function drawBody(cam, body, selected, topDown, labels) {
 function drawVectors(world, cam, { vectors, view, ordinary, labels, labelIds = null }) {
   const group = svg('g', { class: 'scene__vectors' });
 
+  /*
+   * Cannon shots carry no arrows, for the same reason they carry no label and
+   * no trail: they are what is being fired at the experiment, not the
+   * experiment. Twenty of them with six arrows each is a hundred and twenty
+   * arrows over a drawing that is trying to show four.
+   *
+   * It also keeps one invariant clean. A shot is allowed to leave the canvas —
+   * that is the point of not framing on it — and an arrow attached to one would
+   * leave with it, so "nothing is drawn outside the drawing" would stop being
+   * checkable for everything else.
+   */
   const perBody = ordinary
-    .filter((b) => !b.fixed && Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y))
+    .filter((b) => !b.fixed && !b.projectile && Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y))
     .map((body) => ({ body, result: forcesFor(world, body) }));
 
   const scales = {

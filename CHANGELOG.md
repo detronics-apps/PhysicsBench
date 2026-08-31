@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.4.2
+
+- **The shape can be changed at every step, not only from step five.** For the first three it
+  changes nothing about the motion, and the control says so rather than leaving it to be guessed:
+  with no surface to rest on and no fluid to push through, a shape has nothing to act on. Being able
+  to find that out by trying it is better than being prevented from asking. At step four it decides
+  how the object sits when it lands, and from step five onwards it does everything it always did.
+- **The C_d·A comparison now only appears where there is a fluid**, since that is the only thing it
+  is about.
+
+### Fixes found while verifying
+
+- **Every shape rested at the same height on a planet.** Body-to-body contact treats everything as a
+  circle — the point-mass assumption showing through, and right for two objects meeting side on —
+  but resting on a planet is not that case: the surface is locally flat, so what decides the height
+  is the distance from the centre to the underside, exactly as on the ground. A flat plate hovered
+  ten times too high. It stayed invisible until the shape could be changed at that step.
+- **Cannon shots no longer carry arrows**, for the same reason they carry no label and no trail.
+  Twenty shots with six arrows each is a hundred and twenty arrows over a drawing trying to show
+  four — and since a shot is allowed to leave the canvas, an arrow attached to one left with it,
+  which quietly broke "nothing is drawn outside the drawing" for everything else.
+
 ## 2.4.1
 
 - **The second mass now swings round the first rather than sliding at it.** It follows an arc,

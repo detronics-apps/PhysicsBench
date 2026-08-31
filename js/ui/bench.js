@@ -23,7 +23,7 @@ import { collisionsOn, collisionsForced } from '../stages.js';
 import { buoyantMass } from '../forces.js';
 import { SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats } from '../shapes.js';
 import { MAX_CANNONS } from '../state.js';
-import { FLUIDS, drag as fluidDrag, terminalSpeed } from '../drag.js';
+import { FLUIDS, fluidById, drag as fluidDrag, terminalSpeed } from '../drag.js';
 import { WORLDS, describeWorld, surfaceGravity, everydayComparison, massForGravity } from '../gravitation.js';
 import { inspect, totals, findBody } from '../world.js';
 import { len } from '../vec.js';
@@ -64,9 +64,16 @@ function objectSection(ctx, object, f) {
         + `${object.volume.toPrecision(3)} m³ of it.`,
     }),
 
+    /*
+     * The shape is available from the first step, and for most of them it
+     * changes nothing about the motion — which is worth being able to find out
+     * rather than being protected from. An object's shape acts on a surface or
+     * a fluid, and until there is one of those it has nothing to act on. The
+     * hint says which of those two situations you are in.
+     */
     f.has('shape') ? selectField('Shape', SHAPES.map((s) => ({ value: s.id, label: s.label })), p.shapeId, (v) => set('shapeId', v), {
       key: 'shapeId',
-      hint: object.shape.note,
+      hint: shapeMattersHere(ctx) ? object.shape.note : shapeDoesNothingYet(ctx),
     }) : null,
 
     sliderField('Size', p.size, (v) => set('size', v), {
@@ -76,7 +83,9 @@ function objectSection(ctx, object, f) {
         + 'but not the mass, which is set directly above.',
     }),
 
-    f.has('shape') ? el('div', { class: 'field__hint', text: dragComparison(p.shapeId, p.size).text }) : null,
+    // Drag is the only thing C_d·A is about, so it only appears once there is
+    // something to be dragged through.
+    f.has('fluid') && !ctx.space ? el('div', { class: 'field__hint', text: dragComparison(p.shapeId, p.size).text }) : null,
 
     buttonRow([
       button('Match a material', () => {
@@ -90,6 +99,34 @@ function objectSection(ctx, object, f) {
       hint: 'Only used by the button above. The mass stays whatever you set it to.',
     }),
   ].filter(Boolean), { key: 'object' });
+}
+
+/** Is there anything at this step for the object's shape to act on? */
+const shapeMattersHere = (ctx) =>
+  (ctx.features.has('ground') && !ctx.space)
+  || (ctx.features.has('fluid') && fluidById(ctx.params.fluidId).density > 0)
+  || (ctx.features.has('sandbox') && (ctx.params.walls || []).length > 0);
+
+/** What it is doing instead, said plainly rather than left to be guessed at. */
+function shapeDoesNothingYet(ctx) {
+  const f = ctx.features;
+  // Deep space first: there is a planet in the feature list at those steps, but
+  // there is no world in the scene and nothing to land on.
+  if (ctx.space) {
+    return 'In deep space there is no surface and no fluid, so the shape has '
+      + 'nothing to act on — it only decides which way the object is drawn '
+      + 'facing. Draw a wall and it will have something to meet.';
+  }
+  if (f.has('planet')) {
+    return 'It decides how the object sits when it lands — a sphere touches at a '
+      + 'point, a cube on a face — and how far its centre is above the surface. '
+      + 'It does not change the fall: nothing about shape is in g = G·M/r².';
+  }
+  return 'Nothing here responds to it yet: with no surface to rest on and no '
+    + 'fluid to push through, a shape has nothing to act on. It changes the '
+    + 'picture, and the volume — so the density — and that is all. That is worth '
+    + 'noticing rather than assuming; shape starts mattering at step five, and '
+    + 'you can watch exactly when.';
 }
 
 function pushSection(ctx) {

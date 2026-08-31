@@ -51,18 +51,22 @@ export const STAGES = [
     id: 'mass',
     label: 'A mass',
     short: 'Mass',
-    features: [],
+    features: ['shape'],
     ask: 'What is a mass, before anything happens to it?',
     discover: 'On its own, nothing happens. No forces act, so it stays exactly '
       + 'as it is — and that stubbornness is the only thing mass does until '
       + 'something tries to change it.',
-    watch: 'Change the mass. Nothing moves, and nothing will, until you push it.',
+    watch: 'Change the mass. Nothing moves, and nothing will, until you push it. '
+      + 'Change the shape too, and notice that nothing happens then either — with '
+      + 'no surface to rest on and no fluid to push through, a shape has nothing '
+      + 'to act on. It starts mattering in step five, and you will be able to see '
+      + 'exactly when.',
   },
   {
     id: 'push',
     label: 'Push it',
     short: 'Push',
-    features: ['applied'],
+    features: ['applied', 'shape'],
     ask: 'What happens if I push harder, or make it heavier?',
     discover: 'A push produces an acceleration, and the same push produces less '
       + 'acceleration on more mass. Acceleration piles up into velocity, and '
@@ -76,7 +80,7 @@ export const STAGES = [
     id: 'two-masses',
     label: 'A second mass',
     short: 'Two masses',
-    features: ['applied', 'second-mass', 'mutual-gravity'],
+    features: ['applied', 'shape', 'second-mass', 'mutual-gravity'],
     ask: 'Do two masses pull on each other?',
     discover: 'They do — always, and by exactly the same force each way. The '
       + 'force is G·m₁·m₂/r², and for two objects you could lift it is so small '
@@ -88,7 +92,7 @@ export const STAGES = [
     id: 'planet',
     label: 'Grow it into a planet',
     short: 'Gravity',
-    features: ['applied', 'second-mass', 'mutual-gravity', 'planet'],
+    features: ['applied', 'shape', 'second-mass', 'mutual-gravity', 'planet'],
     ask: 'What has to change before that pull turns into weight?',
     discover: 'Nothing changes except the size of the other mass. Grow it to a '
       + 'planet and the same equation gives 9.8 m/s² — and the surface flattens '
@@ -283,6 +287,8 @@ function bodyFor(spec, p, f, { space, surfaceRest, hasGround }) {
     radius: object.support,
     width: object.size,
     height: object.height,
+    // How far the underside is from the centre: what it rests at.
+    support: object.support,
     diameter: object.size,
     area: object.area,
     cd: object.cd,

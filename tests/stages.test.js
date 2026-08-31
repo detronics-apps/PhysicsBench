@@ -7,6 +7,7 @@ import {
   collisionsOn, collisionsForced, startPosition,
 } from '../js/stages.js';
 import { defaults, VECTOR_IDS } from '../js/state.js';
+import { describe as describeShape } from '../js/shapes.js';
 import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { CHANNELS } from '../js/recorder.js';
 import { surfaceGravity } from '../js/gravitation.js';
@@ -799,4 +800,93 @@ test('the growth hands over to step four with the same gap it promised', () => {
 
   // support (0.2) + dropHeight (1.4), and nothing else.
   close(gap, 0.2 + 1.4, 1e-6);
+});
+
+test('the shape can be chosen from the first step, and only grows in effect', () => {
+  // Available everywhere, because "does the shape matter here?" is a question
+  // worth being able to answer by trying it rather than by being prevented.
+  for (const stage of STAGES) {
+    assert.ok(featuresAt(stage.id).has('shape'), `${stage.id} cannot change the shape`);
+  }
+});
+
+test('the shape changes nothing about the motion until there is something to act on', () => {
+  /*
+   * With no surface and no fluid, a shape has nothing to push against. The
+   * control being present there is the point — it is how you find that out —
+   * so it had better be true.
+   */
+  const base = {
+    ...defaults().bench, worldMode: 'space', fluidId: 'vacuum',
+    pushForce: 12, pushAngleDeg: 20, pushSeconds: 2, v0: 0,
+    objects: [], walls: [], cannons: [], mass: 2,
+  };
+  const after = (shapeId, stage) => {
+    const p = { ...base, shapeId };
+    let w = build(stage, p).world;
+    for (let i = 0; i < 300; i += 1) {
+      w = applyPush(w, p, featuresAt(stage));
+      w = advance(w, 1 / 100);
+    }
+    const b = findBody(w, 'main');
+    return { x: b.pos.x, y: b.pos.y, vx: b.vel.x, vy: b.vel.y };
+  };
+
+  for (const stage of ['push', 'two-masses']) {
+    const ball = after('sphere', stage);
+    const plate = after('plate', stage);
+    const ship = after('spaceship', stage);
+    for (const other of [plate, ship]) {
+      close(other.vx, ball.vx, 1e-9);
+      close(other.vy, ball.vy, 1e-9);
+    }
+  }
+
+  // And once there is a fluid, it very much does.
+  const inAir = (shapeId) => {
+    const p = { ...base, shapeId, worldMode: 'planet', fluidId: 'air', size: 1 };
+    let w = build('fluid', p).world;
+    for (let i = 0; i < 300; i += 1) {
+      w = applyPush(w, p, featuresAt('fluid'));
+      w = advance(w, 1 / 100);
+    }
+    return findBody(w, 'main').pos.x;
+  };
+  assert.ok(Math.abs(inAir('plate') - inAir('streamlined')) > 0.05,
+    'a flat plate and a teardrop went the same distance through air');
+});
+
+test('a shape rests at its own height on a planet, as it does on the ground', () => {
+  /*
+   * Body-to-body contact treats everything as a circle, which is the point-mass
+   * assumption showing through and is right for two objects meeting side on.
+   * Resting on a planet is not that case: the surface is locally flat, so what
+   * decides the height is the distance from the centre to the underside — the
+   * same quantity the ground uses.
+   *
+   * Using the half-width there left a flat plate hovering ten times too high,
+   * which stayed invisible until the shape could be changed at that step.
+   */
+  const settle = (stage, shapeId) => {
+    const p = {
+      ...defaults().bench, stage, worldMode: 'planet', shapeId, size: 1,
+      dropHeight: 0.5, fluidId: 'vacuum', restitution: 0, slopeDeg: 0,
+      objects: [], walls: [], cannons: [], pushSeconds: 0, v0: 0,
+    };
+    let w = build(stage, p).world;
+    for (let i = 0; i < 400; i += 1) w = advance(w, 1 / 100);
+    return findBody(w, 'main').pos.y;
+  };
+
+  for (const shapeId of ['sphere', 'cube', 'plate', 'streamlined', 'car', 'balloon', 'spaceship']) {
+    const expected = describeShape({ shapeId, size: 1, mass: 1 }).support;
+    // On a planet, where contact is with another body.
+    close(settle('planet', shapeId), expected, 2e-3);
+    // And on the drawn ground, which was always right — the two must agree.
+    close(settle('surface', shapeId), expected, 2e-3);
+  }
+
+  // A flat plate is nowhere near as tall as a cube, which is the case that was
+  // wrong: both used to come to rest at half the width.
+  assert.ok(settle('planet', 'plate') < settle('planet', 'cube') / 5);
 });

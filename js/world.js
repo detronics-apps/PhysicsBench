@@ -66,6 +66,7 @@ export function body(spec = {}) {
   const radius = Number.isFinite(spec.radius) && spec.radius > 0
     ? spec.radius
     : defaultRadius(kind, mass);
+  const height = spec.height ?? radius * 2;
 
   return {
     id: spec.id || `b${Math.random().toString(36).slice(2, 8)}`,
@@ -76,7 +77,16 @@ export function body(spec = {}) {
     // A box is drawn as a rectangle but supported at one point, because
     // rotation is not modelled. The disclosure names that assumption.
     width: spec.width ?? radius * 2,
-    height: spec.height ?? radius * 2,
+    height,
+    // How far the underside is from the centre — what decides the height it
+    // rests at. Not the same as the radius for anything that is not round: a
+    // flat plate is ten times wider than it is thick.
+    //
+    // Derived from the resolved height rather than from `spec.height`, because
+    // `undefined / 2` is NaN and `??` does not catch a NaN — it would have
+    // reached the contact code as a silent NaN on every body given no explicit
+    // height, which is most of them.
+    support: spec.support ?? height / 2,
     pos: spec.pos || vec(0, radius),
     vel: spec.vel || ZERO,
     applied: spec.applied || ZERO,
@@ -788,7 +798,7 @@ function resolvePairs(bodies, world, ledger, events) {
 
       const delta = sub(b.pos, a.pos);
       const distance = len(delta);
-      const touchAt = radiusAlong(a) + radiusAlong(b);
+      const touchAt = reachToward(a, b) + reachToward(b, a);
       if (distance >= touchAt || distance < 1e-12) continue;
 
       const n = norm(delta);
@@ -832,6 +842,26 @@ function resolvePairs(bodies, world, ledger, events) {
 }
 
 const radiusAlong = (b) => (b.kind === 'ball' || b.kind === 'planet' ? b.radius : b.width / 2);
+
+/**
+ * How far one body reaches towards another before they touch.
+ *
+ * Everything here is a circle for the purpose of body-to-body contact, which is
+ * the point-mass assumption showing through, and for two objects meeting side
+ * on the half-width is the right radius to use.
+ *
+ * Resting on a planet is not that case. A planet's surface is locally flat —
+ * that is the whole lesson of the fourth step — so what decides the height a
+ * body settles at is the distance from its centre to its underside, exactly as
+ * on the ground. Using the half-width there left a flat plate hovering ten
+ * times too high above the surface, which was invisible until the shape could
+ * be changed at that step.
+ */
+function reachToward(b, other) {
+  if (b.kind === 'planet') return b.radius;
+  if (other.kind === 'planet') return b.support ?? radiusAlong(b);
+  return radiusAlong(b);
+}
 
 /* -------------------------------------------------------------- reading -- */
 
