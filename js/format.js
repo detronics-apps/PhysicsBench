@@ -52,12 +52,36 @@ function trimZeros(text) {
 export function fmtFixed(value, decimals = 2) {
   const x = Number(value);
   if (!Number.isFinite(x)) return '—';
+  /*
+   * Past a certain size a fixed number of decimals stops being a stable width
+   * and becomes an unreadable one: an acceleration of 2.5×10¹⁷ m/s² printed
+   * this way is "253355152316725568.00", twenty-three characters that nobody
+   * can read and that break every layout they land in. The whole reason for
+   * fixed decimals is legibility, so where it stops serving that it gives way.
+   *
+   * Reachable in ordinary use — a light object in a dense fluid, or an invented
+   * world — and the app already has a banner explaining that the model has run
+   * out. The number beside it should be readable enough to confirm it.
+   */
+  if (Math.abs(x) >= 1e7) return superscripted(sig(x, 4).toExponential(2));
   // -0 renders as "-0.00", which reads as a direction that is not there.
   const safe = Object.is(x, -0) || Math.abs(x) < 0.5 * 10 ** -decimals ? 0 : x;
   // U+2212, not a hyphen. Sign is the whole point of half this app — a
   // velocity of −4 m/s means something specific — so it gets the character
   // that actually looks like a minus, everywhere, from one place.
   return safe.toFixed(decimals).replace('-', '−');
+}
+
+/** "2.53e+17" written the way it would be on paper: 2.53×10¹⁷. */
+const SUPERSCRIPT = {
+  '-': '⁻', '+': '', 0: '⁰', 1: '¹', 2: '²', 3: '³',
+  4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹',
+};
+
+function superscripted(exponential) {
+  const [mantissa, exponent] = exponential.split('e');
+  const digits = exponent.split('').map((c) => SUPERSCRIPT[c] ?? c).join('');
+  return `${mantissa.replace('-', '−')}×10${digits}`;
 }
 
 /** Signed value with an explicit `+`, for anything where direction matters. */

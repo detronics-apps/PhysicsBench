@@ -617,7 +617,7 @@ function discloseFor(stageId, p, { object, planet, fluid, gravityMode, space, wa
     });
   }
 
-  if (f.has('control') && p.control?.mode === 'mouse') models.push('spring-control');
+  if (f.has('control') && p.control?.mode === 'mouse') models.push('pointer-thrust');
 
   if (f.has('collide')) {
     models.push('restitution');

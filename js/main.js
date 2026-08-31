@@ -45,7 +45,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.2.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -59,7 +59,17 @@ const clock = { last: 0, raf: 0, frame: 0 };
  * not worth saving, not worth sharing, and putting it in state would mean every
  * mouse move wrote to localStorage and rebuilt the sidebar.
  */
-const input = { pointer: null, keys: new Set(), drawing: null };
+const input = {
+  pointer: null,
+  keys: new Set(),
+  drawing: null,
+  // Whether the pointer button is being held down over the drawing. The
+  // pointer control aims while you hover and pushes only while you hold.
+  pressed: false,
+  // Whether the drawing has been selected to receive the arrow keys. Until it
+  // has, they belong to the page and scroll it, which is what they should do.
+  engaged: false,
+};
 
 /* ---------------------------------------------------------------- theme -- */
 
@@ -146,17 +156,50 @@ function goToStage(id) {
   }, { sim: 'full' });
 }
 
+/**
+ * The viewport, in the order the work actually happens in.
+ *
+ * The split that matters is that the sidebar holds *only* things you change and
+ * the viewport holds everything the experiment tells you back. Numbers about
+ * the object — how fast it is going, what is pushing it, where it is — used to
+ * sit at the top of the sidebar, which put a readout in the column you go to
+ * for a control and a control below the readout you were reading. Here they
+ * come after the graphs, which is where you are already looking once something
+ * has happened.
+ *
+ * The drawing is focusable, because at the last step the arrow keys have to be
+ * able to belong either to the page or to the object, and the only honest way
+ * to decide which is for you to say.
+ */
 function buildViewport() {
   dom.stages = el('div', { class: 'stepper', role: 'tablist', 'aria-label': 'Steps' });
   dom.ask = el('div', { id: 'ask' });
   dom.vectors = el('div', { id: 'vectors' });
-  dom.stage = el('div', { class: 'viewport__stage', id: 'stage' });
+  dom.stage = el('div', {
+    class: 'viewport__stage', id: 'stage',
+    tabindex: '-1',
+    'aria-label': 'The bench. Click to take the controls.',
+  });
   dom.legend = el('div', { id: 'legend' });
   dom.transportHost = el('div', { id: 'transport' });
   dom.readout = el('div', { class: 'readout', id: 'readout' });
   dom.graphs = el('div', { id: 'graphs' });
   dom.banners = el('div', { class: 'banners', id: 'banners' });
   dom.explain = el('div', { class: 'explain-host', id: 'explain' });
+
+  dom.inspector = el('div', { class: 'measurements__detail', id: 'inspector-body' });
+  dom.measurements = el('section', { class: 'measurements', id: 'measurements' }, [
+    el('div', { class: 'measurements__head' }, [
+      el('h2', { class: 'measurements__title', text: 'What it is doing' }),
+      el('span', {
+        class: 'measurements__note',
+        text: 'Everything measured, in one place: how it is moving, the forces on '
+          + 'it, and where it is. Nothing here is a control.',
+      }),
+    ]),
+    dom.readout,
+    dom.inspector,
+  ]);
 
   dom.viewport = el('section', { class: 'viewport' }, [
     dom.stages,
@@ -165,9 +208,10 @@ function buildViewport() {
     dom.stage,
     dom.legend,
     dom.transportHost,
-    dom.readout,
-    dom.graphs,
+    // Live commentary belongs beside the live picture, not three sections down.
     dom.banners,
+    dom.graphs,
+    dom.measurements,
     dom.explain,
   ]);
   return dom.viewport;
@@ -359,9 +403,16 @@ function paint(force = false) {
 
   clear(dom.stage);
   const armed = state.ui.tool === 'wall';
-  const driving = sim.scenario?.features?.has('control') && state.bench.control?.mode !== 'none';
+  const canControl = !!sim.scenario?.features?.has('control');
+  const driving = canControl && state.bench.control?.mode !== 'none';
+  const withKeys = canControl && state.bench.control?.mode === 'keyboard';
   dom.stage.classList.toggle('is-drawing', armed);
   dom.stage.classList.toggle('is-driving', !armed && !!driving);
+  // Focusable only where the keys have something to do. A tab stop that leads
+  // nowhere is worse than no tab stop.
+  dom.stage.tabIndex = withKeys ? 0 : -1;
+  input.engaged = withKeys && document.activeElement === dom.stage;
+  dom.stage.classList.toggle('is-engaged', input.engaged);
   dom.stage.appendChild(renderScene(ctx.world, {
     selectedId: state.selectedId,
     vectors: state.vectors,
@@ -370,6 +421,7 @@ function paint(force = false) {
     pointer: input.pointer,
     drawing: input.drawing,
     control: driving ? state.bench.control : null,
+    pressed: input.pressed,
   }));
   // A drawing sized to its contents must never be magnified to fill the panel.
   // Called after the stage has been replaced, on every render — pitfalls.md #3.
@@ -429,6 +481,8 @@ function context() {
     space: !!sim.scenario?.space,
     pointer: input.pointer,
     keys: input.keys,
+    pressed: input.pressed,
+    engaged: input.engaged,
     features: sim.scenario?.features || featuresAt(state.stage),
     scenario: sim.scenario,
     world: shownWorld(),
@@ -624,6 +678,7 @@ function applyControl(world) {
       pointer: input.pointer,
       keys: input.keys,
       strength: wanted.strength,
+      pressed: input.pressed,
     })
     : ZERO;
 
@@ -712,12 +767,33 @@ function wireInput() {
   });
 
   dom.stage.addEventListener('pointerdown', (event) => {
-    if (state.ui.tool !== 'wall') return;
-    const at = pointerToWorld(event);
-    if (!at) return;
-    event.preventDefault();
-    dom.stage.setPointerCapture?.(event.pointerId);
-    input.drawing = { from: at, to: at };
+    if (state.ui.tool === 'wall') {
+      const at = pointerToWorld(event);
+      if (!at) return;
+      event.preventDefault();
+      dom.stage.setPointerCapture?.(event.pointerId);
+      input.drawing = { from: at, to: at };
+      paint(true);
+      return;
+    }
+
+    /*
+     * Clicking the drawing does two things, and both are the user saying which
+     * of two claimants owns an input.
+     *
+     * It takes the arrow keys away from the page, so they steer instead of
+     * scrolling — and it does that only because you asked, since a page that
+     * silently swallowed the arrow keys would be worse than one that never
+     * offered to. And it starts the pointer thrust, which lasts exactly as long
+     * as the button is held.
+     */
+    if (dom.stage.tabIndex === 0) dom.stage.focus({ preventScroll: true });
+    if (sim.scenario?.features?.has('control') && state.bench.control?.mode === 'mouse') {
+      input.pointer = pointerToWorld(event) || input.pointer;
+      input.pressed = true;
+      dom.stage.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
     paint(true);
   });
 
@@ -739,8 +815,20 @@ function wireInput() {
     });
   };
 
-  dom.stage.addEventListener('pointerup', finishWall);
-  dom.stage.addEventListener('pointercancel', () => { input.drawing = null; paint(true); });
+  const release = () => {
+    if (!input.pressed) return;
+    input.pressed = false;
+    paint(true);
+  };
+  dom.stage.addEventListener('pointerup', (event) => { release(); finishWall(event); });
+  dom.stage.addEventListener('pointercancel', () => { input.drawing = null; release(); paint(true); });
+  // A button released outside the drawing must still stop the thruster, or it
+  // fires for ever with nothing on screen explaining why.
+  window.addEventListener('pointerup', release);
+  window.addEventListener('blur', release);
+
+  dom.stage.addEventListener('focus', () => { input.engaged = dom.stage.tabIndex === 0; paint(true); });
+  dom.stage.addEventListener('blur', () => { input.engaged = false; input.keys.clear(); paint(true); });
 
   /*
    * The keyboard, and the one rule that keeps it usable: it is ignored while a
@@ -754,14 +842,27 @@ function wireInput() {
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.isContentEditable;
   };
 
-  const driving = () => sim.scenario?.features?.has('control') && state.bench.control?.mode === 'keyboard';
+  /*
+   * The keys are taken from the page only while the drawing is selected.
+   *
+   * This is the whole reason the drawing is focusable. Arrow keys scroll, and
+   * an app that stops them scrolling because it happens to have a driving mode
+   * switched on somewhere has taken something from the reader without asking.
+   * Selecting the drawing is the asking; Escape gives them back.
+   */
+  const driving = () => input.engaged
+    && sim.scenario?.features?.has('control')
+    && state.bench.control?.mode === 'keyboard';
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && input.engaged) {
+      dom.stage.blur();
+      return;
+    }
     if (!driving() || typing() || event.metaKey || event.ctrlKey || event.altKey) return;
     if (!(event.key in KEYS_WATCHED)) return;
     input.keys.add(event.key);
-    // Arrow keys scroll the page, which is exactly the wrong thing while
-    // steering. Only swallowed while a mode that uses them is actually on.
+    // Swallowed only here: selected drawing, keyboard mode, a key that steers.
     event.preventDefault();
   });
 
@@ -794,18 +895,13 @@ function init() {
     set: (id, open) => { state.ui.sections[`${state.stage}:${id}`] = open; saveSoon(); },
   });
 
-  // The inspector is permanent — it never collapses and never scrolls away from
-  // the controls, because its whole job is to be readable while something is
-  // moving. It gets its own host so `paint` can refresh it without touching the
-  // controls below, where the caret might be.
-  dom.inspector = el('div', { class: 'section__body', id: 'inspector-body' });
+  // The sidebar is inputs and nothing else. Every measurement lives in the
+  // viewport under the graphs, where you are already looking once something has
+  // happened — and where reading one cannot mean scrolling past a control you
+  // were about to change.
   dom.controls = el('div', { id: 'controls' });
 
   dom.sidebar = el('aside', { class: 'sidebar', id: 'sidebar', 'aria-label': 'Controls' }, [
-    el('div', { class: 'section' }, [
-      el('div', { class: 'section__title', style: { cursor: 'default' } }, 'Physics inspector'),
-      dom.inspector,
-    ]),
     dom.controls,
   ]);
 
@@ -845,6 +941,8 @@ window.PhysicsBench = {
   // pointer events, which tests the model rather than the event plumbing.
   input,
   setPointer: (x, y) => { input.pointer = x === null ? null : { x, y }; },
+  setPressed: (on) => { input.pressed = !!on; },
+  setEngaged: (on) => { input.engaged = !!on; },
   press: (key) => input.keys.add(key),
   release: (key) => input.keys.delete(key),
   camera: () => sceneCamera(shownWorld()),

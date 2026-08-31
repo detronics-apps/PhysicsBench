@@ -151,17 +151,96 @@ export const drag = { active: false };
  * replace the element being dragged and the drag would simply stop. Hence the
  * flag above: the shell repaints the drawing and the readouts every movement,
  * and rebuilds the controls once, on release.
+ *
+ * The value beside it is typed into as well as dragged. A slider is the right
+ * control for finding out what a quantity does and the wrong one for setting it
+ * to 9.81, and making the reader choose between the two would be a poor trade
+ * when the same field can be both. Click the number, type, press Enter.
  */
 export function sliderField(label, value, onChange, {
   min, max, step = 1, info, format = (v) => String(v), key = null, hint = null,
+  unit = null,
 } = {}) {
-  const readout = el('span', { class: 'value muted', text: format(value) });
+  const field = key || label;
+
+  /*
+   * One element that shows the formatted value and accepts a typed one.
+   *
+   * Formatted text — "0.40 m across", "45°" — cannot be typed into, so the
+   * field swaps to the bare number the moment it takes focus and back to the
+   * sentence when it loses it. Swapping the *element* instead would lose the
+   * caret and the focus-restoring machinery that survives a re-render.
+   */
+  /*
+   * Committing is wired to `change` as well as `blur`.
+   *
+   * `blur` alone is the obvious choice and it is not enough: a text field fires
+   * `change` on Enter and on losing focus, and a browser window that does not
+   * itself have focus never fires `blur` at all. Two events, one commit, and it
+   * is idempotent — so nothing happens twice when both arrive.
+   */
+  const commit = (node) => {
+    const typed = parseNumber(node.value);
+    node.classList.remove('input--invalid');
+    if (typed === null || !Number.isFinite(typed)) {
+      // Nonsense is refused and the value put back, never turned into a NaN
+      // that reaches the physics as a silent NaN everywhere.
+      node.value = format(value);
+      return;
+    }
+    // A value past the ends of the slider is clamped rather than rejected —
+    // the thumb moving to its end says why more clearly than an error would.
+    const clamped = Math.min(max, Math.max(min, typed));
+    node.value = format(clamped);
+    if (clamped !== value) onChange(clamped);
+  };
+
+  const reveal = (node) => {
+    if (node.dataset.raw === '1') return;
+    node.dataset.raw = '1';
+    node.value = trim(value);
+  };
+
+  const readout = el('input', {
+    type: 'text',
+    class: 'value value--typed',
+    value: format(value),
+    inputmode: 'decimal',
+    spellcheck: 'false',
+    'data-field': `${field}:typed`,
+    'aria-label': `${label}${unit ? ` in ${unit}` : ''} — type a value`,
+    title: 'Click to type a value',
+    on: {
+      // Both, because a pointer press is the reliable signal that this is about
+      // to be typed into and `focus` is the one that catches keyboard tabbing.
+      focus: (event) => { reveal(event.target); event.target.select(); },
+      pointerdown: (event) => reveal(event.target),
+      keydown: (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); commit(event.target); event.target.blur(); }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.target.value = format(value);
+          event.target.blur();
+        }
+        // The arrow keys belong to the field being typed in, not to whatever
+        // else on the page might be listening for them.
+        event.stopPropagation();
+      },
+      change: (event) => commit(event.target),
+      blur: (event) => commit(event.target),
+      input: (event) => {
+        const typed = parseNumber(event.target.value);
+        event.target.classList.toggle('input--invalid', typed === null || !Number.isFinite(typed));
+      },
+    },
+  });
+
   const input = el('input', {
     type: 'range', min, max, step, value,
-    'data-field': key || label,
+    'data-field': field,
     on: {
       input: (event) => {
-        readout.textContent = format(Number(event.target.value));
+        readout.value = format(Number(event.target.value));
         drag.active = true;
         try { onChange(Number(event.target.value)); } finally { drag.active = false; }
       },
@@ -177,6 +256,12 @@ export function sliderField(label, value, onChange, {
     hint ? el('div', { class: 'field__hint', text: hint }) : null,
   ]);
 }
+
+/** A number as short a string as it can honestly be, for typing back into. */
+const trim = (v) => {
+  const rounded = Math.abs(v) >= 1000 ? v.toPrecision(6) : String(Number(v.toPrecision(8)));
+  return rounded.includes('e') ? String(v) : rounded.replace(/\.?0+$/, (m) => (m.includes('.') ? '' : m));
+};
 
 export function toggleField(label, value, onChange, { info, key = null, hint = null } = {}) {
   const input = el('input', {
@@ -236,8 +321,25 @@ export function stat(label, value, { note = '', info = null, accent = false, swa
 
 /* -------------------------------------------------------------- banners -- */
 
-const BANNER_MARK = { error: '!', warn: '!', ok: '✓', info: 'i' };
-const BANNER_CLASS = { error: 'banner-danger', warn: 'banner-warn', ok: 'banner-ok', info: 'banner-info' };
+/*
+ * `danger` and `error` are the same level under two names, and both are here
+ * deliberately.
+ *
+ * An unrecognised level used to fall back to `info` in silence, which meant
+ * every `banner('danger', …)` in the app — the warnings that say the model has
+ * run out and the number beside it should not be believed — was rendered as a
+ * neutral grey note. A severity that quietly downgrades itself is worse than no
+ * severity at all, so the alias exists and `bannerLevel` is exported for the
+ * test that pins it.
+ */
+const BANNER_MARK = { error: '!', danger: '!', warn: '!', ok: '✓', info: 'i' };
+const BANNER_CLASS = {
+  error: 'banner-danger', danger: 'banner-danger',
+  warn: 'banner-warn', ok: 'banner-ok', info: 'banner-info',
+};
+
+/** Every level a banner will honour. Anything else is a caller's typo. */
+export const BANNER_LEVELS = Object.keys(BANNER_CLASS);
 
 /**
  * Live warnings rather than validation on submit. An experiment being set up
@@ -251,7 +353,7 @@ export function banner(level, text) {
 }
 
 export function bannerList(problems, { emptyText = null } = {}) {
-  const order = { error: 0, warn: 1, ok: 2, info: 3 };
+  const order = { error: 0, danger: 0, warn: 1, ok: 2, info: 3 };
   const sorted = [...problems].sort((a, b) => (order[a.level] ?? 9) - (order[b.level] ?? 9));
   if (!sorted.length && emptyText) return [banner('ok', emptyText)];
   return sorted.map((problem) => banner(problem.level, problem.text));

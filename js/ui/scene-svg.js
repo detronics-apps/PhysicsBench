@@ -99,6 +99,7 @@ export function renderScene(world, {
   pointer = null,
   drawing = null,
   control = null,
+  pressed = false,
 } = {}) {
   const root = svg('svg', {
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
@@ -153,7 +154,7 @@ export function renderScene(world, {
     }
   }
 
-  if (control) root.appendChild(drawControl(cam, world, control, pointer));
+  if (control) root.appendChild(drawControl(cam, world, control, pointer, pressed));
 
   // Arrows go on top of everything: they are the point of the drawing.
   const movable = ordinary.filter((b) => !b.fixed);
@@ -468,23 +469,57 @@ function drawCannons(cam, cannons) {
   return group;
 }
 
-/** The line between the object being driven and the cursor pulling it. */
-function drawControl(cam, world, control, pointer) {
+/**
+ * The aim: where the pointer is from the object, and whether it is firing.
+ *
+ * Drawn whether or not the button is held, because you aim first and press
+ * second — an arrow that only appeared once the force did would leave nothing
+ * to aim with. Faint and dashed while it is only an aim; solid, and joined by
+ * the ordinary control-force arrow, once it is doing something. The difference
+ * between the two states is the whole point of a control you hold down.
+ */
+function drawControl(cam, world, control, pointer, pressed) {
   const group = svg('g', { class: 'scene__control' });
   if (control.mode !== 'mouse' || !pointer) return group;
   const body = world.bodies.find((b) => b.id === control.targetId);
   if (!body || !Number.isFinite(body.pos.x)) return group;
+
   const a = toScreen(cam, body.pos);
   const b = toScreen(cam, pointer);
   if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) return group;
+
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dx, dy);
+  if (!(length > 1)) return group;
+  const ux = dx / length;
+  const uy = dy / length;
+
+  // The shaft stops short of the ring, so the arrowhead sits in the gap rather
+  // than through the target.
+  const tipX = b.x - ux * 9;
+  const tipY = b.y - uy * 9;
+
   group.appendChild(svg('line', {
-    x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
-    stroke: 'var(--force-control)', 'stroke-width': 1.5,
-    'stroke-dasharray': '3 4', 'stroke-opacity': 0.7,
+    x1: r(a.x), y1: r(a.y), x2: r(tipX), y2: r(tipY),
+    stroke: 'var(--force-control)',
+    'stroke-width': pressed ? 2.5 : 1.5,
+    'stroke-dasharray': pressed ? null : '4 5',
+    'stroke-opacity': pressed ? 0.95 : 0.55,
+  }));
+  group.appendChild(svg('path', {
+    d: arrowHead(tipX, tipY, ux, uy, pressed ? 10 : 7),
+    fill: 'var(--force-control)', stroke: 'var(--force-control)',
+    'stroke-width': 1, 'stroke-linejoin': 'round',
+    'fill-opacity': pressed ? 0.95 : 0.55,
+    'stroke-opacity': pressed ? 0.95 : 0.55,
   }));
   group.appendChild(svg('circle', {
-    cx: r(b.x), cy: r(b.y), r: 6, fill: 'none',
+    cx: r(b.x), cy: r(b.y), r: pressed ? 8 : 6,
+    fill: pressed ? 'var(--force-control)' : 'none',
+    'fill-opacity': pressed ? 0.2 : 0,
     stroke: 'var(--force-control)', 'stroke-width': 2,
+    'stroke-opacity': pressed ? 1 : 0.6,
   }));
   return group;
 }

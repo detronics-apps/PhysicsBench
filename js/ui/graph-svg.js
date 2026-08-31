@@ -12,12 +12,11 @@
  */
 
 import { svg, el } from './dom.js';
-import { layout, playhead, timeAt } from '../graph.js';
+import { layout, playhead, timeAt, tickFormat, exponentLabel } from '../graph.js';
 import { multiSeries, channelById } from '../recorder.js';
-import { fmtFixed } from '../format.js';
 
 const WIDTH = 880;
-const HEIGHT = 210;
+const HEIGHT = 226;
 
 /**
  * One graph carrying one or more traces.
@@ -129,6 +128,10 @@ export function renderSeriesGraph(series, {
 function gridAndAxes(box, series) {
   const group = svg('g', { 'aria-hidden': 'true' });
   const { plot } = box;
+  // A common power of ten comes out to the axis label rather than being
+  // repeated — or, worse, rounded away — on every tick.
+  const yFormat = tickFormat(box.yTicks);
+  const xFormat = tickFormat(box.xTicks);
 
   for (const tick of box.yTicks) {
     const y = box.yScale(tick);
@@ -137,22 +140,27 @@ function gridAndAxes(box, series) {
       stroke: 'var(--grid)', 'stroke-width': 1,
     }));
     group.appendChild(svg('text', {
-      x: rr(plot.x - 6), y: rr(y + 3.5), 'text-anchor': 'end',
+      x: rr(box.labels.yTicks.x), y: rr(y + box.labels.yTicks.dy),
+      'text-anchor': box.labels.yTicks.anchor,
       fill: 'var(--text-faint)', 'font-size': 10,
-    }, fmtFixed(tick, decimalsFor(box.yTicks))));
+    }, yFormat.format(tick)));
   }
 
-  for (const tick of box.xTicks) {
+  box.xTicks.forEach((tick, i) => {
     const x = box.xScale(tick);
     group.appendChild(svg('line', {
       x1: rr(x), y1: rr(plot.y), x2: rr(x), y2: rr(plot.y + plot.height),
       stroke: 'var(--grid)', 'stroke-width': 1,
     }));
     group.appendChild(svg('text', {
-      x: rr(x), y: rr(plot.y + plot.height + 15), 'text-anchor': 'middle',
+      // The first and last are pinned inward, or the first reaches into the
+      // y-tick column and touches the bottom number there, and the last runs
+      // off the right edge of the graph.
+      x: rr(x), y: rr(box.labels.xTicks.y),
+      'text-anchor': box.labels.tickAnchor(i, box.xTicks.length),
       fill: 'var(--text-faint)', 'font-size': 10,
-    }, `${fmtFixed(tick, decimalsFor(box.xTicks))}`));
-  }
+    }, xFormat.format(tick)));
+  });
 
   // Zero is the most informative line on a velocity or force graph: it is where
   // the direction reverses. It gets its own weight.
@@ -163,30 +171,22 @@ function gridAndAxes(box, series) {
     }));
   }
 
+  // Both axis names sit in bands reserved for them by `layout`, on their own
+  // rows, so neither can land on a tick number.
   group.appendChild(svg('text', {
-    x: rr(plot.x + plot.width), y: rr(plot.y + plot.height + 15), 'text-anchor': 'end',
+    x: rr(box.labels.time.x), y: rr(box.labels.time.y), 'text-anchor': box.labels.time.anchor,
     fill: 'var(--text-faint)', 'font-size': 10,
-  }, 'time (s)'));
+  }, `time (s)${exponentLabel(xFormat.exponent)}`));
 
-  const unit = series[0]?.unit || '';
+  const unit = `${series[0]?.unit || ''}${exponentLabel(yFormat.exponent)}`.trim();
   if (unit) {
     group.appendChild(svg('text', {
-      x: rr(plot.x - 6), y: rr(plot.y - 1), 'text-anchor': 'end',
+      x: rr(box.labels.unit.x), y: rr(box.labels.unit.y), 'text-anchor': box.labels.unit.anchor,
       fill: 'var(--text-faint)', 'font-size': 10,
     }, unit));
   }
 
   return group;
-}
-
-/** Enough decimals for the ticks to be distinguishable, and no more. */
-function decimalsFor(ticks) {
-  if (ticks.length < 2) return 1;
-  const step = Math.abs(ticks[1] - ticks[0]);
-  if (step >= 10) return 0;
-  if (step >= 1) return step % 1 === 0 ? 0 : 1;
-  if (step >= 0.1) return 1;
-  return 2;
 }
 
 const tokenFor = (series, id) => series.find((s) => s.id === id)?.token

@@ -1,5 +1,65 @@
 # Changelog
 
+## 2.2.0
+
+Inputs on one side, everything the experiment says back on the other — and the sliders became
+fields you can type into.
+
+### What changed
+
+- **The sidebar is inputs and nothing else.** Everything measured — how it is moving, the forces on
+  it, where it is — has moved into the viewport under the graphs, in a panel of its own. A readout
+  at the top of a column of controls meant scrolling past a control to read a number and past a
+  number to reach a control.
+- **Live commentary moved up** to sit beside the drawing it is commenting on, rather than three
+  sections below it.
+- **Every slider's value is a field you can type into.** Click it, type, press Enter. It takes the
+  same engineering notation as the rest of the app (1.5k, 4k7, 0R47), clamps a value past the ends
+  of the slider rather than refusing it, and puts the old value back if you type something that is
+  not a number. A slider is the right control for finding out what a quantity does and the wrong one
+  for setting it to 9.81.
+- **The pointer control is a thruster you aim, not a magnet that is always on.** An arrow shows
+  where the pointer lies from the object whether or not anything is being applied; press and hold to
+  thrust along it, for exactly as long as you hold. The force is the same however far away the
+  pointer is — only its direction comes from where you point, which is a fact about thrusters rather
+  than the fact about springs the old model was quietly teaching.
+- **The drawing is something you select before it takes the arrow keys.** Until you click it, the
+  arrow keys scroll the page, which is what they should do; once selected they steer, and Escape
+  hands them back. It only becomes a tab stop at the step where the keys have something to do.
+
+### Fixes found while verifying
+
+- **banner('danger', …) was not a level the renderer knew**, so it fell through to info in silence.
+  Both of the warnings that say the model has run out — the object has passed a tenth of the speed
+  of light; the Newtonian answer at this field strength should not be believed — have been rendered
+  as neutral grey notes for as long as they have existed. A test now pins every level a caller asks
+  for against every level the renderer honours.
+- **The energy graph at the two-masses step drew a flat line through a stack of identical ticks.**
+  The scaler treated any range under 10⁻¹⁵ as a single point, which is a statement about metres
+  applied to joules: the kinetic energy there is around 10⁻¹⁹ J, a perfectly good range. The check
+  is now relative to the magnitude.
+- **Axis numbers were rounded away to nothing.** Every tick on that same graph read 0.00, telling
+  the reader the quantity is zero when it is the subject of the step. A common power of ten now
+  comes out to the axis label — the ticks read 0, 2, 4, 6, 8 and the unit reads N ×10⁻⁹ — and a step
+  of 0.25 no longer prints as 0.3.
+- **The unit label shared the right-aligned column the y-tick numbers live in**, and the time label
+  was anchored at exactly the x where the last x-tick is centred. Both overlapped in every graph.
+  Each now has a row of its own, reserved by the layout rather than hoped for by the renderer.
+- **The first and last x-tick numbers strayed outside the plot** — the first into the y-tick column,
+  where it touched the bottom number; the last off the right-hand edge of the graph.
+- **A live readout of 2.5×10¹⁷ m/s² printed as twenty-three digits**, breaking the layout it landed
+  in. Fixed decimals exist for legibility, so past the point where they stop delivering any they
+  give way to 2.53×10¹⁷.
+- **"Holds up 72358% of its weight"** — arithmetically right, unreadable. A share of the weight
+  while it is a share; a multiple once it is more.
+- **The inspector pushed the page sideways on a phone.** Its value column does not wrap, which only
+  stayed invisible while it lived inside the sidebar's own scroll container.
+
+Verified across 192 rendered frames and 384 graphs spanning 96 parameter combinations — every step,
+both worlds, six shapes, four fluids, with walls, cannons, driving and thrusting on: no NaN reaching
+the DOM, nothing outside its canvas, no label touching another in a drawing or on an axis, and every
+export free of unresolved custom properties. Checked again at 375 px.
+
 ## 2.1.0
 
 The bench stops being a diagram: you can now change things while it runs, put it in deep space,

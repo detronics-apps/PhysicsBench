@@ -25,12 +25,12 @@ export const CONTROL_MODES = [
   },
   {
     id: 'mouse',
-    label: 'Follows the pointer',
-    note: 'A spring between the object and the cursor, with damping so it settles '
-      + 'instead of orbiting for ever. Both are real forces: the spring pulls '
-      + 'harder the further away the cursor is, and the damping opposes motion '
-      + 'like a very thick fluid. Drag the cursor and the object is towed after '
-      + 'it — it does not jump there, because a force cannot do that.',
+    label: 'Thrust towards the pointer, while you hold the button',
+    note: 'An arrow shows where the pointer is from the object. Press and hold '
+      + 'anywhere on the drawing and a steady force is applied along that arrow, '
+      + 'for exactly as long as you hold it — a thruster you aim, not a magnet '
+      + 'that is always on. Let go and nothing stops: the object keeps whatever '
+      + 'velocity it reached, and only friction, drag or a wall will change it.',
   },
   {
     id: 'keyboard',
@@ -45,34 +45,38 @@ export const CONTROL_MODES = [
 export const modeById = (id) => CONTROL_MODES.find((m) => m.id === id) || CONTROL_MODES[0];
 
 /**
- * The pointer spring.
+ * Which way the pointer lies from the object, as a unit vector.
  *
- * F = k·(target − position) − c·velocity
- *
- * The stiffness is derived from the strength setting and the object's mass, so
- * that turning the strength up feels the same on a 1 kg ball and a 500 kg car
- * rather than being unusable on one of them. The damping is then set near
- * critical for that stiffness — c = 2·√(k·m) — which is the value that brings
- * it to rest in the shortest time without overshooting, and is a genuine result
- * about springs rather than a number tuned until it felt right.
- *
- * `maxForce` caps it, because a cursor flicked to the far side of the screen
- * would otherwise ask for a force that flings the object past the speed limit
- * and into the divergence guard.
+ * Separated from the force because the aim is worth drawing even when nothing
+ * is being applied: you point first and press second, and an arrow that only
+ * appeared once the force did would give you nothing to aim with.
  */
-export function mouseForce({ pos, vel, target, mass = 1, strength = 20, maxForce = null }) {
-  if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.y)) return ZERO;
-  const m = Math.max(1e-9, mass);
-  const k = Math.max(0, strength) * m;
-  const c = 2 * Math.sqrt(k * m);
+export function aimAt(pos, target) {
+  if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.y)) return null;
+  const away = sub(target, pos);
+  const distance = len(away);
+  if (!(distance > 1e-9)) return null;
+  return { direction: scale(away, 1 / distance), distance };
+}
 
-  const pull = scale(sub(target, pos), k);
-  const damp = scale(vel || ZERO, -c);
-  const total = { x: pull.x + damp.x, y: pull.y + damp.y };
-
-  const cap = maxForce ?? Math.max(0, strength) * m * 12;
-  const magnitude = len(total);
-  return magnitude > cap && magnitude > 0 ? scale(norm(total), cap) : total;
+/**
+ * Thrust towards the pointer, for exactly as long as the button is held.
+ *
+ * A steady force along the aim, not a spring — so it behaves like the keyboard
+ * with a direction you choose freely, and the same setting produces the same
+ * acceleration in both modes. A spring would have been quietly teaching that
+ * the force depends on how far away you put the cursor, which is a fact about
+ * springs and not about thrusters.
+ *
+ * The force is per-kilogram, so the strength reads as an acceleration and a
+ * heavier object needs more force for the same handling. Nothing is applied
+ * unless `pressed`: hovering aims, holding pushes.
+ */
+export function mouseForce({ pos, target, mass = 1, strength = 20, pressed = false }) {
+  if (!pressed) return ZERO;
+  const aim = aimAt(pos, target);
+  if (!aim) return ZERO;
+  return scale(aim.direction, Math.max(0, strength) * Math.max(1e-9, mass));
 }
 
 /** Which way each key pushes. Arrow keys and WASD, because both are muscle memory. */
@@ -125,10 +129,10 @@ export function keyboardForce(keys, { mass = 1, strength = 10 } = {}) {
  * and so a mode that produces nothing produces exactly zero rather than
  * something small and mysterious.
  */
-export function controlForce({ mode, body, pointer, keys, strength = 20 }) {
+export function controlForce({ mode, body, pointer, keys, strength = 20, pressed = false }) {
   if (!body || body.fixed) return ZERO;
   if (mode === 'mouse') {
-    return mouseForce({ pos: body.pos, vel: body.vel, target: pointer, mass: body.mass, strength });
+    return mouseForce({ pos: body.pos, target: pointer, mass: body.mass, strength, pressed });
   }
   if (mode === 'keyboard') {
     return keyboardForce(keys, { mass: body.mass, strength });
@@ -143,19 +147,36 @@ export function controlForce({ mode, body, pointer, keys, strength = 20 }) {
  * silence: nothing happens, and it is not clear whether the mode is off, the
  * object is the wrong one, or the force is simply losing to friction.
  */
-export function controlStatus({ mode, force, body, pointer, keys }) {
+export function controlStatus({ mode, force, body, pointer, keys, pressed = false, engaged = false }) {
   if (mode === 'none') return null;
   const magnitude = len(force || ZERO);
+
   if (mode === 'mouse') {
-    if (!pointer) return 'Move the pointer over the drawing and the object will be towed after it.';
+    if (!pointer) {
+      return 'Move the pointer over the drawing: an arrow will show which way it '
+        + 'lies from the object. Hold the button down to thrust along that arrow.';
+    }
     const away = len(sub(pointer, body.pos));
-    return `Spring to the pointer: ${away.toFixed(2)} m away, pulling with `
-      + `${magnitude.toFixed(1)} N. Let it get close and the force falls to nothing, `
-      + 'which is why it stops rather than shooting past.';
+    if (!pressed) {
+      return `Aimed at the pointer, ${away.toFixed(2)} m away. Nothing is being applied `
+        + 'yet — press and hold to thrust along the arrow, and let go to stop '
+        + 'pushing. Letting go is not a brake: whatever velocity it has, it keeps.';
+    }
+    return `Thrusting at ${magnitude.toFixed(1)} N towards the pointer, which on `
+      + `${body.mass.toFixed(2)} kg is ${(magnitude / Math.max(1e-9, body.mass)).toFixed(2)} m/s². `
+      + 'The force is the same however far away the pointer is — only its '
+      + 'direction comes from where you are pointing.';
+  }
+
+  if (!engaged) {
+    return 'Click the drawing to take the controls. While it is selected the '
+      + 'arrow keys steer instead of scrolling the page, and Escape gives them '
+      + 'back.';
   }
   if (!keys || keys.size === 0) {
-    return 'Click the drawing, then hold the arrow keys or WASD. Nothing will '
-      + 'stop when you let go — there is no brake, only friction and drag.';
+    return 'Controls engaged — hold the arrow keys or WASD. Nothing will stop '
+      + 'when you let go: there is no brake, only friction and drag. Escape '
+      + 'releases the keys back to the page.';
   }
   return `Driving with ${magnitude.toFixed(1)} N, which on ${body.mass.toFixed(2)} kg is `
     + `${(magnitude / Math.max(1e-9, body.mass)).toFixed(2)} m/s².`;

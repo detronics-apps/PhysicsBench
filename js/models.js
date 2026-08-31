@@ -220,17 +220,19 @@ export const MODELS = Object.fromEntries([
       + 'area, not a point touching a line.',
   ),
   entry(
-    'spring-control', 'model', 'A spring to the pointer',
-    'Following the pointer is modelled as a spring between the object and the '
-      + 'cursor, F = k·(target − position), with damping opposing the velocity.',
-    'It keeps the object under the same F = ma as everything else. Setting the '
-      + 'position directly would give it infinite acceleration and no momentum '
-      + 'history, and every arrow around it would then be describing a motion '
-      + 'that force had no part in.',
-    'A real hand on a real object applies contact forces at the point it holds, '
-      + 'which also produce torque. The damping term here stands in for '
-      + 'everything that would otherwise leave the object oscillating about the '
-      + 'cursor for ever.',
+    'pointer-thrust', 'model', 'A thruster aimed with the pointer',
+    'Holding the button applies a steady force along the line from the object to '
+      + 'the pointer, of a size set by the strength control and the object\'s '
+      + 'mass — and nothing at all when the button is not held.',
+    'It keeps the object under the same F = ma as everything else, and it makes '
+      + 'the force something you aim rather than something that depends on where '
+      + 'you left the cursor. Setting the position directly would give the object '
+      + 'infinite acceleration and no momentum history, and every arrow around it '
+      + 'would then be describing a motion that force had no part in.',
+    'A real thruster carries fuel, so its mass falls as it fires and F = ma stops '
+      + 'being the whole story — F = dp/dt is. It also produces torque unless it '
+      + 'is aimed exactly through the centre of mass, which this model cannot '
+      + 'represent because it does not model rotation.',
     'You cannot move an object without applying a force to it, and the force '
       + 'decides the acceleration, not the position.',
   ),

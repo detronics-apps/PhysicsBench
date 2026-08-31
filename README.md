@@ -39,6 +39,20 @@ planet and the *same equation* gives 9.8 m/s², while the surface under the obje
 "towards the centre" and "down" are the same direction. Nothing is added to make weight happen.
 It is that faint tug, with a planet on the other end.
 
+## Where things are
+
+The split is that the **sidebar holds only what you change** and the **viewport holds everything the
+experiment says back**: the drawing, the live commentary on it, the graphs, and then a panel of
+every measurement — how it is moving, the forces on it, where it is. A readout at the top of a
+column of controls meant scrolling past a control to read a number, and past a number to reach a
+control.
+
+Every slider's value is also a field you can type into: click it, type, press Enter. It takes the
+same engineering notation as the rest of the app (1.5k, 4k7, 0R47), clamps a value past the ends of
+the slider rather than refusing it, and puts the old value back if you type something that is not a
+number. A slider is the right control for finding out what a quantity does and the wrong one for
+setting it to exactly 9.81.
+
 ## Changing things while it runs
 
 Nothing here restarts when you change it. Set the object moving, then drag the push angle and watch
@@ -66,6 +80,16 @@ The last two steps turn the bench into a sandbox without taking anything away fr
   same ledger. Moving the object directly would give it infinite acceleration and no momentum
   history, and every arrow around it would then be describing a motion that F = ma had no part in.
   Draw a ramp, make the object a car, and drive it up.
+
+  The pointer is a thruster you aim rather than a magnet that is always on: an arrow shows where the
+  pointer lies from the object whether or not anything is being applied, and holding the button
+  thrusts along it for exactly as long as you hold. The force is the same however far away the
+  pointer is — only its direction comes from where you point.
+
+  The arrow keys belong to the page until you click the drawing to select it. An app that stops the
+  arrow keys scrolling because it happens to have a driving mode switched on somewhere has taken
+  something from the reader without asking; selecting the drawing is the asking, and Escape gives
+  them back.
 
 ## Choosing what you can see
 
@@ -143,13 +167,14 @@ nothing to install:
 npm test
 ```
 
-293 cases across 20 modules, and they are invariants rather than examples: momentum is conserved at
+310 cases across 21 modules, and they are invariants rather than examples: momentum is conserved at
 every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a
 cannon pays for what it fires, holding two arrow keys is no faster than holding one, every shape
-outline fills its own box, a migrated state round-trips unchanged, and every arrow stays inside its
-canvas.
+outline fills its own box, a migrated state round-trips unchanged, every tick label reads back as exactly
+its own value, every banner level a caller asks for is one the renderer honours, and every arrow
+stays inside its canvas.
 
 ## Deploying to GitHub Pages
 
@@ -183,11 +208,11 @@ js/collide.js         one-dimensional and planar impacts at any restitution
 js/energy.js          an energy audit that relocates rather than loses
 js/momentum.js        p = mv, impulse, and how wrong that is near c
 js/camera.js          metres to pixels, arrow rules, and keeping labels off each other
-js/graph.js           graph geometry: ticks, scales, paths that stay in their box
+js/graph.js           graph geometry: ticks, scales, axis labels that miss each other
 js/recorder.js        the recording the animation and the graphs both read
 js/state.js           one parameter object, localStorage, URL-hash sharing
 js/main.js            the shell, the clock, live editing, pointer and keyboard input
-js/ui/bench.js        the controls, readouts and teaching panels
+js/ui/bench.js        the controls, the measurements and the teaching panels
 js/ui/vectors.js      the arrow picker
 js/ui/                renderers, the inspector, the transport, DOM helpers
 tests/                node --test over the pure modules

@@ -373,7 +373,12 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 .inspector { display: flex; flex-direction: column; gap: var(--space-2); }
 .inspector__row {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  /* Every column is allowed to shrink below its content. A bare `auto` on the
+     value column plus `white-space: nowrap` made the row wider than its parent
+     rather than wrapping, which only stayed invisible while the inspector lived
+     inside the sidebar's own scroll container. Moved into the viewport, the
+     same row pushed the whole page sideways at 375px. */
+  grid-template-columns: 12px minmax(0, 1fr) minmax(0, auto);
   align-items: baseline;
   gap: var(--space-2);
   padding: 3px 0;
@@ -381,10 +386,14 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   font-size: 12.5px;
 }
 .inspector__row:last-child { border-bottom: none; }
-.inspector__key { color: var(--text-dim); min-width: 0; }
+.inspector__key { color: var(--text-dim); min-width: 0; overflow-wrap: anywhere; }
 .inspector__val {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  color: var(--text); text-align: right; white-space: nowrap;
+  color: var(--text); text-align: right;
+  min-width: 0;
+  /* Wrapping a number is ugly; overflowing the page is worse, and on a phone
+     one of the two has to happen. */
+  overflow-wrap: anywhere;
 }
 .inspector__swatch { width: 10px; height: 10px; border-radius: 2px; align-self: center; }
 .inspector__row--total { border-top: 1px solid var(--border-strong); border-bottom: none; padding-top: var(--space-2); font-weight: 600; }
@@ -913,4 +922,106 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-2);
+}
+
+
+/* ------------------------------------------------------------------------
+ * Measurements: everything the experiment tells you back.
+ *
+ * It lives in the viewport rather than the sidebar because the sidebar is for
+ * things you change. A readout at the top of a column of controls means going
+ * past a control to read a number, and past a number to reach a control.
+ * ---------------------------------------------------------------------- */
+
+.measurements {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.measurements__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.measurements__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.measurements__note {
+  /* Allowed to shrink and wrap rather than push the title out of the row. */
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.measurements__detail { margin-top: var(--space-3); }
+
+/* ------------------------------------------------------------------------
+ * A slider's value, which is also a field you can type into.
+ *
+ * It has to read as a number and behave as a control, so it is bare until it
+ * is hovered or focused. Sized in ch so it does not jump width as the digits
+ * change under a dragging thumb.
+ * ---------------------------------------------------------------------- */
+
+.value--typed {
+  width: 11ch;
+  min-width: 0;
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+  cursor: text;
+}
+
+.value--typed:hover {
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+
+.value--typed:focus {
+  outline: none;
+  border-color: var(--accent-strong);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.value--typed.input--invalid { border-color: var(--danger); color: var(--danger); }
+
+/* ------------------------------------------------------------------------
+ * The drawing as something you can select.
+ *
+ * At the last step the arrow keys have to belong either to the page or to the
+ * object, and there is no way to guess which. Selecting the drawing is how you
+ * say — so it has to be obvious that it is selected.
+ * ---------------------------------------------------------------------- */
+
+.viewport__stage { border-radius: var(--radius); }
+
+.viewport__stage:focus { outline: none; }
+
+.viewport__stage.is-engaged {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.viewport__stage[tabindex="0"]:not(.is-engaged) {
+  cursor: pointer;
 }

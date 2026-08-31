@@ -63,3 +63,27 @@ test('bearing is measured anticlockwise from +x', () => {
   assert.equal(fmtBearing({ x: 0, y: -1 }), '−90.0°');
   assert.equal(fmtBearing({ x: 0, y: 0 }), '—');
 });
+
+test('a live readout stays readable when the numbers stop being ordinary', () => {
+  /*
+   * A fixed number of decimals is there for legibility, and past a certain size
+   * it stops delivering any: 2.5×10¹⁷ m/s² written out is twenty-three digits
+   * that nobody can read and that break every layout they land in. Reachable in
+   * ordinary use — a light object in a dense fluid — so it has to be handled
+   * rather than assumed away.
+   */
+  assert.equal(fmtFixed(12.3456, 2), '12.35');
+  assert.equal(fmtFixed(9999999, 2), '9999999.00');
+
+  const huge = fmtFixed(2.53355e17, 2);
+  assert.ok(huge.length < 12, `still ${huge.length} characters: ${huge}`);
+  assert.match(huge, /×10/);
+  // The sign survives, in the character that actually looks like a minus.
+  assert.ok(fmtFixed(-2.5e17, 2).startsWith('−'));
+  // And it reads back as the number it stands for.
+  const [mantissa, power] = fmtFixed(2.53355e17, 2).split('×10');
+  const digits = { '⁻': '-', '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+  const exponent = Number([...power].map((c) => digits[c] ?? c).join(''));
+  const read = Number(mantissa.replace('−', '-')) * 10 ** exponent;
+  assert.ok(Math.abs(read - 2.53355e17) / 2.53355e17 < 0.01);
+});

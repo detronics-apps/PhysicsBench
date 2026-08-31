@@ -552,17 +552,20 @@ function controlSection(ctx) {
 
     control.mode === 'keyboard' ? el('div', {
       class: 'field__hint',
-      text: 'Click the drawing first, then hold the arrow keys or WASD. There is '
-        + 'no brake: letting go removes the force, and only friction, drag or a '
-        + 'wall will slow it down. Draw a ramp and a floor, make the object a '
-        + 'car, and you can drive over them.',
+      text: 'Click the drawing to select it — until you do, the arrow keys scroll '
+        + 'the page, which is what they should do. Once it is selected they steer '
+        + 'instead, and Escape hands them back. There is no brake: letting go '
+        + 'removes the force, and only friction, drag or a wall will slow it '
+        + 'down. Draw a ramp and a floor, make the object a car, and drive over '
+        + 'them.',
     }) : null,
 
     control.mode === 'mouse' ? el('div', {
       class: 'field__hint',
-      text: 'The object is towed after the pointer by a spring, with damping so it '
-        + 'settles rather than orbiting. It will not reach the cursor instantly, '
-        + 'because a force cannot do that.',
+      text: 'An arrow shows where the pointer is from the object. Press and hold '
+        + 'anywhere on the drawing to thrust along it, for exactly as long as you '
+        + 'hold. Nothing is applied while you are only pointing, and letting go '
+        + 'is not a brake — whatever velocity it has reached, it keeps.',
     }) : null,
   ].filter(Boolean), { key: 'control', open: control.mode !== 'none' });
 }
@@ -632,9 +635,14 @@ export function readouts(ctx) {
 
   const buoyancy = main.forces.find((x) => x.id === 'buoyancy');
   if (buoyancy && buoyancy.magnitude > 1e-9) {
+    // A share of the weight while it is a share of it, and a multiple once it
+    // is more — "72358% of its weight" is arithmetically right and unreadable.
+    const share = buoyancy.magnitude / Math.max(1e-9, main.weight);
     tiles.push(stat('Buoyancy', `${fmtFixed(buoyancy.magnitude, 3)} N`, {
       swatch: '--force-buoyancy',
-      note: `Holds up ${fmtFixed(buoyancy.magnitude / Math.max(1e-9, main.weight) * 100, 0)}% of its weight`,
+      note: share > 1.5
+        ? `${fmtFixed(share, share < 100 ? 1 : 0)}× its weight — so it rises`
+        : `Holds up ${fmtFixed(share * 100, 0)}% of its weight`,
     }));
   }
 
@@ -750,6 +758,8 @@ export function banners(ctx) {
         body: target,
         pointer: ctx.pointer,
         keys: ctx.keys,
+        pressed: ctx.pressed,
+        engaged: ctx.engaged,
       });
       if (status) out.push(banner('info', status));
     }
