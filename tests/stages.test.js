@@ -174,7 +174,13 @@ test('step 5: the surface splits the weight, and the two parts add back up', () 
 
 test('step 6: friction holds up to μs·N, then drops to μk·N', () => {
   const g = surfaceGravity(P.planetMass, P.planetRadius);
-  const base = { mass: 4, slopeDeg: 0, muS: 0.5, muK: 0.35, pushSeconds: 30, fluidId: 'vacuum' };
+  // A cube, because this is about *sliding* friction. A sphere on the same
+  // surface meets rolling resistance instead, which is a different mechanism
+  // and has no stick-then-lurch to test.
+  const base = {
+    mass: 4, slopeDeg: 0, muS: 0.5, muK: 0.35,
+    pushSeconds: 30, fluidId: 'vacuum', shapeId: 'cube',
+  };
 
   const held = inspect(run('friction', { ...base, pushForce: 10 }).world, 'main');
   assert.equal(held.contact.frictionMode, 'static');
@@ -578,4 +584,201 @@ test('the last two steps are named for what they are', () => {
     assert.ok(stage.short.length <= 12, `${stage.id} short label is ${stage.short.length} characters`);
     assert.ok(stage.label && stage.ask && stage.discover && stage.watch);
   }
+});
+
+
+/* --------------------------------------------------- rolling and sliding -- */
+
+test('a sphere rolls where a cube grips, and by a large factor', () => {
+  /*
+   * This is the difference a shape actually makes at a contact, and it is not
+   * a matter of how much surface is touching. Rolling resistance comes from the
+   * ball and the ground flexing under the load; sliding friction comes from
+   * asperities being sheared. One is fifty-odd times weaker than the other,
+   * which is why wheels were worth inventing.
+   */
+  const base = {
+    ...defaults().bench,
+    worldMode: 'planet', fluidId: 'vacuum', slopeDeg: 12,
+    pushSeconds: 0, v0: 0, mass: 2, size: 0.4,
+    objects: [], walls: [], cannons: [], muS: 0.5, muK: 0.3,
+  };
+  const slide = (shapeId) => {
+    let w = build('friction', { ...base, shapeId }).world;
+    const from = findBody(w, 'main').pos.x;
+    for (let i = 0; i < 400; i += 1) w = advance(w, 1 / 200);
+    return { moved: findBody(w, 'main').pos.x - from, world: w };
+  };
+
+  const ball = slide('sphere');
+  const box = slide('cube');
+
+  // The slope is under the cube's slip angle, so it does not move at all.
+  close(box.moved, 0, 1e-6);
+  // The ball is away down the hill.
+  assert.ok(ball.moved < -2, `the ball only moved ${ball.moved}`);
+
+  // And the two are named for different mechanisms, not one with two values.
+  const rolling = forcesFor(ball.world, findBody(ball.world, 'main')).by('rolling');
+  const sliding = forcesFor(box.world, findBody(box.world, 'main')).by('friction');
+  assert.ok(rolling, 'a rolling body should meet rolling resistance');
+  assert.ok(sliding, 'a sliding body should meet friction');
+  assert.equal(forcesFor(ball.world, findBody(ball.world, 'main')).by('friction'), null);
+  assert.ok(sliding.magnitude > rolling.magnitude * 10,
+    `only ${sliding.magnitude / rolling.magnitude}× apart`);
+});
+
+test('how much surface is touching does not change the friction', () => {
+  /*
+   * Amontons' law, and the single most counter-intuitive true statement in this
+   * whole app: F = μN, with no area in it. Real surfaces touch only at their
+   * high points, and the real contact area is set by the load — spread the same
+   * weight over twice the apparent area and the pressure halves, leaving the
+   * same patches actually touching.
+   *
+   * It would have been easy, and wrong, to make a bigger box grip harder.
+   */
+  const base = {
+    ...defaults().bench,
+    worldMode: 'planet', fluidId: 'vacuum', slopeDeg: 0,
+    shapeId: 'cube', mass: 4, pushForce: 8, pushSeconds: 30,
+    objects: [], walls: [], cannons: [], muS: 0.5, muK: 0.35,
+  };
+  const frictionAt = (size) => {
+    const p = { ...base, size };
+    // The body has to come from the pushed world, not the one before it —
+    // `applyPush` returns a new world with new bodies, and the old one is not
+    // being pushed by anything.
+    const w = applyPush(build('friction', p).world, p, featuresAt('friction'));
+    return forcesFor(w, findBody(w, 'main')).by('friction').magnitude;
+  };
+
+  // A tenfold range of footprint, at the same mass.
+  const small = frictionAt(0.2);
+  const large = frictionAt(2);
+  close(small, large, 1e-9);
+  // And it really is holding something, or this proves nothing.
+  assert.ok(small > 1);
+});
+
+test('the arrow is named for the mechanism that is actually acting', () => {
+  const p = { ...defaults().bench, shapeId: 'sphere' };
+  const rolling = vectorsFor('friction', p).map((v) => v.id);
+  assert.ok(rolling.includes('rolling'));
+  assert.ok(!rolling.includes('friction'));
+
+  const sliding = vectorsFor('friction', { ...p, shapeId: 'cube' }).map((v) => v.id);
+  assert.ok(sliding.includes('friction'));
+  assert.ok(!sliding.includes('rolling'));
+});
+
+/* ------------------------------------------------------ how it is drawn -- */
+
+test('a body resting on a tilted floor is drawn tilted before anything moves', () => {
+  /*
+   * The angle used to be set only by the stepper, so the scene you looked at
+   * before pressing Play showed a box embedded in the hillside — and pressing
+   * Play appeared to knock it into place.
+   */
+  const p = { ...defaults().bench, shapeId: 'cube', slopeDeg: -18, worldMode: 'planet' };
+  const w = build('friction', p).world;
+  close(findBody(w, 'main').angle, (-18 * Math.PI) / 180, 1e-9);
+
+  // Tilting the floor under something that has not moved yet tilts it too.
+  const tilted = applyLive(w, { ...p, slopeDeg: 30 }, featuresAt('friction'), { stageId: 'friction' });
+  close(findBody(tilted, 'main').angle, (30 * Math.PI) / 180, 1e-9);
+
+  // A round thing has no facing to set.
+  const ball = build('friction', { ...p, shapeId: 'sphere' }).world;
+  close(findBody(ball, 'main').angle, 0, 1e-12);
+});
+
+test('a shape that points where it is going does so, and mirrors rather than rolls over', () => {
+  const fly = (vx, vy) => {
+    const p = {
+      ...defaults().bench, stage: 'collide', shapeId: 'spaceship', worldMode: 'space',
+      fluidId: 'vacuum', pushSeconds: 0, v0: vx, objects: [], walls: [], cannons: [],
+    };
+    let w = build('collide', p).world;
+    w = { ...w, bodies: w.bodies.map((b) => (b.id === 'main' ? { ...b, vel: { x: vx, y: vy } } : b)) };
+    for (let i = 0; i < 30; i += 1) w = advance(w, 1 / 60);
+    return findBody(w, 'main');
+  };
+
+  const right = fly(6, 0);
+  close(right.angle, 0, 1e-6);
+  assert.equal(right.flip, false);
+
+  const up = fly(0, 6);
+  close(up.angle, Math.PI / 2, 1e-6);
+
+  // Going left it is mirrored, not turned upside down.
+  const left = fly(-6, 0);
+  assert.equal(left.flip, true);
+  assert.ok(Math.abs(left.angle) < 1e-6);
+});
+
+/* ------------------------------------------------------------ projectiles -- */
+
+test('cannon shots pass through each other but not through the experiment', () => {
+  const base = {
+    ...defaults().bench, worldMode: 'space', fluidId: 'vacuum',
+    objects: [], walls: [], collisions: true, pushSeconds: 0, v0: 0,
+    mass: 1, size: 0.4, shapeId: 'sphere',
+  };
+
+  // Two streams crossing head-on, with the object kept out of the way.
+  let crossing = build('collide', {
+    ...base,
+    x0: 0,
+    cannons: [
+      { id: 'c1', x: -6, y: 4, angleDeg: 0, speed: 6, mass: 0.4, size: 0.25, shapeId: 'sphere', everySeconds: 0.4 },
+      { id: 'c2', x: 6, y: 4, angleDeg: 180, speed: 6, mass: 0.4, size: 0.25, shapeId: 'sphere', everySeconds: 0.4 },
+    ],
+  }).world;
+  for (let i = 0; i < 260; i += 1) crossing = advance(crossing, 1 / 100);
+
+  const shots = crossing.bodies.filter((b) => b.projectile);
+  assert.ok(shots.length >= 6, `only ${shots.length} shots`);
+  for (const s of shots) close(Math.hypot(s.vel.x, s.vel.y), 6, 1e-9);
+  assert.equal(crossing.events.filter((e) => e.type === 'collision').length, 0);
+
+  // But one aimed at the object still hits it.
+  let aimed = build('collide', {
+    ...base,
+    cannons: [{ id: 'c1', x: -6, y: 0, angleDeg: 0, speed: 8, mass: 0.5, size: 0.25, shapeId: 'sphere', everySeconds: 0 }],
+  }).world;
+  for (let i = 0; i < 250; i += 1) aimed = advance(aimed, 1 / 100);
+  assert.ok(findBody(aimed, 'main').pos.x > 1, 'the shot went straight through the object');
+});
+
+test('a spent shot fades out, is removed, and takes nothing off the books', () => {
+  const p = {
+    ...defaults().bench, worldMode: 'planet', fluidId: 'vacuum',
+    shapeId: 'cube', slopeDeg: 0, objects: [], walls: [],
+    x0: 40, pushSeconds: 0, v0: 0, restitution: 0,
+    cannons: [{ id: 'c1', x: -4, y: 0.3, angleDeg: 10, speed: 5, mass: 0.4, size: 0.2, shapeId: 'cube', everySeconds: 0 }],
+  };
+  let w = build('collide', p).world;
+
+  let sawFading = false;
+  let balanceAcrossRemoval = null;
+  let previous = null;
+  for (let i = 0; i < 900; i += 1) {
+    const before = totals(w).balance;
+    const had = !!findBody(w, 'shot-1');
+    w = advance(w, 1 / 120);
+    const shot = findBody(w, 'shot-1');
+    if (shot && shot.fade < 1 && shot.fade > 0) sawFading = true;
+    if (had && !shot && balanceAcrossRemoval === null) balanceAcrossRemoval = totals(w).balance - before;
+    previous = shot;
+  }
+
+  assert.ok(sawFading, 'it never faded');
+  assert.equal(findBody(w, 'shot-1'), null, 'it was never removed');
+  assert.ok(w.events.some((e) => e.type === 'retired') || balanceAcrossRemoval !== null);
+  // The step it vanishes on must not move the invariant the app puts on screen.
+  close(balanceAcrossRemoval, 0, 1e-9);
+  // Its potential energy went onto the ledger rather than out of the totals.
+  assert.ok(w.ledger.removed > 0);
 });

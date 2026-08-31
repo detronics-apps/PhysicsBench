@@ -23,6 +23,7 @@
 import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
 import { forcesOn, uniformField, buoyantMass } from './forces.js';
 import { wall as makeWall, nearestContact, isRealWall } from './segments.js';
+import { facing, easeAngle, rollAngle } from './orient.js';
 import { attractionVector, surfaceGravity } from './gravitation.js';
 import { substeps } from './integrator.js';
 import { collide1D } from './collide.js';
@@ -32,6 +33,19 @@ import { G_STANDARD, C_LIGHT } from './constants.js';
 const CONTACT_TOLERANCE = 1e-3;
 /** Below this approach speed a bounce is treated as settling, not bouncing. */
 const BOUNCE_THRESHOLD = 0.05;
+
+/**
+ * A spent projectile stops being part of the experiment and starts being
+ * clutter, so it fades out and goes.
+ *
+ * Only ever once it has come to rest, and that restriction is doing real work:
+ * a body that vanishes takes its momentum with it, and the app puts the total
+ * on screen as a conserved quantity. Something stationary has none to take. Its
+ * potential energy is another matter, so that is booked on the way out rather
+ * than quietly leaving the totals.
+ */
+const SPENT_SPEED = 0.06;
+const FADE_SECONDS = 3;
 
 /**
  * The speed at which this simulation stops being able to tell the truth.
@@ -85,8 +99,24 @@ export function body(spec = {}) {
     // accelerates the Earth by 10⁻²⁴ m/s², and pretending otherwise would
     // cost more in confusion than it buys in honesty. The disclosure says so.
     fixed: spec.fixed ?? spec.kind === 'planet',
-    // Purely for the drawing: which of the palette's body colours to use.
+    // Purely for the drawing: which of the palette's body colours to use, which
+    // way the outline is turned, and how far a rolling one has rolled. None of
+    // these is a degree of freedom — there is no moment of inertia here and
+    // nothing can be spun up by a force. See js/orient.js.
     colour: spec.colour ?? 0,
+    align: spec.align || 'surface',
+    rolls: !!spec.rolls,
+    angle: spec.angle ?? 0,
+    flip: !!spec.flip,
+    spin: spec.spin ?? 0,
+    /*
+     * Fired by a cannon, and therefore scenery rather than apparatus: it does
+     * not hold the camera, it does not collide with other shots, and once it
+     * has come to rest it fades out and is removed.
+     */
+    projectile: !!spec.projectile,
+    still: spec.still ?? 0,
+    fade: spec.fade ?? 1,
     trail: spec.trail ? [...spec.trail] : [],
   };
 }
@@ -126,6 +156,9 @@ export function createWorld(spec = {}) {
       slopeDeg: spec.ground?.slopeDeg ?? 0,
       muS: Math.max(0, spec.ground?.muS ?? 0.4),
       muK: Math.max(0, spec.ground?.muK ?? 0.3),
+      // What something that rolls meets instead of μ. A different mechanism,
+      // not a smaller version of the same one.
+      rolling: Math.max(0, spec.ground?.rolling ?? 0.01),
       restitution: clamp01(spec.ground?.restitution ?? 0.5),
     },
     bounds: spec.bounds === null ? null : {
@@ -158,7 +191,7 @@ export function createWorld(spec = {}) {
     // totals cannot balance while anything is being pushed, and an app that
     // prints "total energy" next to a number that visibly climbs has taught
     // the opposite of what it meant to.
-    ledger: { heat: 0, impact: 0, input: 0 },
+    ledger: { heat: 0, impact: 0, input: 0, removed: 0 },
     trailLimit: spec.trailLimit ?? 0,
     events: [],
   };
@@ -232,6 +265,8 @@ export function contactFor(world, b) {
       normal: groundNormal(world.ground),
       muS: combine(world.ground.muS, b.muS),
       muK: combine(world.ground.muK, b.muK),
+      rolling: b.rolls,
+      rollingCoefficient: world.ground.rolling,
       surface: 'ground',
     };
   }
@@ -244,6 +279,8 @@ export function contactFor(world, b) {
     normal: hit.normal,
     muS: combine(hit.mu, b.muS),
     muK: combine(hit.mu * 0.75, b.muK),
+    rolling: b.rolls,
+    rollingCoefficient: world.ground?.rolling ?? 0.01,
     surface: 'wall',
   };
 }
@@ -404,7 +441,7 @@ export function step(world, dt) {
 
     // Friction turns mechanical energy into heat. It goes on the ledger with a
     // destination rather than quietly vanishing from the totals.
-    const friction = result.by('friction');
+    const friction = result.by('friction') || result.by('rolling');
     if (friction && friction.magnitude > 0 && slid > 0) {
       ledger.heat += friction.magnitude * slid;
     }
@@ -438,7 +475,25 @@ export function step(world, dt) {
       ledger.input += external.vec.x * step.x + external.vec.y * step.y;
     }
 
-    return { ...b, pos, vel };
+    /*
+     * Which way it is drawn. Not a degree of freedom: the target comes from the
+     * surface it is on or the direction it is going, and it eases towards that
+     * at a fixed rate so landing on a slope is something you watch happen. A
+     * rolling body instead turns by exactly the distance it has covered, which
+     * is fixed by the contact rather than by any dynamics.
+     */
+    const wanted = facing({
+      align: b.align,
+      surfaceNormal: result.contact.touching ? result.contact.normal : null,
+      velocity: vel,
+      hasField: len(world.env.field) > 0,
+    });
+    const angle = wanted.hold ? b.angle : easeAngle(b.angle, wanted.angle, dt);
+    const spin = b.rolls && surface
+      ? rollAngle(b.spin, ((dot(b.vel, surface) + dot(vel, surface)) / 2) * dt, b.radius)
+      : b.spin;
+
+    return { ...b, pos, vel, angle, flip: wanted.flip, spin };
   });
 
   // Contacts are resolved after everyone has moved, so an impact and a bounce
@@ -454,18 +509,62 @@ export function step(world, dt) {
 
   const t = world.t + dt;
 
+  const surviving = retireSpentShots(bodies, dt, world, ledger, events);
+
   // Cannons fire inside the step, so a shot is recorded on the timeline like
   // everything else, and scrubbing back to before it was fired shows a scene
   // without it.
-  const fired = fireCannons(world, bodies, t, events, ledger);
+  const fired = fireCannons(world, surviving, t, events, ledger);
 
   if (world.trailLimit > 0) {
-    for (const b of bodies) {
+    for (const b of surviving) {
+      // A shot leaves no trail: twenty fading lines is the clutter this is all
+      // trying to avoid, drawn in a different colour.
+      if (b.projectile) continue;
       b.trail = [...b.trail, { x: b.pos.x, y: b.pos.y }].slice(-world.trailLimit);
     }
   }
 
-  return { ...world, t, bodies, ledger, events, cannons: fired.cannons, shotCount: fired.shotCount };
+  return {
+    ...world, t, bodies: surviving, ledger, events,
+    cannons: fired.cannons, shotCount: fired.shotCount,
+  };
+}
+
+/**
+ * Spent shots fade out and go.
+ *
+ * The rule is deliberately narrow: a projectile that has come to rest, and only
+ * that. Removing something that is still moving would take its momentum out of
+ * a total the app displays as conserved, which would be a visible lie about the
+ * one quantity it insists never changes. Something at rest carries none.
+ *
+ * Its potential energy is a different matter — a shot resting on a shelf has
+ * some — so that is moved onto the ledger on the way out rather than silently
+ * leaving the books.
+ */
+function retireSpentShots(bodies, dt, world, ledger, events) {
+  if (!bodies.some((b) => b.projectile)) return bodies;
+  const out = [];
+
+  for (const b of bodies) {
+    if (!b.projectile) { out.push(b); continue; }
+
+    const spent = len(b.vel) < SPENT_SPEED;
+    const still = spent ? b.still + dt : 0;
+
+    if (still >= FADE_SECONDS) {
+      const potential = buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
+      ledger.removed += 0.5 * b.mass * len2(b.vel) + potential;
+      events.push({ type: 'retired', id: b.id, t: world.t });
+      continue;
+    }
+
+    b.still = still;
+    b.fade = 1 - still / FADE_SECONDS;
+    out.push(b);
+  }
+  return out;
 }
 
 /**
@@ -501,6 +600,11 @@ function fireCannons(world, bodies, t, events, ledger) {
       vel: muzzleVelocity(c),
       restitution: world.collisionRestitution,
       colour: 3,
+      projectile: true,
+      rolls: c.shapeId === 'sphere' || c.shapeId === 'cylinder',
+      align: c.shapeId === 'car' || c.shapeId === 'spaceship' || c.shapeId === 'streamlined'
+        ? 'travel'
+        : 'surface',
     });
     bodies.push(shot);
 
@@ -672,6 +776,15 @@ function resolvePairs(bodies, world, ledger, events) {
       const a = bodies[i];
       const b = bodies[j];
       if (a.fixed && b.fixed) continue;
+      /*
+       * Two cannon shots pass through each other.
+       *
+       * They are not the experiment, they are what is being fired at it, and a
+       * stream of them ricocheting off one another turns a demonstration into a
+       * ball pit. Everything else on the bench still stops them, so what they
+       * are aimed at behaves exactly as before.
+       */
+      if (a.projectile && b.projectile) continue;
 
       const delta = sub(b.pos, a.pos);
       const distance = len(delta);
@@ -769,7 +882,9 @@ export function totals(world) {
     kinetic += 0.5 * b.mass * len(b.vel) ** 2;
     potential += buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
   }
-  const moved = world.ledger.heat + world.ledger.impact;
+  // Energy that has left the mechanical account: turned to heat, spent in an
+  // impact, or carried off the bench by a shot that was cleared away.
+  const moved = world.ledger.heat + world.ledger.impact + (world.ledger.removed || 0);
   const supplied = world.ledger.input;
   return {
     momentum: vec(px, py),

@@ -32,6 +32,7 @@ export const FORCE_STYLE = {
   weight: { label: 'Weight (gravity)', symbol: 'W', token: '--force-weight' },
   normal: { label: 'Normal force', symbol: 'N', token: '--force-normal' },
   friction: { label: 'Friction', symbol: 'f', token: '--force-friction' },
+  rolling: { label: 'Rolling resistance', symbol: 'f_r', token: '--force-friction' },
   drag: { label: 'Air resistance', symbol: 'F_d', token: '--force-drag' },
   applied: { label: 'Applied force', symbol: 'F_app', token: '--force-applied' },
   buoyancy: { label: 'Buoyancy', symbol: 'F_b', token: '--force-buoyancy' },
@@ -228,22 +229,47 @@ export function forcesOn(body, env = {}, contact = null) {
     normalMagnitude === 0 ? 'Zero — nothing is pressing the body onto the surface.' : '');
   list.push(normal);
 
-  /* Step three: friction, which reacts to whatever is left along the surface. */
+  /*
+   * Step three: friction, which reacts to whatever is left along the surface.
+   *
+   * Or rolling resistance, which is a different mechanism and not a smaller
+   * version of the same one. Sliding friction is asperities being sheared;
+   * rolling resistance is the ball and the surface flexing under the contact
+   * and not giving all of it back. The second is one to three orders of
+   * magnitude weaker, which is the whole reason wheels exist — and it is the
+   * real answer to "does the shape change the grip", where the apparent contact
+   * area is not.
+   */
+  const rolling = !!contact.rolling;
   const t = perp(n);                                  // unit vector along the surface
   const alongSurface = dot(beforeContact, t);
   const speedAlong = dot(velocity, t);
-  const muS = Math.max(0, contact.muS ?? 0);
-  const muK = Math.max(0, contact.muK ?? 0);
-  const maxStatic = muS * normalMagnitude;
+  const muS = rolling ? 0 : Math.max(0, contact.muS ?? 0);
+  const muK = rolling
+    ? Math.max(0, contact.rollingCoefficient ?? 0)
+    : Math.max(0, contact.muK ?? 0);
+  const maxStatic = rolling
+    // A rolling body is held by the same coefficient that resists it, and there
+    // is no stick-then-lurch: nothing has to break away.
+    ? muK * normalMagnitude
+    : muS * normalMagnitude;
 
   let frictionScalar = 0;
   let mode = 'none';
   let note = '';
 
-  if (Math.abs(speedAlong) > SLIDE_EPSILON) {
+  if (rolling && Math.abs(speedAlong) > SLIDE_EPSILON) {
+    mode = 'rolling';
+    frictionScalar = -Math.sign(speedAlong) * muK * normalMagnitude;
+    note = 'Rolling, not sliding. What resists it is the contact flexing rather '
+      + 'than surfaces being dragged across each other, and it is far weaker — '
+      + 'which is the difference a wheel makes.';
+  } else if (Math.abs(speedAlong) > SLIDE_EPSILON) {
     mode = 'kinetic';
     frictionScalar = -Math.sign(speedAlong) * muK * normalMagnitude;
-    note = 'Sliding: friction is μk·N and points against the motion.';
+    note = 'Sliding: friction is μk·N and points against the motion. How much '
+      + 'surface is touching is not in that expression, and a wider object of '
+      + 'the same mass has exactly the same friction.';
   } else if (Math.abs(alongSurface) <= maxStatic) {
     mode = 'static';
     // Exactly cancels — static friction is *at most* μs·N, not equal to it.
@@ -265,8 +291,10 @@ export function forcesOn(body, env = {}, contact = null) {
   }
 
   // Always listed while the body is in contact, even at zero, so the learner
-  // can see which force disappeared and why.
-  list.push(force('friction', scale(t, frictionScalar), note));
+  // can see which force disappeared and why. Named for the mechanism actually
+  // acting, because calling rolling resistance "friction" is how the two come
+  // to be thought of as the same thing with a different number.
+  list.push(force(rolling ? 'rolling' : 'friction', scale(t, frictionScalar), note));
 
   const net = sum(list.map((f) => f.vec));
   return finish(list, net, mass, {

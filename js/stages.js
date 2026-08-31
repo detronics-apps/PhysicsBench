@@ -33,10 +33,12 @@
 import { vec } from './vec.js';
 import { createWorld } from './world.js';
 import { disclosure, equations } from './models.js';
-import { describe as describeObject, shapeById, materialById, floats } from './shapes.js';
+import { describe as describeObject, shapeById, materialById, floats, rollsOn } from './shapes.js';
+import { matchSurface, rollingFor } from './friction.js';
 import { fluidById } from './drag.js';
 import { describeWorld, uniformFieldValid, everydayComparison } from './gravitation.js';
 import { isRealWall, wall as makeWall, MAX_WALLS } from './segments.js';
+import { facing } from './orient.js';
 import { fmtFixed } from './format.js';
 
 /** How many objects one scene may hold, cannon shots included. */
@@ -249,8 +251,25 @@ export function startPosition(spec, object, p, f, { hasGround, onWorld }) {
   return vec(spec.x ?? 0, spec.y ?? 0);
 }
 
+/**
+ * The angle a body is drawn at before anything has moved.
+ *
+ * Without this a box built already resting on a tilted floor is drawn level
+ * until the first step of the clock rotates it — so the scene you are looking
+ * at before you press Play shows a box embedded in the hillside, and pressing
+ * Play appears to knock it into place.
+ */
+function startAngle(p, f, { hasGround, align }) {
+  if (!hasGround || align === 'none') return 0;
+  const rad = ((p.slopeDeg || 0) * Math.PI) / 180;
+  return facing({
+    align,
+    surfaceNormal: { x: -Math.sin(rad), y: Math.cos(rad) },
+  }).angle;
+}
+
 /** One object spec turned into the body the world wants. */
-function bodyFor(spec, p, f, { space, surfaceRest }) {
+function bodyFor(spec, p, f, { space, surfaceRest, hasGround }) {
   const object = describeObject({ shapeId: spec.shapeId, size: spec.size, mass: spec.mass });
   const shape = object.shape;
   const rolling = shape.id === 'sphere' || shape.id === 'cylinder';
@@ -268,6 +287,11 @@ function bodyFor(spec, p, f, { space, surfaceRest }) {
     area: object.area,
     cd: object.cd,
     volume: object.volume,
+    // How the outline is turned, and whether it rolls rather than slides. The
+    // first is a drawing rule; the second is a different contact mechanism.
+    align: object.align,
+    rolls: object.rolls,
+    angle: startAngle(p, f, { hasGround, align: object.align }),
     pos: surfaceRest(object, spec),
     vel: vec(spec.vx ?? 0, spec.vy ?? 0),
     restitution: p.restitution,
@@ -310,7 +334,7 @@ export function build(stageId, p) {
 
   const surfaceRest = (obj, spec) => startPosition(spec, obj, p, f, { hasGround, onWorld });
   const specs = objectList(p, f);
-  const bodies = specs.map((spec) => bodyFor(spec, p, f, { space, surfaceRest }));
+  const bodies = specs.map((spec) => bodyFor(spec, p, f, { space, surfaceRest, hasGround }));
 
   /*
    * The other mass, and what it becomes.
@@ -362,7 +386,14 @@ export function build(stageId, p) {
     fluidDensity: fluid.density,
     viscosity: fluid.viscosity,
     ground: hasGround
-      ? { y: 0, slopeDeg: p.slopeDeg, muS: p.muS, muK: p.muK, restitution: p.restitution }
+      ? {
+        y: 0,
+        slopeDeg: p.slopeDeg,
+        muS: p.muS,
+        muK: p.muK,
+        rolling: rollingFor(matchSurface(p.muS, p.muK)),
+        restitution: p.restitution,
+      }
       : null,
     walls,
     cannons,
@@ -495,7 +526,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
     // fired — so it keeps everything it was born with.
     if (!spec) return b;
 
-    const fresh = bodyFor(spec, p, f, { space, surfaceRest });
+    const fresh = bodyFor(spec, p, f, { space, surfaceRest, hasGround });
     return {
       ...b,
       mass: fresh.mass,
@@ -508,12 +539,17 @@ export function applyLive(world, p, features, { stageId } = {}) {
       volume: fresh.volume,
       kind: fresh.kind,
       shapeId: fresh.shapeId,
+      align: fresh.align,
+      rolls: fresh.rolls,
       label: fresh.label,
       restitution: fresh.restitution,
       muS: fresh.muS,
       muK: fresh.muK,
       pos: atStart ? fresh.pos : b.pos,
       vel: atStart ? fresh.vel : b.vel,
+      // Tilting the floor under something that has not moved yet tilts it too;
+      // once the clock has run, the stepper owns the angle.
+      angle: atStart ? fresh.angle : b.angle,
     };
   });
 
@@ -529,7 +565,14 @@ export function applyLive(world, p, features, { stageId } = {}) {
       viscosity: fluid.viscosity,
     },
     ground: hasGround
-      ? { y: 0, slopeDeg: p.slopeDeg, muS: p.muS, muK: p.muK, restitution: p.restitution }
+      ? {
+        y: 0,
+        slopeDeg: p.slopeDeg,
+        muS: p.muS,
+        muK: p.muK,
+        rolling: rollingFor(matchSurface(p.muS, p.muK)),
+        restitution: p.restitution,
+      }
       : null,
     walls: f.has('sandbox') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [],
     // Cannons keep their own firing count, which lives on the world rather than
@@ -551,7 +594,7 @@ function discloseFor(stageId, p, { object, planet, fluid, gravityMode, space, wa
   const f = featuresAt(stageId);
 
   const models = ['classical-mechanics', 'point-mass'];
-  const assumptions = ['no-rotation', 'constant-mass', 'no-relativity'];
+  const assumptions = ['no-rotation', 'drawn-orientation', 'constant-mass', 'no-relativity'];
   const approximations = [];
   const numbers = [];
 
@@ -608,6 +651,7 @@ function discloseFor(stageId, p, { object, planet, fluid, gravityMode, space, wa
 
   if (f.has('friction') && !space) {
     models.push('coulomb-friction');
+    if (rollsOn(p.shapeId)) models.push('rolling-resistance');
     approximations.push('indicative-mu');
     numbers.push({
       label: 'Friction coefficients',
@@ -822,7 +866,16 @@ export function vectorsFor(stageId, p = {}) {
     if (!out.some((v) => v.id === 'normal')) out.push({ id: 'normal', label: 'Normal force', token: '--force-normal', kind: 'force' });
   }
   if (f.has('friction') && (!space || (p.walls || []).length)) {
-    out.push({ id: 'friction', label: 'Friction', token: '--force-friction', kind: 'force' });
+    /*
+     * One chip, named for what is actually resisting this object. A ball meets
+     * rolling resistance and a box meets sliding friction, and they are
+     * different mechanisms rather than the same one with a different number —
+     * offering a "friction" arrow for something that rolls would teach exactly
+     * the thing the difference exists to correct.
+     */
+    out.push(rollsOn(p.shapeId)
+      ? { id: 'rolling', label: 'Rolling resistance', token: '--force-friction', kind: 'force' }
+      : { id: 'friction', label: 'Friction', token: '--force-friction', kind: 'force' });
   }
   if (f.has('fluid') && fluidById(p.fluidId).density > 0) {
     out.push({ id: 'drag', label: 'Fluid resistance', token: '--force-drag', kind: 'force' });

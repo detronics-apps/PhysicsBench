@@ -63,6 +63,7 @@ export const SHAPES = [
     aspect: 1,
     rolls: true,
     circle: true,
+    align: 'none',
     note: 'Touches the ground at a single point, and rolls. The drag figure is '
       + 'for the subcritical range; above the critical Reynolds number a smooth '
       + 'sphere drops to about 0.1, which is the effect a golf ball\'s dimples '
@@ -77,6 +78,7 @@ export const SHAPES = [
     support: (s) => s / 2,
     aspect: 1,
     rolls: false,
+    align: 'surface',
     path: 'M -0.5 -0.5 L 0.5 -0.5 L 0.5 0.5 L -0.5 0.5 Z',
     note: 'Sits on a face. Twice the drag of a sphere of the same width, for the '
       + 'same reason a brick is harder to throw than a ball.',
@@ -90,6 +92,7 @@ export const SHAPES = [
     support: (s) => s / 20,
     aspect: 0.1,
     rolls: false,
+    align: 'surface',
     // Full box: how thin a plate actually is comes from `aspect`, not from here.
     path: 'M -0.5 -0.5 L 0.5 -0.5 L 0.5 0.5 L -0.5 0.5 Z',
     note: 'The bluntest common shape. Presenting the same area edge-on instead '
@@ -105,6 +108,7 @@ export const SHAPES = [
     support: (s) => s / 4,
     aspect: 0.5,
     rolls: false,
+    align: 'travel',
     // A round nose and a long tail, because that is where the saving is: it is
     // the wake behind a bluff body that costs, not the air in front of it.
     path: 'M -0.5 0 Q -0.5 -0.5 -0.28 -0.5 Q 0.1 -0.44 0.5 0 '
@@ -122,6 +126,7 @@ export const SHAPES = [
     aspect: 1,
     rolls: true,
     circle: true,
+    align: 'none',
     note: 'Rolls along its side. Pipes, masts, cables and legs are all cylinders.',
   },
   {
@@ -135,12 +140,38 @@ export const SHAPES = [
     support: (s) => s * 0.2,
     aspect: 0.4,
     rolls: false,
+    // On the ground it lies along the ground and faces the way it drives; in
+    // the air it points where it is going.
+    align: 'travel',
+    wheeled: true,
     path: CAR_SIDE,
     pathTop: CAR_TOP,
     note: 'Drawn from the side where there is a floor to drive on, and from '
       + 'above in space. A modern hatchback is around C_d 0.32; the drag figure '
       + 'quoted in a brochure is usually C_d·A, which is the number that '
       + 'actually decides the fuel bill.',
+  },
+  {
+    id: 'spaceship',
+    label: 'Spaceship',
+    // A shape that only has to get through vacuum can afford to be any shape at
+    // all; this one is quoted as if it had to fly through air, because in this
+    // app it might have to.
+    cd: 0.12,
+    volume: (s) => 0.06 * s ** 3,
+    area: (s) => 0.06 * s * s,
+    support: (s) => s * 0.16,
+    aspect: 0.32,
+    rolls: false,
+    align: 'travel',
+    // Nose to the right, swept wings, engine bells at the tail.
+    path: 'M 0.5 0 L 0.18 -0.24 L -0.08 -0.28 L -0.16 -0.5 L -0.3 -0.5 '
+      + 'L -0.34 -0.3 L -0.5 -0.24 L -0.5 0.24 L -0.34 0.3 L -0.3 0.5 '
+      + 'L -0.16 0.5 L -0.08 0.28 L 0.18 0.24 Z',
+    note: 'Points where it is going, which is the one thing a spaceship drawing '
+      + 'must get right — and note that pointing somewhere is not the same as '
+      + 'going somewhere. Turn it in deep space and nothing about its velocity '
+      + 'changes until a force acts. Only the thrust cares which way the nose is.',
   },
   {
     id: 'balloon',
@@ -152,6 +183,7 @@ export const SHAPES = [
     support: (s) => s * 0.6,
     aspect: 1.2,
     rolls: false,
+    align: 'surface',
     // Rounded top, tapering to a neck — and drawn so the neck is at the bottom,
     // which is the only orientation anyone has ever seen a balloon in.
     path: 'M 0 -0.5 Q 0.5 -0.5 0.5 -0.1 Q 0.5 0.2 0.1 0.42 '
@@ -164,6 +196,58 @@ export const SHAPES = [
 ];
 
 export const shapeById = (id) => SHAPES.find((s) => s.id === id) || SHAPES[0];
+
+/**
+ * How a shape meets the ground, and what that changes.
+ *
+ * The honest answer to "does a bigger box grip better?" is no, and it is one of
+ * the genuinely surprising results in mechanics: sliding friction is μN and the
+ * apparent contact area is not in it. Real surfaces touch only at their high
+ * points, and the *real* contact area is set by the load — spread the same
+ * weight over twice the area and the pressure halves, leaving the same tiny
+ * patches actually touching. Doubling a cube's width changes nothing.
+ *
+ * What does change, and changes enormously, is whether the thing rolls. A ball
+ * on the same surface as a box is not a little easier to move, it is fifty to
+ * a few hundred times easier, because rolling resistance comes from the
+ * surfaces flexing rather than from asperities being sheared off.
+ *
+ * So this is where the shape's contact actually matters, and it matters by
+ * being a different mechanism rather than a bigger number.
+ */
+export function contactKind(shapeId) {
+  const shape = shapeById(shapeId);
+  if (shape.rolls) {
+    return {
+      mode: 'rolling',
+      label: 'rolls',
+      note: 'It rolls, so what resists it is not sliding friction at all: it is '
+        + 'the small deformation of the ball and the surface under the contact, '
+        + 'which is one to three orders of magnitude weaker. This is why wheels '
+        + 'were worth inventing.',
+    };
+  }
+  if (shape.wheeled) {
+    return {
+      mode: 'rolling',
+      label: 'runs on wheels',
+      note: 'The body does not touch the ground; the wheels do, and they roll. '
+        + 'Rolling resistance is what a car coasts against, and it is why a car '
+        + 'left out of gear on a slight slope will move at all.',
+    };
+  }
+  return {
+    mode: 'sliding',
+    label: 'slides',
+    note: 'It slides, so friction is μ·N — and the area it slides on is not in '
+      + 'that expression. A wider box of the same mass has exactly the same '
+      + 'friction, because spreading the same weight over more area drops the '
+      + 'pressure in proportion and leaves the same real contact.',
+  };
+}
+
+/** Does this shape roll rather than slide? */
+export const rollsOn = (shapeId) => contactKind(shapeId).mode === 'rolling';
 
 /**
  * The outline to draw, given whether the scene has a "down" in it.
@@ -204,7 +288,10 @@ export function describe({ shapeId, size, density = null, mass = null }) {
     support: shape.support(size),
     // How tall it is drawn, relative to its length.
     height: size * shape.aspect,
-    rolls: shape.rolls,
+    // A car does not roll, but it runs on wheels that do — and what meets the
+    // ground is what decides which mechanism resists it.
+    rolls: rollsOn(shape.id),
+    align: shape.align || 'surface',
   };
 }
 

@@ -15,7 +15,10 @@ import { equation } from '../models.js';
 import { stageById, featuresAt, pushState, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, MAX_WALLS } from '../segments.js';
-import { SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG } from '../friction.js';
+import {
+  SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
+} from '../friction.js';
+import { contactKind } from '../shapes.js';
 import { collisionsOn, collisionsForced } from '../stages.js';
 import { buoyantMass } from '../forces.js';
 import { SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats } from '../shapes.js';
@@ -289,11 +292,16 @@ function surfaceSection(ctx) {
         + `${fmtFixed(p.muS, 2)} to ${fmtFixed(p.muK, 2)} is why a stuck object lurches when it moves.`,
     }) : null,
     f.has('friction') ? el('div', { class: 'dims' }, [
+      el('dt', { text: 'This object' }),
+      el('dd', { text: contactKind(p.shapeId).label }),
       el('dt', { text: 'Slides at' }),
       el('dd', { text: `${fmtFixed(slipAngle(p.muS), 1)}° of tilt` }),
       el('dt', { text: 'Could brake at' }),
       el('dd', { text: `${fmtFixed(brakingG(p.muK), 2)} g` }),
+      el('dt', { text: 'If it rolls instead' }),
+      el('dd', { text: `C_rr ${rollingFor(matchSurface(p.muS, p.muK))}` }),
     ]) : null,
+    f.has('friction') ? el('div', { class: 'field__hint', text: contactKind(p.shapeId).note }) : null,
     f.has('friction') ? el('div', {
       class: 'field__hint',
       text: 'The slip angle is not a derived curiosity — tan θ = μs is how μs is '
@@ -992,6 +1000,53 @@ export function explains(ctx) {
       + ` = ${fmtFixed(p.mass * world.g * (main?.heightAboveGround ?? 0), 3)} J\n\n`
       + 'Measured from the ground, because only differences in potential energy\n'
       + 'ever matter and the ground is convenient.'));
+  }
+
+  if (f.has('friction') && !ctx.space && main) {
+    const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+    const normal = main.forces.find((x) => x.id === 'normal')?.magnitude ?? 0;
+    const kind = contactKind(p.shapeId);
+    const crr = rollingFor(matchSurface(p.muS, p.muK));
+    const footprint = object.size * object.size;
+
+    out.push(explain({
+      title: 'What the shape of the contact changes — and what it does not',
+      plain: [
+        'The surprising half first. Sliding friction does not depend on how much '
+        + 'surface is touching. Make the box twice as wide at the same mass and '
+        + 'the friction is identical, because real surfaces meet only at their '
+        + 'high points: spreading the same weight over twice the area halves the '
+        + 'pressure, and the same tiny patches end up actually in contact. It is '
+        + 'in the equation to be read — F = μ·N — and there is no area in it.',
+        'The half that does matter is whether the thing rolls. That is not a '
+        + 'smaller coefficient for the same mechanism, it is a different '
+        + 'mechanism: rolling resistance comes from the ball and the ground '
+        + 'flexing under the load rather than from surfaces being dragged across '
+        + 'each other, and it is between ten and a thousand times weaker. Which '
+        + 'is the entire reason wheels were worth inventing.',
+      ],
+      formula: 'sliding   f = μ·N          rolling   f = C_rr·N',
+      validWhen: 'Dry contact between solids, at ordinary loads. Very soft '
+        + 'materials, very clean surfaces and very high pressures all add an '
+        + 'adhesion term that does scale with real contact area, which is why a '
+        + 'racing tyre is wide — that is a genuine exception rather than a '
+        + 'correction to the rule.',
+      worked: `This ${object.shape.label.toLowerCase()} ${kind.label}.\n\n`
+        + `  Normal force        N = ${fmtFixed(normal, 2).padStart(9)} N\n`
+        + `  Apparent footprint      ${footprint.toPrecision(3).padStart(9)} m²  (not used)\n\n`
+        + (kind.mode === 'rolling'
+          ? `  Rolling      C_rr·N = ${fmtFixed(crr * normal, 3).padStart(9)} N\n`
+            + `  Had it slid    μk·N = ${fmtFixed(p.muK * normal, 3).padStart(9)} N\n\n`
+            + `  ${Math.round(p.muK / Math.max(1e-9, crr))} times less resistance, from the same object on the same surface.`
+          : `  Sliding        μk·N = ${fmtFixed(p.muK * normal, 3).padStart(9)} N\n`
+            + `  Had it rolled C_rr·N = ${fmtFixed(crr * normal, 3).padStart(9)} N\n\n`
+            + 'Change the size above at a fixed mass: the normal force does not move,\n'
+            + 'so neither does the friction. Change the shape to a sphere and it does.'),
+      becomes: 'Both are approximations to the same underlying story — surfaces '
+        + 'are rough, contact is patchy, and energy is lost where materials are '
+        + 'deformed. Amontons\' law is the version that survives when the '
+        + 'deformation is confined to asperities being sheared.',
+    }));
   }
 
   if (f.has('fluid') && main) {

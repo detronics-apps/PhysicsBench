@@ -157,7 +157,7 @@ export function renderScene(world, {
   if (control) root.appendChild(drawControl(cam, world, control, pointer, pressed));
 
   // Arrows go on top of everything: they are the point of the drawing.
-  const movable = ordinary.filter((b) => !b.fixed);
+  const movable = ordinary.filter((b) => !b.fixed && !b.projectile);
   const crowded = movable.length > CROWD_LIMIT;
   root.appendChild(drawVectors(world, cam, {
     vectors, view, ordinary, labels,
@@ -202,9 +202,21 @@ export function sceneCamera(world, focusId = 'main') {
   const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
   const focus = ordinary.find((b) => b.id === focusId) || ordinary[0];
 
+  /*
+   * Cannon shots are drawn but do not decide the framing.
+   *
+   * A shot fired hard is off the side of the bench in half a second, and a
+   * camera that kept it in view would zoom out until the experiment was a dot —
+   * exactly backwards, since the shot is the least interesting thing on screen
+   * once it has left. It is allowed to leave.
+   */
+  const framing = ordinary.filter((b) => !b.projectile);
   const box = planets.length && focus
-    ? windowAround(focus, ordinary, planets)
-    : withWalls(boundsFor(ordinary, { ground: world.ground }), world.walls, world.cannons);
+    ? windowAround(focus, framing.length ? framing : ordinary, planets)
+    : withWalls(
+      boundsFor(framing.length ? framing : ordinary, { ground: world.ground }),
+      world.walls, world.cannons,
+    );
 
   return createCamera({
     world: box, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
@@ -631,7 +643,13 @@ function scalePath(d, cx, cy, width, height) {
 }
 
 function drawBody(cam, body, selected, topDown, labels) {
-  const group = svg('g', { class: 'scene__body' });
+  const group = svg('g', {
+    class: 'scene__body',
+    // A spent shot fades out over three seconds before it is removed. Drawn
+    // here rather than animated in CSS, so an export of a paused frame shows
+    // exactly what was on screen.
+    opacity: body.fade < 1 ? r(Math.max(0, body.fade)) : null,
+  });
   const centre = toScreen(cam, body.pos);
   const fill = `var(--body-${body.colour % 4})`;
   const stroke = selected ? 'var(--accent-strong)' : 'var(--text-dim)';
@@ -642,34 +660,55 @@ function drawBody(cam, body, selected, topDown, labels) {
   if (path) {
     const w = Math.max(8, toPixels(cam, body.width || body.radius * 2));
     const h = Math.max(5, toPixels(cam, body.height || body.radius * 2));
-    group.appendChild(svg('path', {
+    /*
+     * Turned to lie along whatever it is on, and mirrored when it is going
+     * left. World angles are anticlockwise with y upward and SVG's are
+     * clockwise with y downward, so the sign flips here — the one place it
+     * does, as with everything else in this renderer.
+     *
+     * A transform rather than rotated coordinates: rotation and a ±1 mirror are
+     * both length-preserving, so the stroke stays the width it was asked for.
+     */
+    const spin = -((body.angle || 0) * 180) / Math.PI;
+    const mirror = body.flip ? -1 : 1;
+    group.appendChild(svg('g', {
+      transform: `translate(${r(centre.x)} ${r(centre.y)}) rotate(${r(spin)}) `
+        + `scale(${mirror} 1) translate(${r(-centre.x)} ${r(-centre.y)})`,
+    }, svg('path', {
       d: `${scalePath(path, centre.x, centre.y, w, h)} Z`,
       fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
-    }));
+    })));
   } else if (body.kind === 'ball' || !body.shapeId) {
     const radius = Math.max(4, toPixels(cam, body.radius));
     group.appendChild(svg('circle', {
       cx: r(centre.x), cy: r(centre.y), r: r(radius), fill, stroke, 'stroke-width': strokeWidth,
     }));
-    // A spoke, so a rolling object reads as rolling rather than sliding.
+    // A spoke, so a rolling object reads as rolling rather than sliding — and
+    // it turns by exactly s/R, which is the only rotation in the app that
+    // corresponds to anything.
+    const turned = -(body.spin || 0);
     group.appendChild(svg('line', {
       x1: r(centre.x), y1: r(centre.y),
-      x2: r(centre.x + radius * 0.85), y2: r(centre.y),
+      x2: r(centre.x + radius * 0.85 * Math.cos(turned)),
+      y2: r(centre.y + radius * 0.85 * Math.sin(turned)),
       stroke: 'var(--body-ink)', 'stroke-width': 1.5, 'stroke-opacity': 0.4,
     }));
   } else {
     const w = Math.max(6, toPixels(cam, body.width));
     const h = Math.max(4, toPixels(cam, body.height));
+    const spin = -((body.angle || 0) * 180) / Math.PI;
     group.appendChild(svg('rect', {
       x: r(centre.x - w / 2), y: r(centre.y - h / 2), width: r(w), height: r(h), rx: 3,
       fill, stroke, 'stroke-width': strokeWidth,
+      transform: spin ? `rotate(${r(spin)} ${r(centre.x)} ${r(centre.y)})` : null,
     }));
   }
 
-  if (body.label) {
+  if (body.label && !body.projectile) {
     // Centred under the body, where there is room to grow — and handed to the
     // collective placer rather than positioned here, so an arrow's label cannot
-    // land on top of it.
+    // land on top of it. A shot gets none: twenty of them would be the clutter
+    // all of this is trying to avoid.
     const width = body.label.length * 6.5;
     const below = toPixels(cam, Math.max(body.radius, (body.height || 0) / 2)) + 16;
     labels.push({

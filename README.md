@@ -117,6 +117,19 @@ Momentum and energy appear from the moment anything can move and stay for the re
 in the readouts, the inspector, and their own graphs. They are not a later topic; they are two
 more ways of describing what is already on screen.
 
+## What the drawing is allowed to say
+
+Objects lie along the surface they are resting on and point the way they are going, and shapes with
+a nose are mirrored rather than turned upside down when they travel left. None of that is a physics
+model: nothing on this bench has a moment of inertia, nothing can be spun up by an off-centre force,
+and no kinetic energy is stored in rotation. The angle is a consequence, not a cause, and the
+assumption saying so is declared with the rest.
+
+It is there because the alternative says something false for a different reason. A car drawn level
+on a twenty-degree ramp is a picture of a car embedded in a hillside; a spaceship drawn nose-right
+while travelling left is a picture of one flying backwards. Correcting the drawing removes a lie
+without adding a claim.
+
 ## Physics truth
 
 The app is built so that nothing has to be unlearned later. Every step keeps four things apart and
@@ -137,6 +150,12 @@ than intended. Some consequences:
   Where a computed value differs from the published figure — Jupiter and Saturn, whose quoted
   surface gravities subtract a large rotational effect this model does not include — the note says
   so rather than the app quietly storing the published number instead.
+- **How much surface is touching does not change the friction.** F = μ·N, with no area in it —
+  because real surfaces meet only at their high points and the real contact area is set by the load,
+  not by the footprint. The app lets you check it: change a box's size at a fixed mass and the
+  friction does not move. What does change is whether the thing rolls, which is a different
+  mechanism rather than a smaller coefficient, and is between ten and a thousand times weaker. It is
+  named for the mechanism acting, so a ball meets rolling resistance and a box meets friction.
 - **Friction is a pair of surfaces, not a number.** Sixteen real pairs, from a skate on ice at 0.03
   to a warm racing slick at 1.4, each carrying the range its published values actually span — a
   coefficient quoted to two decimals with nothing around it is exactly the false precision this app
@@ -180,7 +199,7 @@ nothing to install:
 npm test
 ```
 
-326 cases across 22 modules, and they are invariants rather than examples: momentum is conserved at
+343 cases across 24 modules, and they are invariants rather than examples: momentum is conserved at
 every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a
@@ -209,6 +228,7 @@ js/constants.js       G, standard gravity, c — and which of them are defined
 js/gravitation.js     G·m₁·m₂/r², the worlds, and when a sphere becomes flat
 js/drag.js            Reynolds number, the fluids, and why honey is not thick air
 js/friction.js        real pairs of surfaces, and the range their values span
+js/orient.js          which way a shape is drawn facing — a drawing rule, not a model
 js/shapes.js          what shape changes: how it sits, its area, its drag, its outline
 js/segments.js        drawn walls: contact, normals, and where a ramp ends
 js/control.js         driving by pointer or keyboard, as forces rather than teleports
@@ -261,7 +281,10 @@ iteratively, so the simulation and the table beside it agree to five decimal pla
 speeds are found by search rather than by the closed form, because the drag coefficient is not
 constant.
 
-**What is not modelled.** Rotation of bodies, partial immersion at a free surface (buoyancy assumes
+**What is not modelled.** Rotation as a degree of freedom — objects are *drawn* lying along a
+surface and pointing along their velocity, but they have no moment of inertia, cannot be spun up by
+an off-centre force and store no energy in rotation, so a ball and a block released together on a
+ramp would arrive together here and would not in reality. Also: partial immersion at a free surface (buoyancy assumes
 the object is fully surrounded, which is right for a balloon in air and wrong for a boat), wind,
 air-density variation with altitude, deformation, the drag crisis above the critical Reynolds
 number, the recoil of a planet, and where lost energy goes after it is accounted for. Each is

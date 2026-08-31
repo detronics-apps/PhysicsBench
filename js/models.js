@@ -237,6 +237,25 @@ export const MODELS = Object.fromEntries([
       + 'decides the acceleration, not the position.',
   ),
   entry(
+    'rolling-resistance', 'model', 'Rolling resistance',
+    'A body that rolls meets F = C_rr·N instead of μ·N, with C_rr one to three '
+      + 'orders of magnitude smaller than the sliding coefficient.',
+    'It is a different mechanism, not a smaller version of the same one. Sliding '
+      + 'friction is asperities being sheared off; rolling resistance is the '
+      + 'ball and the surface flexing under the contact and not giving all of '
+      + 'the energy back. Treating a wheel as a low-friction slider would get '
+      + 'the number roughly right and the reason entirely wrong.',
+    'C_rr depends far more on how soft and how large the rolling body is than on '
+      + 'which two materials are named — a bicycle tyre at 100 psi and the same '
+      + 'tyre at 30 psi differ by more than any two entries in this app\'s list. '
+      + 'Here it is quoted as a property of the surface pair, which is a '
+      + 'simplification. A real rolling body also stores part of its kinetic '
+      + 'energy as rotation, which this app does not model at all: a ball and a '
+      + 'block released together on a ramp would not in fact arrive together.',
+    'Rolling contact loses energy to hysteresis in the deforming materials, not '
+      + 'to surfaces sliding across each other.',
+  ),
+  entry(
     'numeric-integration', 'model', 'Step-by-step numerical integration',
     'Motion is advanced in small time steps rather than solved as a formula, '
       + 'using a fourth-order Runge–Kutta scheme.',
@@ -300,6 +319,23 @@ export const ASSUMPTIONS = Object.fromEntries([
       + 'the universe.',
     'Weightlessness is what falling freely feels like, not the absence of '
       + 'gravity.',
+  ),
+  entry(
+    'drawn-orientation', 'assumption', 'The angle you see is a drawing, not a state',
+    'Objects are drawn lying along the surface they rest on and pointing the way '
+      + 'they are going, but that angle is decided by the renderer and has no '
+      + 'dynamics behind it.',
+    'A car drawn level on a twenty-degree ramp is a picture of a car embedded in '
+      + 'a hillside, and a spaceship drawn nose-right while travelling left is a '
+      + 'picture of one flying backwards. Neither is a simplification worth '
+      + 'defending, and correcting the drawing costs nothing.',
+    'A real object has a moment of inertia and can be spun up by an off-centre '
+      + 'force. It can tumble, it can land on a corner and topple, and part of '
+      + 'its kinetic energy can be stored in that spin. None of that is here — '
+      + 'nothing on this bench has angular momentum, and the angle shown is a '
+      + 'consequence rather than a cause.',
+    'Orientation is a degree of freedom with its own energy, momentum and '
+      + 'equations of motion.',
   ),
   entry(
     'no-rotation', 'assumption', 'Objects do not spin',

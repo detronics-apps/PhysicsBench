@@ -25,6 +25,19 @@
  *   μ can exceed 1. It is not a percentage or an efficiency, and nothing caps
  *   it at one — a warm racing slick is around 1.4, which is why a racing car
  *   can brake harder than g and a road car cannot.
+ *
+ *   μ does not depend on how much surface is touching. This is the one most
+ *   people find hardest to believe, and it is why `rolling` sits beside it: the
+ *   enormous difference a shape makes is rolling versus sliding, not a wider
+ *   footprint. `rolling` is the coefficient for something that rolls on this
+ *   pair, and it is one to three orders of magnitude below the sliding value.
+ *
+ * The rolling figures deserve their own caveat. Rolling resistance comes from
+ * the rolling body and the surface flexing under the contact, so it depends far
+ * more on how soft the wheel is and how big it is than on which two materials
+ * are named — a bicycle tyre at 100 psi and the same tyre at 30 psi differ by
+ * more than any two entries in this list. They are quoted here as a property of
+ * the pair, which is a simplification the app declares.
  */
 
 export const SURFACES = [
@@ -33,6 +46,7 @@ export const SURFACES = [
     label: 'Warm racing slick on dry asphalt',
     muS: 1.4,
     muK: 1.2,
+    rolling: 0.014,
     spread: '1.1 to 1.8, and only when hot',
     note: 'Comfortably above 1, which settles the question of whether μ is a '
       + 'percentage: it is not, and nothing caps it at one. A cold slick is far '
@@ -43,6 +57,7 @@ export const SURFACES = [
     label: 'Rubber on dry concrete',
     muS: 1.0,
     muK: 0.8,
+    rolling: 0.013,
     spread: '0.6 to 1.2',
     note: 'About as much grip as any everyday pair has. A rubber-soled shoe on a '
       + 'dry path is close to the limit of what ordinary materials manage, and '
@@ -53,6 +68,7 @@ export const SURFACES = [
     label: 'Tyre on dry asphalt',
     muS: 0.9,
     muK: 0.7,
+    rolling: 0.012,
     spread: '0.7 to 1.0',
     note: 'What a car has on a good dry road. It is also why a car brakes at '
       + 'about 0.9 g and no harder — the tyres, not the brakes, set the limit.',
@@ -62,6 +78,7 @@ export const SURFACES = [
     label: 'Tyre on wet asphalt',
     muS: 0.6,
     muK: 0.45,
+    rolling: 0.015,
     spread: '0.4 to 0.7',
     note: 'A third less grip than dry, from the same tyre on the same road. '
       + 'Stopping distance goes as 1/μ, so the same speed needs half as far '
@@ -72,6 +89,7 @@ export const SURFACES = [
     label: 'Tyre on loose gravel',
     muS: 0.55,
     muK: 0.4,
+    rolling: 0.035,
     spread: '0.3 to 0.7',
     note: 'Loose surfaces are awkward to describe this way. Much of what slows '
       + 'you is stones being shoved aside and rolling over each other rather '
@@ -83,6 +101,7 @@ export const SURFACES = [
     label: 'Wood on wood',
     muS: 0.5,
     muK: 0.3,
+    rolling: 0.01,
     spread: '0.25 to 0.6',
     note: 'A wide gap between the two values, so a wooden drawer sticks and then '
       + 'goes with a jerk.',
@@ -92,6 +111,7 @@ export const SURFACES = [
     label: 'Leather on wood',
     muS: 0.4,
     muK: 0.3,
+    rolling: 0.012,
     spread: '0.3 to 0.5',
     note: 'The pair in an old drive belt, and in the soles of shoes on a floor.',
   },
@@ -100,6 +120,7 @@ export const SURFACES = [
     label: 'Steel on steel, dry',
     muS: 0.74,
     muK: 0.57,
+    rolling: 0.0015,
     spread: '0.4 to 0.8',
     note: 'Clean dry steel grips far better than most people expect. The figure '
       + 'falls through the floor the moment anything gets between the surfaces.',
@@ -109,6 +130,7 @@ export const SURFACES = [
     label: 'Steel on steel, oiled',
     muS: 0.15,
     muK: 0.09,
+    rolling: 0.001,
     spread: '0.05 to 0.2',
     note: 'A film of oil, and the same two pieces of steel are five times more '
       + 'slippery. Most of a machine\'s design is about keeping that film there.',
@@ -118,6 +140,7 @@ export const SURFACES = [
     label: 'Aluminium on steel',
     muS: 0.61,
     muK: 0.47,
+    rolling: 0.002,
     spread: '0.4 to 0.7',
   },
   {
@@ -125,6 +148,7 @@ export const SURFACES = [
     label: 'Brass on steel',
     muS: 0.51,
     muK: 0.44,
+    rolling: 0.002,
     spread: '0.35 to 0.6',
   },
   {
@@ -132,6 +156,7 @@ export const SURFACES = [
     label: 'Glass on glass',
     muS: 0.94,
     muK: 0.4,
+    rolling: 0.002,
     spread: '0.4 to 1.0',
     note: 'The widest gap of any pair here: it holds hard and then lets go '
       + 'almost completely. Two clean flat sheets can also stick outright, which '
@@ -142,6 +167,7 @@ export const SURFACES = [
     label: 'Rubber on ice',
     muS: 0.15,
     muK: 0.1,
+    rolling: 0.01,
     spread: '0.05 to 0.2',
     note: 'A tyre on ice, and about a sixth of what the same tyre has on dry '
       + 'asphalt.',
@@ -151,6 +177,7 @@ export const SURFACES = [
     label: 'Ice on ice',
     muS: 0.1,
     muK: 0.03,
+    rolling: 0.005,
     spread: '0.02 to 0.15',
     note: 'And it depends strongly on temperature: ice near its melting point is '
       + 'far more slippery than ice at −30 °C, because a thin liquid-like layer '
@@ -161,6 +188,7 @@ export const SURFACES = [
     label: 'Steel on ice — a skate',
     muS: 0.03,
     muK: 0.02,
+    rolling: 0.002,
     spread: '0.01 to 0.05',
     note: 'The lowest of any common pair, and the reason skating works. Note '
       + 'that it is not simply "pressure melts the ice" — that explanation is '
@@ -171,6 +199,7 @@ export const SURFACES = [
     label: 'PTFE on steel',
     muS: 0.04,
     muK: 0.04,
+    rolling: 0.002,
     spread: '0.03 to 0.1',
     note: 'The slipperiest solid pair in ordinary use, and one of the few where '
       + 'the two coefficients are effectively the same — so it does not stick '
@@ -181,6 +210,7 @@ export const SURFACES = [
     label: 'Frictionless — an idealisation',
     muS: 0,
     muK: 0,
+    rolling: 0,
     spread: 'exactly zero, which nothing is',
     note: 'Not a material. It is the assumption a first physics course makes to '
       + 'get the other forces into view, and it is worth being able to switch to '
@@ -197,6 +227,13 @@ export const surfaceById = (id) => SURFACES.find((s) => s.id === id) || null;
  * "custom" the moment the sliders are read back out — and shows "custom"
  * honestly when the numbers have been dragged somewhere no pair sits.
  */
+export const ROLLING_DEFAULT = 0.01;
+
+/** The rolling coefficient for a pair, or a plausible one if it has none. */
+export const rollingFor = (pair) => (pair && Number.isFinite(pair.rolling)
+  ? pair.rolling
+  : ROLLING_DEFAULT);
+
 export function matchSurface(muS, muK, tolerance = 0.005) {
   return SURFACES.find((s) => Math.abs(s.muS - muS) <= tolerance
     && Math.abs(s.muK - muK) <= tolerance) || null;
@@ -229,6 +266,8 @@ export function describeSurface(pair) {
   if (pair.muS > 0) {
     parts.push(`It starts to slide at ${slipAngle(pair.muS).toFixed(1)}°, and can stop `
       + `at about ${brakingG(pair.muK).toFixed(2)} g.`);
+    parts.push(`Something that rolls on it meets about ${rollingFor(pair)} instead — `
+      + `${Math.round(pair.muK / Math.max(1e-9, rollingFor(pair)))} times less.`);
   }
   if (pair.note) parts.push(pair.note);
   return parts.join(' ');

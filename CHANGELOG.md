@@ -1,5 +1,69 @@
 # Changelog
 
+## 2.4.0
+
+Shapes that lie on the floor and point where they are going, cannon shots that behave like
+scenery rather than apparatus, and the difference a shape actually makes at a contact.
+
+### What changed
+
+- **Cannon shots pass through each other.** They are what is being fired at the experiment, not the
+  experiment, and a stream of them ricocheting off one another turns a demonstration into a ball
+  pit. Everything else on the bench still stops them.
+- **They no longer hold the camera.** A shot fired hard is off the side of the bench in half a
+  second, and a view that kept it in frame would zoom out until the experiment was a dot. It is
+  allowed to leave.
+- **A spent shot fades over three seconds and is removed.** Only once it has come to rest — a body
+  that vanishes takes its momentum with it, and this app puts the total on screen as a conserved
+  quantity, so nothing is removed while it still has any. Its potential energy is moved onto the
+  ledger on the way out, and the step it disappears on moves the books by exactly zero.
+- **Shapes lie along the surface they are on.** Tilt the floor and a box on it tilts too; drop one
+  onto a slope and it swings into line at a visible rate as it lands. This is a drawing rule, not a
+  new physics model — nothing here has a moment of inertia, and the assumption saying so is now
+  declared alongside the rest.
+- **Shapes with a nose point where they are going**, and are mirrored rather than turned upside down
+  when they travel left. A car on the ground lies along the ground and faces the way it drives; in
+  the air it points along its velocity.
+- **A new spaceship shape**, which exists to make the point that pointing somewhere and going
+  somewhere are different things: turn it in deep space and its velocity does not change until a
+  force acts.
+- **A rolling ball's spoke now turns by exactly the distance it has covered**, θ = s/R, which is the
+  only rotation in the app that corresponds to anything.
+
+### The shape of a contact — what it changes, and what it does not
+
+This was asked for as "a bigger cube should have more friction", and it does not, so it is not what
+was built.
+
+Sliding friction is μ·N and the apparent contact area is not in it. Real surfaces touch only at
+their high points, and the real contact area is set by the load: spread the same weight over twice
+the area and the pressure halves, leaving the same patches actually touching. A wider box of the
+same mass has exactly the same friction, and the app now demonstrates that rather than asserting it
+— change the size at a fixed mass and watch the number not move.
+
+What does change, and changes enormously, is **rolling versus sliding**, which the app did not model
+at all: spheres slid with the same μ as boxes. Rolling resistance is a different mechanism —
+the ball and the ground flexing under the contact rather than surfaces being sheared — and it is ten
+to a thousand times weaker. On a twelve-degree slope a sphere now rolls away while a cube does not
+move at all. A car runs on wheels and rolls; the arrow is named for the mechanism actually acting,
+because calling rolling resistance "friction" is how the two come to be thought of as the same thing
+with a different number.
+
+### Known and not fixed
+
+A hard landing books about half a per cent of its own impact energy short, so "the books" steps by a
+few hundredths of a joule when something drops onto the ground fast. It predates this release —
+identical with the change reverted — and it is one-off per impact rather than accumulating.
+
+A rolling shot takes a long time to stop, because that is what rolling means: a ball leaving a
+cannon at 6 m/s needs about twelve seconds to come to rest, and until it does it does not fade. The
+twenty-object cap and the "bench is full" banner handle the rest.
+
+Verified across 155 rendered frames and 169 graphs spanning every step, both worlds, all eight
+shapes, sixteen surface pairs, solidity both ways and every frame of the planet growth: no NaN
+reaching the DOM, nothing outside its canvas, no label touching another, every export free of
+unresolved custom properties.
+
 ## 2.3.1
 
 - **A cannon could not hit the only object on the bench.** Whether bodies were solid depended on how

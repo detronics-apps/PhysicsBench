@@ -84,7 +84,7 @@ export const SUGGESTED = {
   'two-masses': { velocity: true, weight: true, net: true },
   planet: { velocity: true, acceleration: true, weight: true, net: true },
   surface: { weight: true, normal: true, net: true },
-  friction: { applied: true, friction: true, normal: true, net: true },
+  friction: { applied: true, friction: true, rolling: true, normal: true, net: true },
   fluid: { velocity: true, drag: true, buoyancy: true, weight: true, net: true },
   collide: { velocity: true, momentum: true, control: true, net: true },
 };

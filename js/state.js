@@ -40,7 +40,7 @@ const CONTROL_IDS = CONTROL_MODES.map((m) => m.id);
 export const MAX_CANNONS = 6;
 
 /** Every arrow that can be drawn, and whether it starts switched on. */
-export const VECTOR_IDS = ['velocity', 'acceleration', 'momentum', 'applied', 'control', 'weight', 'normal', 'friction', 'drag', 'buoyancy', 'net'];
+export const VECTOR_IDS = ['velocity', 'acceleration', 'momentum', 'applied', 'control', 'weight', 'normal', 'friction', 'rolling', 'drag', 'buoyancy', 'net'];
 
 export const defaults = () => ({
   version: STATE_VERSION,
@@ -68,6 +68,7 @@ export const defaults = () => ({
     weight: true,
     normal: true,
     friction: true,
+    rolling: true,
     drag: true,
     buoyancy: true,
     control: true,
