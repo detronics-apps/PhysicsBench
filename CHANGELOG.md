@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.1
+
+Three fixes for reading the bench on a phone.
+
+- **The controls now sit directly under the drawing**, instead of below every graph and panel on the
+  page. On a narrow screen reaching a slider meant scrolling past all of the output first, which is
+  backwards: the picture and the controls that change it belong together.
+- **"Make it a planet" scrolls the drawing into view before anything moves.** The button that starts
+  that animation sits in the controls, well below the drawing on a phone, so all three seconds of it
+  used to play out off-screen — arriving at the next step having seen none of the thing the
+  animation exists to show.
+- **Pause and Reset work while the clock is running.** They were being rebuilt from inside the
+  animation loop, so a tap that began on a button and ended on its replacement never became a click
+  at all. The timeline is now always present rather than appearing a few frames in, and everything
+  that is words and numbers redraws on a cadence — a sixth of the frames on a phone — leaving the
+  main thread free to answer a tap. Only the drawing still moves every frame, because that is the
+  thing being watched. Measured: 4.3 ms a frame, against 32 ms before.
+
 ## 1.0.0
 
 The first public release.

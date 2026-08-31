@@ -92,23 +92,35 @@ export function renderTransport({ state, recorder, t, actions }) {
     title: 'Simulated time since the start of the experiment',
   }));
 
-  // The timeline only appears once there is something recorded to scrub through.
-  if (total > 0.05) {
-    bar.appendChild(el('input', {
-      class: 'transport__scrub',
-      type: 'range',
-      min: from,
-      max: to,
-      step: Math.max(0.001, total / 500),
-      value: scrubbing ? state.scrubT : to,
-      'aria-label': 'Timeline',
-      title: 'Move back and forward through what has already happened',
-      'data-field': 'transport:scrub',
-      on: {
-        input: (event) => actions.scrub(Number(event.target.value)),
-      },
-    }));
-  }
+  /*
+   * Rendered always, disabled until there is something to scrub through — the
+   * same rule the Live button below follows, and for the same reason.
+   *
+   * Adding it the moment recording passed a twentieth of a second meant
+   * rebuilding this bar a few frames into every run. On a desktop that window
+   * is too short to notice. On a phone a tap is a hundred milliseconds long,
+   * and a tap that begins on Pause and ends on a Pause that has been replaced
+   * never becomes a click at all — which is exactly what "the button did
+   * nothing" looks like.
+   */
+  const ready = total > 0.05;
+  bar.appendChild(el('input', {
+    class: 'transport__scrub',
+    type: 'range',
+    min: ready ? from : 0,
+    max: ready ? to : 1,
+    step: ready ? Math.max(0.001, total / 500) : 0.001,
+    value: ready ? (scrubbing ? state.scrubT : to) : 0,
+    disabled: ready ? null : '',
+    'aria-label': 'Timeline',
+    title: ready
+      ? 'Move back and forward through what has already happened'
+      : 'Nothing recorded yet — press Play',
+    'data-field': 'transport:scrub',
+    on: {
+      input: (event) => actions.scrub(Number(event.target.value)),
+    },
+  }));
 
   /*
    * Rendered always, hidden until it is needed.

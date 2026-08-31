@@ -42,11 +42,26 @@ body {
   min-height: 0;
 }
 
+/*
+ * The left-hand column: the drawing and the transport, then everything the
+ * experiment says back.
+ *
+ * Two sections rather than one, so that on a phone the sidebar can be placed
+ * between them — see the `display: contents` rule at the bottom of this file.
+ * On a wide screen the split is invisible: `.workspace` is the single scrolling
+ * column, exactly as before.
+ */
+.workspace {
+  display: flex; flex-direction: column; min-width: 0;
+  overflow-y: auto;
+}
+
 .viewport {
   display: flex; flex-direction: column; min-width: 0;
   padding: var(--space-4); gap: var(--space-4);
-  overflow-y: auto;
 }
+
+.viewport--more { padding-top: 0; }
 
 .viewport__stage {
   display: flex; align-items: center; justify-content: center;
@@ -96,7 +111,25 @@ body {
 
 @media (max-width: 1040px) {
   .app-main { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { border-left: none; border-top: 1px solid var(--border); }
-  .viewport, .sidebar { overflow-y: visible; }
+  .sidebar {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .workspace, .viewport, .sidebar { overflow-y: visible; }
   body { height: auto; }
+
+  /*
+   * The inputs go directly under the drawing, above the graphs.
+   *
+   * `display: contents` dissolves the workspace so its two halves become grid
+   * items of `.app-main` alongside the sidebar, which is the only way to place
+   * the sidebar *between* them without a second copy of anything. Stacked the
+   * other way, reaching a control meant scrolling past every graph, every
+   * measurement and every teaching panel on the page.
+   */
+  .workspace { display: contents; }
+  .viewport { order: 1; }
+  .sidebar { order: 2; }
+  .viewport--more { order: 3; }
 }

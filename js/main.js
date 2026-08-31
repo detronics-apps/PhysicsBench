@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -266,6 +266,16 @@ function buildViewport() {
     dom.inspector,
   ]);
 
+  /*
+   * Two sections, not one, so the sidebar can sit between them.
+   *
+   * On a wide screen `.workspace` is the single scrolling column it always was
+   * and the split is invisible. On a phone, where everything stacks, the
+   * workspace becomes `display: contents` and its two halves become siblings of
+   * the sidebar — which lets the inputs sit directly under the drawing and the
+   * transport, instead of below every graph and panel on the page. Reaching a
+   * control should not mean scrolling past all the output first.
+   */
   dom.viewport = el('section', { class: 'viewport' }, [
     dom.stages,
     dom.ask,
@@ -275,12 +285,17 @@ function buildViewport() {
     dom.transportHost,
     // Live commentary belongs beside the live picture, not three sections down.
     dom.banners,
+  ]);
+
+  dom.viewportMore = el('section', { class: 'viewport viewport--more' }, [
     dom.graphs,
     dom.measurements,
     dom.summary,
     dom.explain,
   ]);
-  return dom.viewport;
+
+  dom.workspace = el('div', { class: 'workspace' }, [dom.viewport, dom.viewportMore]);
+  return dom.workspace;
 }
 
 function buildFooter() {
@@ -491,9 +506,18 @@ function growPlanet() {
     return;
   }
 
+  /*
+   * Bring the drawing into view before anything moves.
+   *
+   * On a phone the button that starts this sits in the sidebar, well below the
+   * drawing — so the whole three seconds of it played out off-screen and the
+   * reader arrived at step four having seen none of the thing the animation
+   * exists to show. Scroll first, let the scroll finish, then start.
+   */
+  const settle = scrollToDrawing();
   state.transport.playing = false;
   cancelAnimationFrame(clock.raf);
-  growth = { started: performance.now(), frame: growthWorld(0) };
+  growth = { started: performance.now() + settle, frame: growthWorld(0) };
   render();
 
   const finish = () => {
@@ -504,7 +528,9 @@ function growPlanet() {
 
   const tick = (now) => {
     if (!growth) return;
-    const u = Math.min(1, (now - growth.started) / (GROWTH.seconds * 1000));
+    // `started` may be in the future while the page is still scrolling; hold at
+    // the first frame until it is not.
+    const u = Math.min(1, Math.max(0, (now - growth.started) / (GROWTH.seconds * 1000)));
     growth.frame = growthWorld(u);
     paint(true);
     if (u < 1) {
@@ -525,7 +551,25 @@ function growPlanet() {
    * before. Time passing is what ends it; the frames only decide how much of it
    * anyone sees.
    */
-  growth.fallback = setTimeout(finish, GROWTH.seconds * 1000 + 300);
+  growth.fallback = setTimeout(finish, settle + GROWTH.seconds * 1000 + 300);
+}
+
+/**
+ * Put the drawing on screen, and say how long that will take.
+ *
+ * Returns the delay the caller should hold off for. Zero when it is already in
+ * view or when the reader has asked for reduced motion, so nothing waits for a
+ * scroll that is not happening.
+ */
+function scrollToDrawing() {
+  if (!dom.stage || typeof dom.stage.getBoundingClientRect !== 'function') return 0;
+  const box = dom.stage.getBoundingClientRect();
+  const fullyVisible = box.top >= 0 && box.bottom <= (window.innerHeight || 0);
+  if (fullyVisible) return 0;
+
+  const gentle = !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  dom.stage.scrollIntoView({ behavior: gentle ? 'smooth' : 'auto', block: 'center' });
+  return gentle ? 450 : 0;
 }
 
 /** Abandon the growth — any other control the reader touches means they are done watching. */
@@ -602,7 +646,7 @@ function captureFocus() {
   const key = active?.dataset?.field;
   return {
     sidebar: dom.sidebar?.scrollTop ?? 0,
-    viewport: dom.viewport?.scrollTop ?? 0,
+    viewport: dom.workspace?.scrollTop ?? 0,
     key: key || null,
     start: key && active.selectionStart != null ? active.selectionStart : null,
     end: key && active.selectionEnd != null ? active.selectionEnd : null,
@@ -611,7 +655,7 @@ function captureFocus() {
 
 function restoreFocus(snap) {
   if (dom.sidebar) dom.sidebar.scrollTop = snap.sidebar;
-  if (dom.viewport) dom.viewport.scrollTop = snap.viewport;
+  if (dom.workspace) dom.workspace.scrollTop = snap.viewport;
   if (!snap.key) return;
   const target = document.querySelector(`[data-field="${CSS.escape(snap.key)}"]`);
   if (!target) return;
@@ -620,7 +664,7 @@ function restoreFocus(snap) {
     try { target.setSelectionRange(snap.start, snap.end); } catch { /* not a text field */ }
   }
   if (dom.sidebar) dom.sidebar.scrollTop = snap.sidebar;
-  if (dom.viewport) dom.viewport.scrollTop = snap.viewport;
+  if (dom.workspace) dom.workspace.scrollTop = snap.viewport;
 }
 
 /* -------------------------------------------------------------- render -- */
@@ -734,24 +778,41 @@ function paint(force = false) {
   // Called after the stage has been replaced, on every render — pitfalls.md #3.
   capDiagramScale(dom.stage);
 
-  clear(dom.legend);
-  dom.legend.appendChild(sceneLegend(ctx.world, state.vectors));
+  /*
+   * Everything that is words and numbers is redrawn far less often than the
+   * drawing, and less often again on a small screen.
+   *
+   * A frame used to rebuild the scene, the legend, the readouts and the banners
+   * — around four hundred elements — and the graphs and inspector on top of
+   * that every third frame. Measured at over thirty milliseconds a frame on a
+   * desktop, which is twice the budget; on a phone it saturates the main thread
+   * and input goes with it. That is why Pause appeared not to work: the tap was
+   * queued behind a paint that never finished in time.
+   *
+   * Nobody reads a number sixty times a second. The drawing still moves every
+   * frame, because that is the thing being watched.
+   */
+  const cadence = window.innerWidth <= 640 ? 6 : 3;
+  const refreshNumbers = force || clock.frame % cadence === 0;
 
-  clear(dom.readout);
-  for (const node of bench.readouts(ctx)) dom.readout.appendChild(node);
+  if (refreshNumbers) {
+    clear(dom.legend);
+    dom.legend.appendChild(sceneLegend(ctx.world, state.vectors));
 
-  clear(dom.banners);
-  if (growth) {
-    // One caption, and none of the ordinary commentary: every banner the bench
-    // would otherwise show is about a simulation that is not running.
-    dom.banners.appendChild(banner('info', growthCaption(growth.frame)));
-  } else {
-    for (const node of bench.banners(ctx)) dom.banners.appendChild(node);
+    clear(dom.readout);
+    for (const node of bench.readouts(ctx)) dom.readout.appendChild(node);
+
+    clear(dom.banners);
+    if (growth) {
+      // One caption, and none of the ordinary commentary: every banner the bench
+      // would otherwise show is about a simulation that is not running.
+      dom.banners.appendChild(banner('info', growthCaption(growth.frame)));
+    } else {
+      for (const node of bench.banners(ctx)) dom.banners.appendChild(node);
+    }
   }
 
-  // The graphs and the inspector carry a lot of DOM for numbers a person cannot
-  // read sixty times a second, so they are redrawn at about twenty.
-  if (force || clock.frame % 3 === 0) {
+  if (refreshNumbers) {
     clear(dom.graphs);
     if (state.view.graphs) {
       for (const group of channelsFor(state.stage, state.bench)) {
@@ -991,13 +1052,21 @@ function updateTransport() {
   const live = dom.transportHost.querySelector('[data-field="transport:live"]');
   if (live) live.hidden = state.transport.scrubT === null;
 
+  /*
+   * Nudged in place, never rebuilt.
+   *
+   * Rebuilding the bar from inside the animation loop replaces the very buttons
+   * a reader may be part-way through pressing. The timeline is now always
+   * present, so there is nothing left that needs the bar recreating mid-run.
+   */
   const slider = dom.transportHost.querySelector('.transport__scrub');
   if (slider && document.activeElement !== slider) {
     const end = endTime(sim.recorder);
-    slider.max = String(end);
-    if (state.transport.scrubT === null) slider.value = String(end);
-  } else if (!slider && endTime(sim.recorder) > 0.05) {
-    renderTransportBar();
+    if (end > 0.05) {
+      slider.disabled = false;
+      slider.max = String(end);
+      if (state.transport.scrubT === null) slider.value = String(end);
+    }
   }
 }
 
@@ -1327,6 +1396,17 @@ window.PhysicsBench = {
   inspect: () => inspect(sim.world, state.selectedId),
   totals: () => totals(sim.world),
   snapshot: () => snapWorld(sim.world),
+  /*
+   * One animation frame, exactly as the clock drives it: step the physics, then
+   * paint *unforced* so the throttling that keeps a phone responsive is the
+   * thing under test rather than being bypassed.
+   */
+  frame: (seconds = 1 / 60) => {
+    clock.frame += 1;
+    stepSimulation(seconds);
+    paint();
+    return clock.frame;
+  },
   run: (seconds, step = 1 / 120) => {
     for (let t = 0; t < seconds - 1e-12; t += step) stepSimulation(Math.min(step, seconds - t));
     paint(true);

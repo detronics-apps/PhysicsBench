@@ -124,3 +124,49 @@ test('the sheet says which experiment it is, without anything above the drawing'
   const main = read('../js/main.js');
   assert.match(main, /What was set — step \$\{stageIndex\(state\.stage\) \+ 1\}, \$\{stageById\(state\.stage\)\.label\}/);
 });
+
+/**
+ * Nothing in the animation loop may replace a control.
+ *
+ * The transport bar used to be rebuilt a few frames into every run, the moment
+ * the recorder had enough to scrub through. On a desktop that window is too
+ * short to notice. On a phone a tap lasts about a tenth of a second, and a tap
+ * that begins on Pause and ends on a Pause that has been replaced never becomes
+ * a click — which is exactly what "the button did nothing" looks like.
+ */
+test('the timeline is always rendered, so the bar is never rebuilt mid-run', () => {
+  const transport = read('../js/ui/transport.js');
+  // No conditional around the slider: it is rendered always and disabled until
+  // there is something to scrub.
+  assert.ok(!/if \(total > 0\.05\) \{\s*bar\.appendChild/.test(transport),
+    'the slider is still added conditionally, which rebuilds the bar mid-run');
+  assert.match(transport, /class: 'transport__scrub'/);
+  assert.match(transport, /disabled: ready \? null : ''/);
+});
+
+test('updateTransport nudges the bar and never recreates it', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function updateTransport\(\)[\s\S]*?\n\}/)[0];
+  assert.ok(!fn.includes('renderTransportBar'),
+    'updateTransport still rebuilds the bar, and it runs on every frame');
+});
+
+/**
+ * Only the drawing is worth sixty frames a second.
+ *
+ * A frame that rebuilds the scene, the legend, the readouts and the banners —
+ * and the graphs and inspector on top — measured over thirty milliseconds on a
+ * desktop, twice the budget. On a phone that saturates the main thread and
+ * takes input with it.
+ */
+test('words and numbers are redrawn on a cadence, and a coarser one on a phone', () => {
+  const main = read('../js/main.js');
+  const paint = main.match(/function paint\(force = false\)[\s\S]*?\n\}/)[0];
+  assert.match(paint, /window\.innerWidth <= 640 \? 6 : 3/);
+  // The legend, readouts and banners sit behind the same gate as the graphs.
+  assert.match(paint, /if \(refreshNumbers\) \{[\s\S]*?dom\.legend[\s\S]*?dom\.readout[\s\S]*?dom\.banners/);
+  // And the drawing itself is not behind it.
+  const sceneAt = paint.indexOf('renderScene');
+  const gateAt = paint.indexOf('const refreshNumbers');
+  assert.ok(sceneAt < gateAt, 'the drawing is being throttled too');
+});
