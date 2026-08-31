@@ -56,3 +56,37 @@ test('sorting puts the severest first, under either name', () => {
   assert.match(order, /danger:\s*0/);
   assert.match(order, /error:\s*0/);
 });
+
+/**
+ * A panel's `open` option is where it starts, not where it is held.
+ *
+ * It used to win over the remembered state on every render, so a panel a caller
+ * wanted closed by default could never be kept open: the first click on
+ * anything inside it re-rendered the sidebar and folded it away again, with the
+ * reader's own choice sitting in the store being ignored. "The drawing" holds
+ * the zoom, pan and print controls, which are exactly the things you click
+ * several times in a row.
+ *
+ * Checked by reading the source, because the widget module needs a document and
+ * what is being defended is a pairing between two files: `section` must be able
+ * to tell "not recorded" from "recorded as closed", which it only can if the
+ * store's getter does not fill in a default of its own.
+ */
+test('a remembered panel state wins over the caller default', () => {
+  const widgets = read('../js/ui/widgets.js');
+  const block = widgets.match(/export function section\([\s\S]*?\n\}/)[0];
+
+  // The recorded value is consulted, and only stands aside when it is absent.
+  assert.match(block, /const remembered = sectionStore\.get\(id\)/);
+  assert.match(block, /remembered === undefined/);
+  // And `open` is only reached through that absent branch.
+  assert.ok(!/open === null \? sectionStore\.get\(id\) : open/.test(block),
+    'the caller default still overrides the remembered state');
+});
+
+test('the section store reports "not set" rather than guessing', () => {
+  const main = read('../js/main.js');
+  const getter = main.match(/get: \(id\) => state\.ui\.sections\[[^\]]*\][^,\n]*/)[0];
+  assert.ok(!getter.includes('??'),
+    'the getter fills in a default, so `section` cannot tell unset from closed');
+});

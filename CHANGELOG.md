@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.2
+
+- **"The drawing" folded itself away on every click.** A panel's `open` option was winning over the
+  remembered state on every render, so a panel a caller wanted closed *by default* could never be
+  kept open: the first click on anything inside re-rendered the sidebar and closed it again, with
+  the reader's own choice sitting in the store being ignored. That panel now holds the zoom, pan and
+  print controls — the things you click several times in a row — so what had been a mild oddity on
+  the view toggles became unusable. `open` is now where a panel starts, and a recorded state always
+  wins. The same fault was latent in the cannons and controls panels.
+
 ## 2.5.1
 
 - **The teardrop was drawn back to front.** Local +x is the direction of travel for every outline in

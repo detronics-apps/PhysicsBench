@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.5.1';
+export const APP_VERSION = '2.5.2';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1267,7 +1267,9 @@ function init() {
   applyTheme();
 
   configureSections({
-    get: (id) => state.ui.sections[`${state.stage}:${id}`] ?? true,
+    // `undefined` means "the reader has not said" — which is different from
+    // "the reader wants it open", and `section` needs to be able to tell.
+    get: (id) => state.ui.sections[`${state.stage}:${id}`],
     set: (id, open) => { state.ui.sections[`${state.stage}:${id}`] = open; saveSoon(); },
   });
 

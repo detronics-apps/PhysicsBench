@@ -43,12 +43,28 @@ export function configureSections(store) {
   sectionStore = store;
 }
 
-/** A titled, collapsible block in the sidebar. */
+/**
+ * A titled, collapsible block in the sidebar.
+ *
+ * `open` is where the panel *starts*, not where it is held. It used to win over
+ * the remembered state on every render, which meant a panel a caller wanted
+ * closed by default could never be kept open: the first click on anything
+ * inside it re-rendered the sidebar and folded it away again, with the reader's
+ * own choice sitting in the store being ignored.
+ *
+ * So a recorded state always wins, and `open` decides only what happens before
+ * there is one.
+ */
 export function section(title, children, { info = null, actions = null, key = null, open = null } = {}) {
   const id = key || title;
+  const remembered = sectionStore.get(id);
+  const showing = remembered === undefined || remembered === null
+    ? (open === null ? true : open)
+    : remembered;
+
   return el('details', {
     class: 'section',
-    open: (open === null ? sectionStore.get(id) : open) ? '' : null,
+    open: showing ? '' : null,
     'data-section': id,
     on: {
       // Recorded, not re-rendered: collapsing a panel is not a change to the
