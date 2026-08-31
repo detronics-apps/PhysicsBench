@@ -149,3 +149,52 @@ test('a shape rests on the ground rather than sinking into it', () => {
     close(shape.support(1), drawnHalfHeight, 1e-9);
   }
 });
+
+test('a teardrop leads with its blunt end, which is the whole of its claim', () => {
+  /*
+   * It was drawn mirrored — the point leading and the round end trailing —
+   * which is a picture of a shape with roughly the drag of a flat plate rather
+   * than one with a thirtieth of it. Local +x is the direction of travel for
+   * every outline here, so the round end belongs there.
+   *
+   * Almost all of a streamlined body's advantage is in the long tail rather
+   * than the blunt nose: it is the wake behind a bluff body that costs, not the
+   * air in front of it. Turned around, most of the saving goes with it.
+   */
+  const points = (d) => {
+    const tokens = d.trim().split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+    const out = [];
+    for (let i = 0; i < tokens.length; i += 2) out.push({ x: tokens[i], y: tokens[i + 1] });
+    return out;
+  };
+  const thickest = (pts, where) => {
+    const kept = pts.filter(where);
+    return kept.length ? Math.max(...kept.map((p) => Math.abs(p.y))) : 0;
+  };
+
+  const teardrop = points(shapeById('streamlined').path);
+  const leading = thickest(teardrop, (p) => p.x > 0.15);
+  const trailing = thickest(teardrop, (p) => p.x < -0.15);
+  assert.ok(leading > trailing, `the point is leading: ${leading} at the front, ${trailing} behind`);
+  // And it really does come to a point behind, rather than being blunt at both ends.
+  assert.ok(trailing < 0.1, `the tail is ${trailing} thick, which is not a tail`);
+
+  // The note has to say the same thing the drawing does.
+  assert.match(shapeById('streamlined').note, /round end is the one that goes first/);
+});
+
+test('every shape that points somewhere still fills its box after being turned', () => {
+  for (const shape of SHAPES) {
+    for (const topDown of [false, true]) {
+      const d = outline(shape.id, { topDown });
+      if (!d) continue;
+      const tokens = d.trim().split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+      const xs = tokens.filter((_, i) => i % 2 === 0);
+      const ys = tokens.filter((_, i) => i % 2 === 1);
+      close(Math.min(...xs), -0.5, 1e-9);
+      close(Math.max(...xs), 0.5, 1e-9);
+      close(Math.min(...ys), -0.5, 1e-9);
+      close(Math.max(...ys), 0.5, 1e-9);
+    }
+  }
+});

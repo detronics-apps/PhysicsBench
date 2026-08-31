@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.1
+
+- **The teardrop was drawn back to front.** Local +x is the direction of travel for every outline in
+  the app, and the teardrop's point was at +x — so it flew sharp end first, which is a picture of a
+  shape with roughly the drag of a flat plate rather than one with a thirtieth of it. The code
+  comment beside the path had said "a round nose and a long tail" the whole time. Turned round, with
+  a test on the geometry so it stays that way, and the shape's note now says which end leads and
+  why: almost all of the saving is in the tail, because it is the wake behind a bluff body that
+  costs rather than the air in front of it.
+
 ## 2.5.0
 
 Eleven things, of which four were bugs.

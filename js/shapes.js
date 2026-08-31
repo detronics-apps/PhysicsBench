@@ -109,12 +109,22 @@ export const SHAPES = [
     aspect: 0.5,
     rolls: false,
     align: 'travel',
-    // A round nose and a long tail, because that is where the saving is: it is
-    // the wake behind a bluff body that costs, not the air in front of it.
-    path: 'M -0.5 0 Q -0.5 -0.5 -0.28 -0.5 Q 0.1 -0.44 0.5 0 '
-      + 'Q 0.1 0.44 -0.28 0.5 Q -0.5 0.5 -0.5 0 Z',
-    note: 'Thirty times less drag than a flat plate of the same frontal area. '
-      + 'Almost all of the saving is in the tail, not the nose.',
+    /*
+     * Blunt end forward, tapering to a point behind — and that is the whole
+     * claim the shape is making, so the drawing had better agree with it.
+     *
+     * It was mirrored: the point led and the round end trailed, which is a
+     * picture of a shape with roughly the drag of a flat plate rather than one
+     * with a thirtieth of it. Local +x is the direction of travel for every
+     * shape here, so the round end belongs there.
+     */
+    path: 'M 0.5 0 Q 0.5 -0.5 0.28 -0.5 Q -0.1 -0.44 -0.5 0 '
+      + 'Q -0.1 0.44 0.28 0.5 Q 0.5 0.5 0.5 0 Z',
+    note: 'Thirty times less drag than a flat plate of the same frontal area, and '
+      + 'the round end is the one that goes first. Almost all of the saving is in '
+      + 'the long tail rather than the blunt nose: it is the wake behind a bluff '
+      + 'body that costs, not the air in front of it. Turn a teardrop around and '
+      + 'most of the advantage goes with it.',
   },
   {
     id: 'cylinder',
