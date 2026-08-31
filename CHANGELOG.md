@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0
+
+New starting values. The bench now opens on a prepared scene rather than a blank one.
+
+- **The object starts as a 0.5 m sphere of expanded polystyrene**, 1.31 kg. The mass is not round
+  because it is not chosen: it is 20 kg/m3 times the sphere's volume, so the density panel reads
+  exactly 20 and agrees with the material table on the first screen. A light foam also gives the
+  fluid step something to show — air is worth noticing at this density, and water lifts it.
+- **A scene waiting in the last two steps.** A cannon at the left lobs a steel ball along the floor
+  every two seconds into the polystyrene sphere, which shunts a rubber ball into a ramp. Light thing
+  hit by heavy thing, heavy thing hit by light thing, then a slope — three collisions in one shot.
+  None of it is visible before the step that introduces cannons, because the steps still gate what
+  is drawn.
+- **Fewer arrows to begin with.** Velocity, weight, friction, drag, buoyancy and the net force are
+  on; acceleration, applied push, normal force and rolling resistance start off. All still
+  switchable — this is only about what the first look should be, and a first look with a dozen
+  arrows on one object teaches nothing but that there are a lot of arrows.
+- **Friction opens on "steel on steel, oiled"** (0.15 / 0.09), and the object starts resting on the
+  ground rather than 0.6 m above it.
+- **The push starts at zero**, so nothing moves until it is moved.
+
+Returning visitors keep their own saved setup — these are the values a fresh browser gets.
+
 ## 1.0.1
 
 Three fixes for reading the bench on a phone.

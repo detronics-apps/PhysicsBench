@@ -223,6 +223,11 @@ test('step 8: momentum survives the collision and kinetic energy does not', () =
   const base = {
     mass: 1, mass2: 3, x0: 0, x2: 4, v0: 0, v2: 0,
     pushForce: 40, pushSeconds: 1, fluidId: 'vacuum', muS: 0, muK: 0, slopeDeg: 0,
+    // Two bodies and a push, and nothing else on the bench. Said out loud
+    // rather than inherited: the opening scene ships with a cannon in it, and a
+    // cannon is a second source of momentum. A test about a closed system has
+    // to declare the system closed.
+    walls: [], cannons: [],
   };
   for (const restitution of [0, 0.5, 1]) {
     const end = run('collide', { ...base, restitution }, 6);

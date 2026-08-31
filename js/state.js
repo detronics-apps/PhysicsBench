@@ -59,19 +59,31 @@ export const defaults = () => ({
   },
 
   /*
-   * Which arrows are drawn. Everything is on by default except momentum, which
-   * points the same way as velocity and only earns its place once there are two
-   * objects with different masses to compare.
+   * Which arrows are drawn to begin with. Every one of them is switchable, so
+   * this is only a question of what the first look should be — and a first look
+   * with a dozen arrows on one object teaches nothing but that there are a lot
+   * of arrows.
+   *
+   * The ones that start on are the ones a reader can name before they arrive:
+   * how fast it is going, what it weighs, what is holding it back, and the sum.
+   * The rest earn their place when they are the subject:
+   *
+   *   acceleration  reads as a second velocity arrow until something changes speed
+   *   applied       zero-length until there is a push to draw
+   *   normal        sits under the object, opposing a weight already shown
+   *   rolling       so much smaller than the others that it reads as a dot
+   *   momentum      points exactly where velocity points, and only separates
+   *                 from it once two objects of different mass are compared
    */
   vectors: {
     velocity: true,
-    acceleration: true,
+    acceleration: false,
     momentum: false,
-    applied: true,
+    applied: false,
     weight: true,
-    normal: true,
+    normal: false,
     friction: true,
-    rolling: true,
+    rolling: false,
     drag: true,
     buoyancy: true,
     control: true,
@@ -116,17 +128,36 @@ export const defaults = () => ({
 
   /** The one object on the bench, and everything that has been added to it. */
   bench: {
-    // The object itself.
-    mass: 1,
-    size: 0.4,
+    /*
+     * The object itself.
+     *
+     * The mass is not a round number because it is not chosen: a 0.5 m sphere
+     * of expanded polystyrene at 20 kg/m3 weighs 20 x (4/3)pi(0.25)^3 kg, and
+     * that is where every digit of it comes from. Rounding it to 1.3 would put
+     * the density panel at 19.86 kg/m3 and quietly make the app disagree with
+     * its own material table on the very first screen.
+     *
+     * Starting on a foam rather than a steel ball also means the fluid step has
+     * something to show: at this density air is worth noticing, and water lifts
+     * it rather than swallowing it.
+     */
+    mass: 1.308996938995747,
+    size: 0.5,
     shapeId: 'sphere',
-    materialId: 'steel',
+    materialId: 'polystyrene',
     x0: 0,
     y0: 0,
     v0: 0,
 
-    // The push: how hard, which way, for how long.
-    pushForce: 10,
+    /*
+     * The push: how hard, which way, for how long.
+     *
+     * Zero to begin with, so nothing moves until the reader moves it. Note that
+     * this leaves step two inert on arrival — the step is about the push, and
+     * the push is off. Raise this to 10 if the opening should demonstrate
+     * itself rather than wait.
+     */
+    pushForce: 0,
     pushAngleDeg: 0,
     pushSeconds: 2,
 
@@ -156,17 +187,17 @@ export const defaults = () => ({
      * a fresh object from the keys it knows, so every reload and every share
      * link silently dropped it back to the default. Declared, it survives.
      */
-    dropHeight: 0.6,
+    dropHeight: 0,
 
     /*
      * The surface. The coefficients start on a real named pair rather than a
-     * round pair of numbers, so the selector opens on "wood on wood" instead of
-     * "a value of my own" — which would be the app admitting on first sight
-     * that it does not know what its own defaults represent.
+     * round pair of numbers, so the selector opens on "steel on steel, oiled"
+     * instead of "a value of my own" — which would be the app admitting on
+     * first sight that it does not know what its own defaults represent.
      */
     slopeDeg: 0,
-    muS: 0.5,
-    muK: 0.3,
+    muS: 0.15,
+    muK: 0.09,
 
     // The fluid.
     fluidId: 'air',
@@ -201,14 +232,38 @@ export const defaults = () => ({
      * metres up" means the same thing on a tilted ramp as on a flat floor.
      */
     objects: [
-      { id: 'o2', mass: 3, size: 0.4, shapeId: 'sphere', materialId: 'rubber', x: 4, y: 0, vx: 0, vy: 0 },
+      { id: 'o2', mass: 1, size: 0.4, shapeId: 'sphere', materialId: 'rubber', x: 1, y: 0, vx: 0, vy: 0 },
     ],
 
-    /** Drawn obstacles: ramps, barriers, the walls of a box. */
-    walls: [],
+    /*
+     * Drawn obstacles: ramps, barriers, the walls of a box.
+     *
+     * One ramp, sitting just past the second ball. Its coordinates came from
+     * dragging on the drawing, so they are rounded to the centimetre here and
+     * the near end is snapped to the floor — it was drawn 17 mm underneath it,
+     * which is a hand missing by a pixel and not a decision.
+     */
+    walls: [
+      { x1: 1.68, y1: 0, x2: 3.56, y2: 1.2, restitution: 0.3, mu: 0.6 },
+    ],
 
-    /** Cannons, which give an object an initial velocity and nothing more. */
-    cannons: [],
+    /*
+     * Cannons, which give an object an initial velocity and nothing more.
+     *
+     * These three lines are one scene: a cannon at the left lobs a steel ball
+     * along the floor every two seconds, into the polystyrene sphere at the
+     * origin, which shunts the rubber ball into the ramp. Light thing hit by
+     * heavy thing, then heavy thing hit by light thing, then a slope — three
+     * collisions worth watching in one shot, and none of it visible until the
+     * step that introduces cannons, because the steps gate what is drawn.
+     */
+    cannons: [
+      {
+        id: 'cannon1', x: -3, y: 0.2, angleDeg: 5, speed: 9,
+        mass: 0.5, size: 0.2, shapeId: 'sphere', materialId: 'steel',
+        everySeconds: 2,
+      },
+    ],
 
     /** Driving one of the objects by hand. */
     control: { mode: 'none', targetId: 'main', strength: 15 },
