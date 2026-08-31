@@ -1,6 +1,6 @@
 {
   "name": "physics-bench",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "description": "An interactive physics laboratory: change a variable, watch what happens, measure it, then see the equation that describes it.",

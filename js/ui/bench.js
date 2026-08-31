@@ -15,6 +15,8 @@ import { equation } from '../models.js';
 import { stageById, featuresAt, pushState, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, MAX_WALLS } from '../segments.js';
+import { SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG } from '../friction.js';
+import { collisionsOn, collisionsForced } from '../stages.js';
 import { buoyantMass } from '../forces.js';
 import { SHAPES, MATERIALS, describe as describeObject, sizeFor, dragComparison, floats } from '../shapes.js';
 import { MAX_CANNONS } from '../state.js';
@@ -143,9 +145,9 @@ function otherMassSection(ctx) {
     }),
     el('div', { class: 'field__hint', text: comparison.text }),
     buttonRow([
-      button('Make it a planet', () => ctx.goToStage('planet'), {
+      button('Make it a planet', () => ctx.growPlanet(), {
         small: true, primary: true,
-        title: 'Same equation, a mass twenty-four orders of magnitude bigger',
+        title: 'Same equation, a mass twenty-four orders of magnitude bigger — watch it grow',
       }),
     ]),
   ], { key: 'other' });
@@ -219,8 +221,13 @@ function worldSection(ctx) {
         + 'above — which is why a small dense world can out-pull a huge fluffy one.',
     }),
 
-    sliderField('Drop it from', p.dropHeight ?? 0.6, (v) => set('dropHeight', v), {
+    sliderField('Drop it from', p.dropHeight, (v) => set('dropHeight', v), {
       min: 0, max: 20, step: 0.1, key: 'dropHeight', format: (v) => `${fmtFixed(v, 1)} m up`,
+      info: 'How far above the surface it is released. It only moves the object '
+        + 'while the clock is at zero — once it is falling, where it started is '
+        + 'no longer a description of where it is.',
+      hint: 'Whatever you set here, it accelerates at the same rate: the object\'s '
+        + 'own mass is not in g = G·M/r². Higher only means longer to watch.',
     }),
   ].filter(Boolean), { key: 'world' });
 }
@@ -247,23 +254,51 @@ function surfaceSection(ctx) {
       el('dd', { text: `${fmtFixed(Math.abs(weight * Math.sin(rad)), 2)} N` }),
     ]),
 
+    /*
+     * A named pair of surfaces, not just two numbers.
+     *
+     * A slider from 0 to 2 will happily sit at 1.7, and nothing on the bench
+     * said that no ordinary pair of dry solids does that. Picking "steel on
+     * ice" and reading 0.03, then "tyre on dry asphalt" and reading 0.9, is
+     * what puts a range around the number. The sliders stay underneath, because
+     * "what would 1.7 do?" is a fair question — it is just no longer the only
+     * way in.
+     */
+    f.has('friction') ? selectField('What is rubbing on what',
+      [...SURFACES.map((x) => ({ value: x.id, label: `${x.label} — μs ${x.muS}` })),
+        { value: 'custom', label: 'A value of my own' }],
+      matchSurface(p.muS, p.muK)?.id ?? 'custom',
+      (v) => {
+        const pair = surfaceById(v);
+        if (pair) ctx.setMany({ muS: pair.muS, muK: pair.muK });
+      },
+      { key: 'surfacePair', hint: describeSurface(matchSurface(p.muS, p.muK)) }) : null,
+
     f.has('friction') ? sliderField('Static friction μs', p.muS, (v) => set('muS', v), {
-      min: 0, max: 2, step: 0.05, key: 'muS',
+      min: 0, max: 2, step: 0.01, key: 'muS',
       format: (v) => fmtFixed(v, 2),
       info: 'The most friction can resist before it lets go, as a multiple of the '
-        + 'normal force. Rubber on dry asphalt is about 0.9; PTFE on steel, 0.04.',
+        + 'normal force. It is a ratio of two forces, not a percentage — nothing '
+        + 'caps it at 1, and a warm racing slick is about 1.4.',
     }) : null,
     f.has('friction') ? sliderField('Kinetic friction μk', p.muK, (v) => set('muK', Math.min(v, p.muS)), {
-      min: 0, max: 2, step: 0.05, key: 'muK',
+      min: 0, max: 2, step: 0.01, key: 'muK',
       format: (v) => fmtFixed(v, 2),
       hint: `Cannot exceed μs — that is what the two words mean. The drop from `
         + `${fmtFixed(p.muS, 2)} to ${fmtFixed(p.muK, 2)} is why a stuck object lurches when it moves.`,
     }) : null,
+    f.has('friction') ? el('div', { class: 'dims' }, [
+      el('dt', { text: 'Slides at' }),
+      el('dd', { text: `${fmtFixed(slipAngle(p.muS), 1)}° of tilt` }),
+      el('dt', { text: 'Could brake at' }),
+      el('dd', { text: `${fmtFixed(brakingG(p.muK), 2)} g` }),
+    ]) : null,
     f.has('friction') ? el('div', {
       class: 'field__hint',
-      text: `It will start to slide at ${fmtFixed((Math.atan(p.muS) * 180) / Math.PI, 1)}° — `
-        + 'the angle where tan θ passes μs, which is a way of measuring μs with a '
-        + 'plank and a protractor.',
+      text: 'The slip angle is not a derived curiosity — tan θ = μs is how μs is '
+        + 'actually measured, with a plank and a protractor. Every figure in the '
+        + 'list is indicative: published values for the same pair differ by more '
+        + 'than a factor of two with finish, cleanliness and temperature.',
     }) : null,
   ].filter(Boolean), { key: 'surface' });
 }
@@ -390,6 +425,27 @@ function objectsSection(ctx) {
       extras.length ? button('Clear them all', () => ctx.clearObjects(), { small: true }) : null,
     ].filter(Boolean)),
     editor,
+    /*
+     * Solidity, switchable.
+     *
+     * "What if they passed straight through each other?" is a fair thing to
+     * want to see, and with twenty objects it is the difference between a
+     * pile-up and a swarm. Overruled where mutual gravitation is the model,
+     * because there it is not a preference — see the hint.
+     */
+    toggleField('Objects collide with each other', collisionsOn(p, ctx.features, ctx.world.bodies), (v) => ctx.set('collisions', v), {
+      key: 'collisions',
+      hint: collisionsForced(ctx.features)
+        ? 'Held on at this step, and not as a preference: gravity goes as 1/r², '
+          + 'which has no limit at zero separation. Two bodies that can pass '
+          + 'through each other find that singularity and one of them leaves at a '
+          + 'fraction of the speed of light.'
+        : 'Off, and everything — including whatever the cannons fire — passes '
+          + 'straight through everything else. Nothing about gravity, drag or '
+          + 'friction changes; only contact stops happening.',
+      info: 'Applies to every pair on the bench, cannon shots included.',
+    }),
+
     sliderField('Bounciness e', p.restitution, (v) => ctx.set('restitution', v), {
       min: 0, max: 1, step: 0.05, key: 'restitution',
       format: (v) => `e = ${fmtFixed(v, 2)}`,

@@ -283,13 +283,34 @@ function drawPlanet(cam, planet) {
   const centre = toScreen(cam, planet.pos);
   const radiusPx = toPixels(cam, planet.radius);
 
-  if (radiusPx < VIEW_W * 3) {
+  /*
+   * A circle only while a circle fits.
+   *
+   * The test used to be a fixed radius, generously large, and a world a few
+   * hundred pixels across therefore got a circle that ran a thousand pixels
+   * past every edge of the canvas — with its label placed at the centre, which
+   * by then was off the bottom of the drawing entirely. Invisible on screen,
+   * because SVG clips to its viewBox; very visible in an export, and it breaks
+   * any measurement of whether the drawing fits its own frame.
+   *
+   * The arc branch below is not a fallback for "too big to draw". It is the
+   * correct picture of a surface crossing the view at any radius, and the sag
+   * it draws is the true sag. So the honest test is simply whether the circle
+   * is inside the canvas, and if it is not, the arc is what should have been
+   * drawn all along.
+   */
+  const fitsAsCircle = radiusPx < VIEW_W * 3
+    && centre.x - radiusPx >= -2 && centre.x + radiusPx <= VIEW_W + 2
+    && centre.y - radiusPx >= -2 && centre.y + radiusPx <= VIEW_H + 2;
+
+  if (fitsAsCircle) {
     group.appendChild(svg('circle', {
       cx: r(centre.x), cy: r(centre.y), r: r(radiusPx),
       fill: 'var(--ground)', 'fill-opacity': 0.28,
       stroke: 'var(--ground)', 'stroke-width': 2.5,
     }));
-    if (radiusPx > 26) {
+    // Only where there is a centre on screen to write it at.
+    if (radiusPx > 26 && centre.y > 10 && centre.y < VIEW_H - 10) {
       group.appendChild(svg('text', {
         x: r(centre.x), y: r(centre.y + 5), 'text-anchor': 'middle',
         fill: 'var(--text-dim)', 'font-size': 12, 'font-weight': 600,

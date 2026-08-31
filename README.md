@@ -20,8 +20,8 @@ its slider is still where you left it.
 | 4 | **Grow it into a planet** | What has to change before that pull turns into weight? |
 | 5 | **Stand it on something** | If gravity is still pulling, what holds it up? |
 | 6 | **Make the surface grip** | What happens if the surface holds on? |
-| 7 | **Put it in a fluid** | Air, water, honey — what actually changes? |
-| 8 | **A second object** | What survives a collision, and what does not? |
+| 7 | **Fluids and objects** | Air, water, honey — what actually changes? |
+| 8 | **Playground** | Everything at once — what survives a collision, and what does not? |
 
 From step five the bench can also be moved to **deep space**, which removes the floor and the
 gravitational field together — the honest pairing, since there is no such thing as a world with
@@ -32,6 +32,12 @@ The point of building it this way is that split across separate labs, "mass", "f
 "friction" and "drag" look like separate subjects with separate formulas. Accumulated on one
 object they are visibly one story: each step is another force joining the same vector sum, and the
 sum is what decides what happens next.
+
+The move from step 3 to step 4 is shown rather than asserted. Press **make it a planet** and the
+second mass slides under the first and inflates: the same equation and the same code path, with the
+mass climbing twenty-four orders of magnitude while the object above it does not move and does not
+change size on screen. The surface stays exactly where the object was dropped from, so the animation
+ends where the next step begins.
 
 Steps 3 and 4 are the spine of it. Two ordinary masses a few metres apart really do attract, with
 about 4×10⁻⁹ N — roughly a millionth of the weight of a grain of sand. Grow one of them into a
@@ -74,7 +80,9 @@ The last two steps turn the bench into a sandbox without taking anything away fr
   lesson as the timed push in step two: whatever happens next is gravity, drag and walls, never a
   memory of having been fired.
 - **Twenty objects**, each with its own size, mass and shape. Cannon shots count towards the twenty,
-  and when the bench is full the cannons stop and say so.
+  and when the bench is full the cannons stop and say so. Whether they are solid at all is a switch —
+  with twenty of them it is the difference between a pile-up and a swarm — except under mutual
+  gravitation, where solidity is part of the model rather than a preference.
 - **Driving.** Connect an object to the pointer or to the arrow keys. Both are forces — they join
   the same vector sum as weight and friction, get their own arrow, and their work is booked on the
   same ledger. Moving the object directly would give it infinite acceleration and no momentum
@@ -129,6 +137,11 @@ than intended. Some consequences:
   Where a computed value differs from the published figure — Jupiter and Saturn, whose quoted
   surface gravities subtract a large rotational effect this model does not include — the note says
   so rather than the app quietly storing the published number instead.
+- **Friction is a pair of surfaces, not a number.** Sixteen real pairs, from a skate on ice at 0.03
+  to a warm racing slick at 1.4, each carrying the range its published values actually span — a
+  coefficient quoted to two decimals with nothing around it is exactly the false precision this app
+  exists to avoid. Two of them are worth reading twice: μ is a ratio of forces and can exceed 1, and
+  a loose surface like gravel is not really Coulomb friction at all, which its note says.
 - **"Air resistance goes as v²" is only true in one regime,** and the app lets you pick honey,
   where it is flatly false. Drag uses one coefficient that varies with the Reynolds number
   (Clift–Gauvin), which collapses exactly to Stokes' law at the low end and to the familiar
@@ -167,7 +180,7 @@ nothing to install:
 npm test
 ```
 
-310 cases across 21 modules, and they are invariants rather than examples: momentum is conserved at
+325 cases across 22 modules, and they are invariants rather than examples: momentum is conserved at
 every coefficient of restitution, work done equals kinetic energy gained, the drag correlation
 matches Stokes' law to 3% where Stokes applies, the attraction between two bodies is equal and
 opposite whatever their masses, a drawn wall holds a body at exactly the height the ground would, a
@@ -195,6 +208,7 @@ js/vec.js             2D vectors; x right, y UP, angles anticlockwise
 js/constants.js       G, standard gravity, c — and which of them are defined
 js/gravitation.js     G·m₁·m₂/r², the worlds, and when a sphere becomes flat
 js/drag.js            Reynolds number, the fluids, and why honey is not thick air
+js/friction.js        real pairs of surfaces, and the range their values span
 js/shapes.js          what shape changes: how it sits, its area, its drag, its outline
 js/segments.js        drawn walls: contact, normals, and where a ramp ends
 js/control.js         driving by pointer or keyboard, as forces rather than teleports

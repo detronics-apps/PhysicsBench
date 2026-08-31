@@ -1,5 +1,56 @@
 # Changelog
 
+## 2.3.0
+
+Real surfaces instead of a bare number, solidity you can switch off, and the third step now shows
+you the fourth one happening rather than asking you to believe it.
+
+### What changed
+
+- **Step 7 is "Fluids and objects" and step 8 is "Playground."** The last step is where everything
+  from the first seven is switched on at once, and calling it "a second object" undersold it.
+- **Friction is picked from real pairs of surfaces.** Steel on ice at 0.03, wood on wood at 0.5,
+  tyre on dry asphalt at 0.9, a warm racing slick at 1.4 — sixteen pairs, each with the range
+  published values actually span and a note on what makes it interesting. The sliders stay
+  underneath, because "what would 1.7 do?" is a fair question; it is just no longer the only way in.
+  Beside them are the two numbers a coefficient is hard to picture without: the tilt it starts to
+  slide at, and the braking it allows in g.
+- **Solid objects can be made not solid.** One switch, applying to every pair on the bench including
+  whatever the cannons fire. With twenty objects it is the difference between a pile-up and a swarm.
+  It is held on under mutual gravitation, and not as a preference: 1/r² has no limit at zero
+  separation, and bodies that can pass through each other find it.
+- **"Make it a planet" now shows you what it means.** The second mass slides under the first and
+  then inflates — the same equation and the same code path, with the mass climbing twenty-four
+  orders of magnitude while the object above it does not move and does not change size on screen.
+  The surface never moves either: it stays where the object was dropped from, so the run ends
+  exactly where the fourth step begins, with nothing snapping into place. The caption reads out the
+  surface gravity as it climbs, from 10⁻⁷ m/s² to 9.82.
+
+### Fixes found while verifying
+
+- **"Drop it from" did nothing, and then did the opposite.** `dropHeight` was never declared in the
+  state, so `migrate` rebuilt the parameters without it on every reload and every share link; and
+  `applyLive` kept its own copy of the starting-position logic that knew nothing about it, so
+  dragging the slider put the object at y = 0 rather than raising it. There is now one function that
+  decides where an object starts, called by both paths.
+- **A world a few hundred pixels across was drawn as a circle running a thousand pixels past every
+  edge of the canvas**, with its label placed at a centre that was off the bottom of the drawing.
+  Invisible on screen, because SVG clips to its viewBox; very visible in an export. The arc branch
+  is not a fallback for "too big to draw" — it is the correct picture of a surface crossing the view
+  at any radius — so the test is now simply whether the circle fits.
+- **The growth would have stalled in a background tab.** `requestAnimationFrame` stops there
+  entirely, and while progress is measured from the wall clock rather than counted in frames, the
+  run needed something other than a frame to finish it. It now also declines to animate at all if
+  the tab is hidden when it starts, because nobody is watching.
+- **The default coefficients matched no named pair**, so the new selector opened on "a value of my
+  own" — the app admitting on first sight that it did not know what its own defaults represented.
+
+Verified across 153 rendered frames and 183 graphs — every step, both worlds, every surface pair,
+solidity both ways, three drop heights, and every frame of the growth at 2% intervals, plus five
+custom worlds from a 500 m rock to a neutron star: no NaN reaching the DOM, nothing outside its
+canvas, no label touching another, every export free of unresolved custom properties. Checked again
+at 375 px.
+
 ## 2.2.0
 
 Inputs on one side, everything the experiment says back on the other — and the sliders became

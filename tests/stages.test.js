@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   STAGES, stageById, stageIndex, featuresAt, build, applyPush, pushState,
   channelsFor, vectorsFor, applyLive, structuralKey, MAX_OBJECTS, inSpace,
+  collisionsOn, collisionsForced, startPosition,
 } from '../js/stages.js';
 import { defaults, VECTOR_IDS } from '../js/state.js';
 import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
@@ -420,4 +421,128 @@ test('up to twenty objects, each with its own size, mass and shape', () => {
   assert.equal(movable.length, 20);
   // Each really is its own object, not twenty copies of one.
   assert.equal(new Set(movable.map((b) => b.mass)).size, 20);
+});
+
+/* ------------------------------------------------ the drop, and solidity -- */
+
+test('the drop height moves the object, on a rebuild and while live', () => {
+  /*
+   * It did neither. `dropHeight` was never declared in the state, so `migrate`
+   * dropped it on every reload and every share link; and `applyLive` had its
+   * own copy of the starting-position logic that knew nothing about it, so
+   * dragging the slider put the object at y = 0 — the opposite of what the
+   * control said it did.
+   */
+  const p = { ...defaults().bench, dropHeight: 5, size: 0.4 };
+  const f = featuresAt('planet');
+  const built = build('planet', p).world;
+  const support = 0.2;
+  close(findBody(built, 'main').pos.y, support + 5, 1e-9);
+
+  const raised = applyLive(built, { ...p, dropHeight: 9 }, f, { stageId: 'planet' });
+  close(findBody(raised, 'main').pos.y, support + 9, 1e-9);
+
+  // And the two routes agree, which is the only way they stay agreeing.
+  close(
+    findBody(applyLive(built, p, f, { stageId: 'planet' }), 'main').pos.y,
+    findBody(built, 'main').pos.y,
+    1e-12,
+  );
+});
+
+test('the drop height changes how long you watch, not how fast it falls', () => {
+  /*
+   * The point of the control is that where it started is not in g = G·M/r², any
+   * more than the object's own mass is.
+   *
+   * It is not *exactly* the same, and the difference is the interesting part:
+   * this step uses the real inverse-square law rather than a constant g, so
+   * being fourteen metres further from the centre of the Earth really is
+   * fractionally weaker — by 2·Δr/r, which is about four parts in a million.
+   * A test that demanded exact equality would be demanding the app get the
+   * physics wrong.
+   */
+  const rate = (dropHeight) => {
+    const p = { ...defaults().bench, dropHeight, pushSeconds: 0, v0: 0 };
+    let w = build('planet', p).world;
+    // Two tenths of a second: about 20 cm of fall, so both are still in the
+    // air. Run it longer and the low one has landed, which measures a bounce.
+    for (let i = 0; i < 20; i += 1) w = advance(w, 1 / 100);
+    return findBody(w, 'main').vel.y;
+  };
+
+  const low = rate(1);
+  const high = rate(15);
+  assert.ok(low < -1.5, 'it is not falling at all');
+
+  // The same to a part in ten thousand: the drop height is not what decides it.
+  assert.ok(Math.abs((high - low) / low) < 1e-4, `differ by ${(high - low) / low}`);
+
+  // And the residue is the inverse-square law, the right way round and the
+  // right size — the higher one falls very slightly more slowly.
+  assert.ok(Math.abs(high) < Math.abs(low));
+  const predicted = (2 * 14) / defaults().bench.planetRadius;
+  close(Math.abs((high - low) / low), predicted, predicted * 0.2);
+});
+
+test('solidity can be switched off, except where the model needs it', () => {
+  const p = defaults().bench;
+  const two = [{ id: 'a' }, { id: 'b' }];
+
+  assert.equal(collisionsOn({ ...p, collisions: true }, featuresAt('collide'), two), true);
+  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('collide'), two), false);
+
+  // Not a preference under mutual gravitation: 1/r² has no limit at zero
+  // separation, and bodies that can pass through each other find it.
+  assert.equal(collisionsOn({ ...p, collisions: false }, featuresAt('two-masses'), two), true);
+  assert.equal(collisionsForced(featuresAt('two-masses')), true);
+  assert.equal(collisionsForced(featuresAt('collide')), false);
+
+  // One object has nothing to collide with.
+  assert.equal(collisionsOn({ ...p, collisions: true }, featuresAt('collide'), [{ id: 'a' }]), false);
+});
+
+test('the switch reaches the world, on a rebuild and while live', () => {
+  const p = { ...defaults().bench, collisions: false };
+  const built = build('collide', p).world;
+  assert.equal(built.bodyCollisions, false);
+
+  const on = applyLive(built, { ...p, collisions: true }, featuresAt('collide'), { stageId: 'collide' });
+  assert.equal(on.bodyCollisions, true);
+});
+
+test('with solidity off, objects pass through each other', () => {
+  const make = (collisions) => {
+    const p = {
+      ...defaults().bench,
+      collisions,
+      stage: 'collide',
+      worldMode: 'space',
+      fluidId: 'vacuum',
+      pushSeconds: 0,
+      v0: 4,
+      objects: [{ id: 'o2', mass: 1, size: 0.4, shapeId: 'sphere', x: 3, y: 0, vx: 0, vy: 0 }],
+      walls: [],
+      cannons: [],
+    };
+    let w = build('collide', p).world;
+    for (let i = 0; i < 200; i += 1) w = advance(w, 1 / 100);
+    return findBody(w, 'main').pos.x;
+  };
+  // Solid: it hits the other one and is slowed. Not solid: it sails on at 4 m/s
+  // for two seconds, from x = 0.
+  assert.ok(make(false) > 7.5, `passed through only as far as ${make(false)}`);
+  assert.ok(make(true) < make(false) - 1);
+});
+
+/* ------------------------------------------------------ what they are called -- */
+
+test('the last two steps are named for what they are', () => {
+  assert.equal(stageById('fluid').label, 'Fluids and objects');
+  assert.equal(stageById('collide').label, 'Playground');
+  // The short labels are what a phone shows, so they have to stand alone.
+  for (const stage of STAGES) {
+    assert.ok(stage.short.length <= 12, `${stage.id} short label is ${stage.short.length} characters`);
+    assert.ok(stage.label && stage.ask && stage.discover && stage.watch);
+  }
 });

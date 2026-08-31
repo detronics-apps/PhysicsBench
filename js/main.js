@@ -22,7 +22,7 @@
 import { load, save, saveSoon, state, reset } from './state.js';
 import { el, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
-import { configureSections, button, drag } from './ui/widgets.js';
+import { configureSections, button, drag, banner } from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
 
 import {
@@ -30,10 +30,13 @@ import {
   channelsFor, vectorsFor, MAX_OBJECTS,
 } from './stages.js';
 import { controlForce } from './control.js';
+import { describe as describeObject } from './shapes.js';
+import { surfaceGravity } from './gravitation.js';
+import { fmtFixed } from './format.js';
 import { boxWalls } from './segments.js';
 import { toWorld } from './camera.js';
-import { ZERO } from './vec.js';
-import { advance, inspect, totals, snapshot as snapWorld } from './world.js';
+import { vec, ZERO } from './vec.js';
+import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime } from './recorder.js';
 import { renderScene, sceneLegend, sceneCamera } from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
@@ -45,7 +48,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.2.0';
+export const APP_VERSION = '2.3.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -252,10 +255,190 @@ function rebuild() {
   sim.recorder = record(sim.recorder, sim.world, { bodyId: state.selectedId, force: true });
 }
 
+/* ------------------------------------------------- growing into a planet -- */
+
+/**
+ * The third step ends with a question the fourth step answers, and the answer
+ * is easier to believe if you watch it happen.
+ *
+ * Two masses a few metres apart attract with about four billionths of a newton.
+ * Jumping straight from that to "and this is weight" asks the reader to take
+ * on trust that the two are the same force. So instead the second mass slides
+ * under the first and inflates: same equation, same code path, a mass climbing
+ * twenty-four orders of magnitude while the object above it does not move and
+ * does not change size on screen. The pull it feels goes from a billionth of a
+ * newton to its weight, and nothing was added.
+ *
+ * Both interpolations are geometric, not linear. From half a metre to six
+ * thousand kilometres is seven orders of magnitude; stepped linearly it would
+ * appear not to move for nine tenths of the run and then fill the screen in the
+ * last frame.
+ */
+const GROWTH = { seconds: 3.4, slide: 0.28 };
+let growth = null;
+
+const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - ((-2 * u + 2) ** 2) / 2);
+const geometric = (from, to, k) => from * ((to / from) ** k);
+
+/** The scene part-way through the growth, as an ordinary world. */
+function growthWorld(u) {
+  const p = state.bench;
+  const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+  const other = describeObject({ shapeId: 'sphere', size: p.otherSize, mass: p.otherMass });
+
+  // Everything is laid out in the coordinates step four will use: the surface
+  // at y = 0, the object its drop height above it. So the run ends exactly
+  // where the next step begins, with nothing to snap into place.
+  const mainY = object.support + Math.max(0, p.dropHeight);
+  const r0 = Math.max(0.05, other.size / 2);
+  const startX = p.otherX;
+
+  const sliding = u < GROWTH.slide;
+  const k = easeInOut(sliding ? u / GROWTH.slide : (u - GROWTH.slide) / (1 - GROWTH.slide));
+
+  const radius = sliding ? r0 : geometric(r0, p.planetRadius, k);
+  const mass = sliding ? p.otherMass : geometric(p.otherMass, p.planetMass, k);
+  const x = sliding ? startX + (0 - startX) * k : 0;
+
+  return {
+    world: createWorld({
+      g: 0,
+      field: vec(0, 0),
+      // Left on, so the arrow the reader is watching is the same one the last
+      // step drew — computed from G·m₁·m₂/r², not swapped for a downward g.
+      mutualGravity: true,
+      ground: null,
+      bounds: null,
+      bodyCollisions: false,
+      trailLimit: 0,
+      bodies: [
+        {
+          id: 'main',
+          kind: object.shape.circle ? 'ball' : 'box',
+          shapeId: object.shape.id,
+          label: `${fmtFixed(object.mass, object.mass < 10 ? 2 : 0)} kg`,
+          mass: object.mass,
+          radius: object.support,
+          width: object.size,
+          height: object.height,
+          diameter: object.size,
+          volume: object.volume,
+          pos: vec(p.x0 ?? 0, mainY),
+          vel: vec(0, 0),
+          colour: 0,
+        },
+        {
+          id: 'other',
+          // An ordinary body while it is still an ordinary body. It becomes a
+          // planet the moment it starts growing, which is what pins the object
+          // above it to a constant size on screen — the whole point of watching.
+          kind: sliding ? 'ball' : 'planet',
+          shapeId: 'sphere',
+          label: sliding ? `${fmtFixed(p.otherMass, 0)} kg` : `${mass.toExponential(2)} kg`,
+          mass,
+          radius,
+          diameter: radius * 2,
+          volume: (4 / 3) * Math.PI * radius ** 3,
+          // Centre placed so the top of the sphere stays at y = 0 however big
+          // it gets: the surface never moves, only the far side of the world.
+          pos: vec(x, sliding ? -r0 : -radius),
+          fixed: true,
+          colour: 1,
+        },
+      ],
+    }),
+    sliding,
+    radius,
+    mass,
+  };
+}
+
+/** What to say about it while it happens. */
+function growthCaption(frame) {
+  if (frame.sliding) {
+    return 'The second mass is moving under the first. Nothing about the force '
+      + 'has changed yet — this is still the same faint attraction, and it is '
+      + 'about to be the same faint attraction with a planet on the other end.';
+  }
+  const g = surfaceGravity(frame.mass, frame.radius);
+  // Metres while it is metres. "0.000500 km" is a number that has forgotten
+  // what it is describing.
+  const across = frame.radius >= 1000
+    ? `${(frame.radius / 1000).toPrecision(3)} km`
+    : `${frame.radius.toPrecision(3)} m`;
+  return `Growing: ${frame.mass.toExponential(2)} kg at a radius of ${across} gives `
+    + `${g < 0.01 ? g.toExponential(2) : fmtFixed(g, 4)} m/s² at its surface. The object `
+    + 'above it has not moved and has not changed size. Only the mass under it is '
+    + 'changing, and the same G·m₁·m₂/r² is doing all of it.';
+}
+
+/**
+ * Run the growth, then hand over to the fourth step.
+ *
+ * It drives its own animation frames rather than the simulation clock, because
+ * nothing here is being simulated: this is one continuous illustration of a
+ * parameter changing, and stepping physics through a body whose mass climbs by
+ * 10²⁴ in three seconds would produce nonsense worth no one's time.
+ */
+function growPlanet() {
+  if (growth) return;
+  // Nobody is watching a hidden tab, and an animation is only worth the time it
+  // takes if someone is there for it.
+  if (typeof document !== 'undefined' && document.hidden) {
+    goToStage('planet');
+    return;
+  }
+
+  state.transport.playing = false;
+  cancelAnimationFrame(clock.raf);
+  growth = { started: performance.now(), frame: growthWorld(0) };
+  render();
+
+  const finish = () => {
+    if (!growth) return;
+    stopGrowth();
+    goToStage('planet');
+  };
+
+  const tick = (now) => {
+    if (!growth) return;
+    const u = Math.min(1, (now - growth.started) / (GROWTH.seconds * 1000));
+    growth.frame = growthWorld(u);
+    paint(true);
+    if (u < 1) {
+      growth.raf = requestAnimationFrame(tick);
+      return;
+    }
+    finish();
+  };
+  growth.raf = requestAnimationFrame(tick);
+
+  /*
+   * A timer that finishes the job whatever the frames do.
+   *
+   * `requestAnimationFrame` stops entirely in a backgrounded tab. Progress is
+   * measured from the wall clock rather than counted in frames, so a stall
+   * resumes correctly — but without this the growth would sit half-finished for
+   * as long as the tab stayed hidden, with the sidebar still showing the step
+   * before. Time passing is what ends it; the frames only decide how much of it
+   * anyone sees.
+   */
+  growth.fallback = setTimeout(finish, GROWTH.seconds * 1000 + 300);
+}
+
+/** Abandon the growth — any other control the reader touches means they are done watching. */
+function stopGrowth() {
+  if (!growth) return;
+  cancelAnimationFrame(growth.raf);
+  clearTimeout(growth.fallback);
+  growth = null;
+}
+
 const shownTime = () => (state.transport.scrubT !== null ? state.transport.scrubT : sim.world.t);
 
 /** The bodies to draw: live, or the recorded frame being scrubbed to. */
 function shownWorld() {
+  if (growth) return growth.frame.world;
   if (state.transport.scrubT === null) return sim.world;
   const frame = frameAt(sim.recorder, state.transport.scrubT);
   return frame ? { ...sim.world, t: frame.t, bodies: frame.bodies, ledger: frame.ledger } : sim.world;
@@ -282,6 +465,8 @@ function shownWorld() {
  * caller can always say 'live' and be right.
  */
 export function update(mutate, { sim: how = 'live' } = {}) {
+  // Touching any control means the reader has stopped watching the growth.
+  if (how === 'full') stopGrowth();
   mutate(state);
   saveSoon();
   if (how === 'full') rebuild();
@@ -434,7 +619,13 @@ function paint(force = false) {
   for (const node of bench.readouts(ctx)) dom.readout.appendChild(node);
 
   clear(dom.banners);
-  for (const node of bench.banners(ctx)) dom.banners.appendChild(node);
+  if (growth) {
+    // One caption, and none of the ordinary commentary: every banner the bench
+    // would otherwise show is about a simulation that is not running.
+    dom.banners.appendChild(banner('info', growthCaption(growth.frame)));
+  } else {
+    for (const node of bench.banners(ctx)) dom.banners.appendChild(node);
+  }
 
   // The graphs and the inspector carry a lot of DOM for numbers a person cannot
   // read sixty times a second, so they are redrawn at about twenty.
@@ -573,6 +764,9 @@ function context() {
     setControl: (patch) => update((draft) => {
       draft.bench.control = { ...draft.bench.control, ...patch };
     }),
+
+    growPlanet,
+    growing: !!growth,
 
     actions,
   };
@@ -940,6 +1134,16 @@ window.PhysicsBench = {
   // The verification pass drives these directly rather than synthesising
   // pointer events, which tests the model rather than the event plumbing.
   input,
+  growPlanet,
+  growthFrame: (u) => growthWorld(u),
+  showGrowth: (u) => {
+    growth = growth || { started: performance.now() };
+    growth.frame = growthWorld(u);
+    paint(true);
+    return growth.frame;
+  },
+  endGrowth: () => { stopGrowth(); },
+  growing: () => !!growth,
   setPointer: (x, y) => { input.pointer = x === null ? null : { x, y }; },
   setPressed: (on) => { input.pressed = !!on; },
   setEngaged: (on) => { input.engaged = !!on; },

@@ -115,16 +115,40 @@ export const defaults = () => ({
     planetMass: 5.9722e24,
     planetRadius: 6.371e6,
 
-    // The surface.
+    /*
+     * How far above the surface the object is released, at the step where the
+     * ground has not been drawn yet.
+     *
+     * This lived only in `state.bench` as an undeclared extra: `migrate` builds
+     * a fresh object from the keys it knows, so every reload and every share
+     * link silently dropped it back to the default. Declared, it survives.
+     */
+    dropHeight: 0.6,
+
+    /*
+     * The surface. The coefficients start on a real named pair rather than a
+     * round pair of numbers, so the selector opens on "wood on wood" instead of
+     * "a value of my own" — which would be the app admitting on first sight
+     * that it does not know what its own defaults represent.
+     */
     slopeDeg: 0,
     muS: 0.5,
-    muK: 0.35,
+    muK: 0.3,
 
     // The fluid.
     fluidId: 'air',
 
     // Bounciness, shared by everything that can hit anything.
     restitution: 0.6,
+
+    /*
+     * Whether solid objects bounce off each other at all.
+     *
+     * Overruled where mutual gravitation is the model, because there it is not
+     * a preference: 1/r² has a singularity at zero separation, and two bodies
+     * that can pass through each other find it.
+     */
+    collisions: true,
 
     /*
      * Every object after the first, each with its own size, mass and shape.
@@ -229,6 +253,7 @@ export function migrate(incoming) {
       planetMass: mass(b.planetMass, d.planetMass),
       planetRadius: clamp(b.planetRadius, 1, 1e12, d.planetRadius),
 
+      dropHeight: clamp(b.dropHeight, 0, 500, d.dropHeight),
       slopeDeg: clamp(b.slopeDeg, -60, 60, d.slopeDeg),
       muS: clamp(b.muS, 0, 5, d.muS),
       // Kinetic friction cannot exceed static — that is not a preference, it is
@@ -238,6 +263,7 @@ export function migrate(incoming) {
       fluidId: oneOf(b.fluidId, FLUID_IDS, d.fluidId),
 
       restitution: clamp(b.restitution, 0, 1, d.restitution),
+      collisions: bool(b.collisions, d.collisions),
 
       // Version 2 kept exactly one collision partner in five loose fields.
       // Carry it into the list rather than dropping it, so an old share link

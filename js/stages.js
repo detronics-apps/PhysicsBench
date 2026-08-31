@@ -127,8 +127,8 @@ export const STAGES = [
   },
   {
     id: 'fluid',
-    label: 'Put it in a fluid',
-    short: 'Fluid',
+    label: 'Fluids and objects',
+    short: 'Fluids',
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'sandbox'],
     ask: 'Air, water, honey — what actually changes?',
     discover: 'Two things about a fluid matter: how much of it there is to shove '
@@ -144,10 +144,10 @@ export const STAGES = [
   },
   {
     id: 'collide',
-    label: 'A second object',
-    short: 'Collide',
+    label: 'Playground',
+    short: 'Playground',
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'sandbox', 'collide', 'control'],
-    ask: 'What survives a collision, and what does not?',
+    ask: 'Everything at once — what survives a collision, and what does not?',
     discover: 'Total momentum comes out exactly as it went in, every time, '
       + 'whatever the objects do to each other. Kinetic energy does not — only a '
       + 'perfectly elastic collision keeps it, and almost nothing is. What '
@@ -155,7 +155,9 @@ export const STAGES = [
     watch: 'Change the bounciness and watch which of the two totals moves. Then '
       + 'take the controls yourself and drive one object into the others — the '
       + 'steering is a force like any other, so it appears as an arrow and its '
-      + 'work is on the same books.',
+      + 'work is on the same books. Everything from the first seven steps is '
+      + 'still here and still switched on; this is the same bench with nothing '
+      + 'held back.',
   },
 ];
 
@@ -219,6 +221,34 @@ export function objectList(p, f) {
   return list;
 }
 
+/**
+ * Where an object starts, given what there is to stand on.
+ *
+ * One function, called by both `build` and `applyLive`, because the two
+ * disagreeing is not a cosmetic problem: `applyLive` had its own copy that
+ * knew nothing about the drop height, so dragging "drop it from" — at t = 0,
+ * where a starting position is still a description of where the object is —
+ * put the object at y = 0 instead of raising it. The control appeared to do
+ * nothing, or worse, the opposite of what it said.
+ */
+export function startPosition(spec, object, p, f, { hasGround, onWorld }) {
+  if (hasGround) {
+    const rad = ((p.slopeDeg || 0) * Math.PI) / 180;
+    const clear = object.support + Math.max(0, spec.y ?? 0);
+    return vec(
+      (spec.x ?? 0) * Math.cos(rad) - clear * Math.sin(rad),
+      (spec.x ?? 0) * Math.sin(rad) + clear * Math.cos(rad),
+    );
+  }
+  // On a world with no ground drawn — step four — the object is released a
+  // little above the surface, so the first thing it does is fall. Free fall is
+  // what makes the pull recognisable as weight.
+  if (spec.main && onWorld) {
+    return vec(spec.x ?? 0, object.support + Math.max(0, p.dropHeight ?? 0));
+  }
+  return vec(spec.x ?? 0, spec.y ?? 0);
+}
+
 /** One object spec turned into the body the world wants. */
 function bodyFor(spec, p, f, { space, surfaceRest }) {
   const object = describeObject({ shapeId: spec.shapeId, size: spec.size, mass: spec.mass });
@@ -278,29 +308,9 @@ export function build(stageId, p) {
   const gravityMode = hasGround ? 'uniform' : (f.has('mutual-gravity') && !space ? 'mutual' : 'none');
   const g = planet ? planet.g : 0;
 
-  const rad = ((p.slopeDeg || 0) * Math.PI) / 180;
-  /** A body resting exactly on the ramp, `distance` along it and `up` above it. */
-  const surfaceRest = (obj, spec) => {
-    if (!hasGround) return vec(spec.x ?? 0, spec.y ?? 0);
-    const along = spec.x ?? 0;
-    const clear = obj.support + Math.max(0, spec.y ?? 0);
-    return vec(
-      along * Math.cos(rad) - clear * Math.sin(rad),
-      along * Math.sin(rad) + clear * Math.cos(rad),
-    );
-  };
-
+  const surfaceRest = (obj, spec) => startPosition(spec, obj, p, f, { hasGround, onWorld });
   const specs = objectList(p, f);
-  const bodies = specs.map((spec) => {
-    const b = bodyFor(spec, p, f, { space, surfaceRest });
-    // On a world with no ground drawn — step four — the object is released a
-    // little above the surface, so the first thing it does is fall. Free fall
-    // is what makes the pull recognisable as weight.
-    if (spec.main && onWorld && !hasGround) {
-      b.pos = vec(p.x0 ?? 0, object.support + (p.dropHeight ?? 0.6));
-    }
-    return b;
-  });
+  const bodies = specs.map((spec) => bodyFor(spec, p, f, { space, surfaceRest }));
 
   /*
    * The other mass, and what it becomes.
@@ -365,7 +375,7 @@ export function build(stageId, p) {
      * small one away at half the speed of light. Letting them touch instead is
      * both the honest model and the one that behaves.
      */
-    bodyCollisions: bodies.filter((b) => !b.fixed).length > 1 || f.has('mutual-gravity'),
+    bodyCollisions: collisionsOn(p, f, bodies),
     collisionRestitution: p.restitution,
     bodies,
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
@@ -384,6 +394,28 @@ export function build(stageId, p) {
     equations: equationsFor(f, { fluid, space }),
   };
 }
+
+/**
+ * Do solid objects bounce off each other in this scene?
+ *
+ * Switchable, because "what happens if they pass straight through" is a fair
+ * thing to want to see — with twenty objects it is the difference between a
+ * pile-up and a swarm — and because turning it off makes the cannon's shots
+ * fly through the scene rather than scattering off it.
+ *
+ * With one exception, which is not a preference. G·m₁·m₂/r² has a singularity
+ * at r = 0: let two bodies interpenetrate under mutual gravity and the
+ * attraction climbs without limit, flinging the small one away at a fraction of
+ * the speed of light. Where that is the model, solidity is part of it.
+ */
+export function collisionsOn(p, f, bodies = []) {
+  if (f.has('mutual-gravity')) return true;
+  if (p.collisions === false) return false;
+  return bodies.filter((b) => !b.fixed).length > 1;
+}
+
+/** Is the collisions switch being overruled, and why? */
+export const collisionsForced = (f) => f.has('mutual-gravity');
 
 /**
  * What the scene is made of, as a string.
@@ -431,15 +463,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
   const atStart = world.t <= 1e-9;
 
   const specs = new Map(objectList(p, f).map((s) => [s.id, s]));
-  const rad = ((p.slopeDeg || 0) * Math.PI) / 180;
-  const surfaceRest = (obj, spec) => {
-    if (!hasGround) return vec(spec.x ?? 0, spec.y ?? 0);
-    const clear = obj.support + Math.max(0, spec.y ?? 0);
-    return vec(
-      (spec.x ?? 0) * Math.cos(rad) - clear * Math.sin(rad),
-      (spec.x ?? 0) * Math.sin(rad) + clear * Math.cos(rad),
-    );
-  };
+  const surfaceRest = (obj, spec) => startPosition(spec, obj, p, f, { hasGround, onWorld });
 
   const bodies = world.bodies.map((b) => {
     if (b.kind === 'planet') {
@@ -509,6 +533,7 @@ export function applyLive(world, p, features, { stageId } = {}) {
       return source ? { ...c, ...source, id: c.id, fired: c.fired } : c;
     }),
     collisionRestitution: Math.max(0, Math.min(1, p.restitution)),
+    bodyCollisions: collisionsOn(p, f, world.bodies),
     trailLimit: hasGround || space || f.has('mutual-gravity') ? 700 : 0,
   };
 }
