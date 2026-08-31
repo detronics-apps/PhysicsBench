@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.1
+
+- **The second mass now swings round the first rather than sliding at it.** It follows an arc,
+  spiralling in to the separation it needs, and only starts growing once it is directly underneath.
+  A straight line from wherever it happened to be sitting read as the mass being shoved into
+  position — and starting level with the object, the first thing it did was set off sideways, which
+  looks like the wrong direction because it is not yet obviously going anywhere. An arc is
+  unambiguous from the first frame: it is going *round*, and round to underneath. It always takes
+  the short way, so a mass starting on the left sweeps the other way.
+- **And it no longer jumps on the first frame.** The animation was laid out in the coordinates the
+  *next* step uses, so the object leapt up to its drop height as the run began — a lurch in the one
+  thing the whole demonstration is claiming stays put. It is now laid out where step three already
+  has everything, and the object does not move at all for the entire run. What matters at the end is
+  the gap between the object and the surface, and a constant offset is invisible because the camera
+  frames on the object.
+
 ## 2.4.0
 
 Shapes that lie on the floor and point where they are going, cannon shots that behave like

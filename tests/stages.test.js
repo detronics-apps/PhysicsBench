@@ -782,3 +782,21 @@ test('a spent shot fades out, is removed, and takes nothing off the books', () =
   // Its potential energy went onto the ledger rather than out of the totals.
   assert.ok(w.ledger.removed > 0);
 });
+
+test('the growth hands over to step four with the same gap it promised', () => {
+  /*
+   * The animation runs in step three's coordinates — the object where it
+   * already is — and step four uses its own, with the surface at zero. What has
+   * to match across the handover is the *gap* between the two, not the
+   * coordinates: a constant offset is invisible, because the camera frames on
+   * the object.
+   */
+  const p = { ...defaults().bench, dropHeight: 1.4, size: 0.4, x0: 0 };
+  const four = build('planet', p).world;
+  const main = findBody(four, 'main');
+  const planet = four.bodies.find((b) => b.kind === 'planet');
+  const gap = main.pos.y - (planet.pos.y + planet.radius);
+
+  // support (0.2) + dropHeight (1.4), and nothing else.
+  close(gap, 0.2 + 1.4, 1e-6);
+});

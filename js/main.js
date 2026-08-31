@@ -36,6 +36,7 @@ import { fmtFixed } from './format.js';
 import { boxWalls } from './segments.js';
 import { toWorld } from './camera.js';
 import { vec, ZERO } from './vec.js';
+import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime } from './recorder.js';
 import { renderScene, sceneLegend, sceneCamera } from './ui/scene-svg.js';
@@ -48,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '2.4.0';
+export const APP_VERSION = '2.4.1';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -286,19 +287,53 @@ function growthWorld(u) {
   const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
   const other = describeObject({ shapeId: 'sphere', size: p.otherSize, mass: p.otherMass });
 
-  // Everything is laid out in the coordinates step four will use: the surface
-  // at y = 0, the object its drop height above it. So the run ends exactly
-  // where the next step begins, with nothing to snap into place.
-  const mainY = object.support + Math.max(0, p.dropHeight);
+  /*
+   * Laid out where step three already has things: the object at y = 0, exactly
+   * where it was a moment ago, and it does not move again for the whole run.
+   *
+   * Working in step four's coordinates instead meant the object jumped up to
+   * its drop height on the first frame, which is a lurch in the one thing the
+   * whole demonstration is claiming stays put. What matters at the end is the
+   * *gap* between the object and the surface, and that is the same either way —
+   * a constant offset is invisible, because the camera frames on the object.
+   */
+  const mainX = p.x0 ?? 0;
   const r0 = Math.max(0.05, other.size / 2);
-  const startX = p.otherX;
+  // Where the surface has to end up: the drop height below the object.
+  const surfaceY = -(object.support + Math.max(0, p.dropHeight));
 
   const sliding = u < GROWTH.slide;
   const k = easeInOut(sliding ? u / GROWTH.slide : (u - GROWTH.slide) / (1 - GROWTH.slide));
 
   const radius = sliding ? r0 : geometric(r0, p.planetRadius, k);
   const mass = sliding ? p.otherMass : geometric(p.otherMass, p.planetMass, k);
-  const x = sliding ? startX + (0 - startX) * k : 0;
+
+  /*
+   * The second mass swings round the first rather than sliding at it.
+   *
+   * A straight line from wherever it happened to be sitting reads as the mass
+   * being shoved into position — and when it starts level with the object, the
+   * first thing it does is set off sideways, which looks like the wrong
+   * direction because it is not obviously going anywhere yet. An arc is
+   * unambiguous from the first frame: it is going *round*, and it is going
+   * round to underneath.
+   *
+   * Both the angle and the distance are interpolated, so it spirals in to the
+   * separation it needs rather than swinging out to a radius it then has to
+   * lose.
+   */
+  const startRadius = Math.hypot(p.otherX - mainX, 0) || 1;
+  // Straight down from the object, far enough that the sphere's top is exactly
+  // at the surface it is about to become.
+  const endRadius = Math.abs(surfaceY) + r0;
+  const startAngle = Math.atan2(0, (p.otherX ?? 0) - mainX);
+  const endAngle = -Math.PI / 2;
+
+  const swept = startAngle + angleDelta(startAngle, endAngle) * k;
+  const reach = startRadius + (endRadius - startRadius) * k;
+  const centre = sliding
+    ? vec(mainX + reach * Math.cos(swept), reach * Math.sin(swept))
+    : vec(mainX, surfaceY - radius);
 
   return {
     world: createWorld({
@@ -323,7 +358,7 @@ function growthWorld(u) {
           height: object.height,
           diameter: object.size,
           volume: object.volume,
-          pos: vec(p.x0 ?? 0, mainY),
+          pos: vec(mainX, 0),
           vel: vec(0, 0),
           colour: 0,
         },
@@ -339,9 +374,10 @@ function growthWorld(u) {
           radius,
           diameter: radius * 2,
           volume: (4 / 3) * Math.PI * radius ** 3,
-          // Centre placed so the top of the sphere stays at y = 0 however big
-          // it gets: the surface never moves, only the far side of the world.
-          pos: vec(x, sliding ? -r0 : -radius),
+          // Once it starts growing the centre drops in step with the radius, so
+          // the top of the sphere stays exactly where it is: the surface never
+          // moves, only the far side of the world.
+          pos: centre,
           fixed: true,
           colour: 1,
         },
@@ -356,9 +392,10 @@ function growthWorld(u) {
 /** What to say about it while it happens. */
 function growthCaption(frame) {
   if (frame.sliding) {
-    return 'The second mass is moving under the first. Nothing about the force '
-      + 'has changed yet — this is still the same faint attraction, and it is '
-      + 'about to be the same faint attraction with a planet on the other end.';
+    return 'The second mass is swinging round to underneath the first. Nothing '
+      + 'about the force has changed yet — this is still the same faint '
+      + 'attraction, and it is about to be the same faint attraction with a '
+      + 'planet on the other end.';
   }
   const g = surfaceGravity(frame.mass, frame.radius);
   // Metres while it is metres. "0.000500 km" is a number that has forgotten
