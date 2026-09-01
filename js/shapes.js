@@ -52,17 +52,48 @@ const CAR_SIDE = 'M -0.5 0.2 L -0.46 -0.02 L -0.28 -0.06 L -0.16 -0.46 '
  * The box is about four times taller than it is wide, so everything in this
  * path is stretched four times vertically when it is drawn: a circle in these
  * coordinates comes out as a tall oval, and the head has to be squashed by the
- * same factor to end up round. The proportions below are worked in metres for
- * a 1.76 m figure and converted, rather than eyeballed in a square box that
- * nothing is ever drawn in.
+ * same factor to end up round.
+ *
+ * Every landmark below is a published fraction of stature — shoulder at 0.18,
+ * elbow 0.37, wrist 0.52, hip 0.47, knee 0.72 down from the crown — converted
+ * into this box rather than eyeballed. The first attempt was eyeballed and it
+ * showed: the figure came out 8.8 heads tall against a real 7.5, with the
+ * crotch at 0.62 of its height instead of 0.48, so it had a big head and stubby
+ * legs. Proportions are the one thing about a human figure that everybody can
+ * see is wrong without being able to say why.
+ *
+ * The head is a compromise and worth naming as one. A real head is markedly
+ * taller than it is wide, so a round one cannot be both the right height and
+ * the right width; 0.19 m across splits the difference and reads correctly.
  */
-const MAN = 'M -0.222 -0.4432 C -0.222 -0.4746 -0.1226 -0.5 0 -0.5 '
-  + 'C 0.1226 -0.5 0.222 -0.4746 0.222 -0.4432 '
-  + 'C 0.222 -0.4118 0.1226 -0.3864 0 -0.3864 '
-  + 'C -0.1226 -0.3864 -0.222 -0.4118 -0.222 -0.4432 Z '
-  + 'M -0.12 -0.383 L -0.5 -0.28 L -0.44 0.18 L -0.29 0.2 L -0.26 -0.16 '
-  + 'L -0.3 0.06 L -0.28 0.5 L -0.05 0.5 L 0 0.12 L 0.05 0.5 L 0.28 0.5 '
-  + 'L 0.3 0.06 L 0.26 -0.16 L 0.29 0.2 L 0.44 0.18 L 0.5 -0.28 L 0.12 -0.383 Z';
+const MAN =
+  // The head, round on screen: see the note above about the aspect.
+  'M -0.2111 -0.446 C -0.2111 -0.4758 -0.1166 -0.5 0 -0.5 '
+  + 'C 0.1166 -0.5 0.2111 -0.4758 0.2111 -0.446 '
+  + 'C 0.2111 -0.4162 0.1166 -0.392 0 -0.392 '
+  + 'C -0.1166 -0.392 -0.2111 -0.4162 -0.2111 -0.446 Z '
+  /*
+   * Neck to shoulder as a curve, not a straight line: drawn straight it comes
+   * to a point at the shoulder and the figure reads as wearing a hood.
+   */
+  + 'M -0.1 -0.392 Q -0.32 -0.355 -0.5 -0.255 '
+  // Down the outside of the arm to the hand.
+  + 'L -0.485 -0.105 L -0.455 0.035 L -0.445 0.135 L -0.335 0.145 '
+  // Back up the inside to the armpit. The arm is about 9 cm through at the
+  // upper arm — drawn much thinner it hangs off the body like a stick.
+  + 'L -0.3 0.035 L -0.29 -0.105 L -0.28 -0.235 '
+  // Chest, waist, hip: the taper is what stops it reading as a plank, and the
+  // gap to the arm is a couple of centimetres, so they read as separate
+  // without the arm appearing to float.
+  + 'L -0.26 -0.195 L -0.215 -0.06 L -0.295 0.03 '
+  // Thigh, knee, ankle, and up the inside of the leg to the crotch.
+  + 'L -0.275 0.2 L -0.24 0.245 L -0.2 0.5 L -0.05 0.5 L -0.035 0.02 L 0 -0.015 '
+  // And the same again, mirrored.
+  + 'L 0.035 0.02 L 0.05 0.5 L 0.2 0.5 L 0.24 0.245 L 0.275 0.2 '
+  + 'L 0.295 0.03 L 0.215 -0.06 L 0.26 -0.195 '
+  + 'L 0.28 -0.235 L 0.29 -0.105 L 0.3 0.035 L 0.335 0.145 '
+  + 'L 0.445 0.135 L 0.455 0.035 L 0.485 -0.105 L 0.5 -0.255 '
+  + 'Q 0.32 -0.355 0.1 -0.392 Z';
 
 /*
  * The same figure with narrower shoulders, and a dress.
@@ -75,14 +106,26 @@ const MAN = 'M -0.222 -0.4432 C -0.222 -0.4746 -0.1226 -0.5 0 -0.5 '
  *
  * Head squashed by the aspect, as the man's is, so it draws round.
  */
-const WOMAN = 'M -0.2375 -0.4417 C -0.2375 -0.4739 -0.1312 -0.5 0 -0.5 '
-  + 'C 0.1312 -0.5 0.2375 -0.4739 0.2375 -0.4417 '
-  + 'C 0.2375 -0.4095 0.1312 -0.3834 0 -0.3834 '
-  + 'C -0.1312 -0.3834 -0.2375 -0.4095 -0.2375 -0.4417 Z '
-  + 'M -0.115 -0.38 L -0.44 -0.28 L -0.4 0.1 L -0.26 0.12 L -0.24 -0.14 '
-  + 'L -0.18 0.02 L -0.5 0.32 L -0.2 0.32 L -0.2 0.5 L -0.06 0.5 L -0.06 0.32 '
-  + 'L 0.06 0.32 L 0.06 0.5 L 0.2 0.5 L 0.2 0.32 L 0.5 0.32 L 0.18 0.02 '
-  + 'L 0.24 -0.14 L 0.26 0.12 L 0.4 0.1 L 0.44 -0.28 L 0.115 -0.38 Z';
+const WOMAN =
+  'M -0.225 -0.4448 C -0.225 -0.4753 -0.1243 -0.5 0 -0.5 '
+  + 'C 0.1243 -0.5 0.225 -0.4753 0.225 -0.4448 '
+  + 'C 0.225 -0.4143 0.1243 -0.3896 0 -0.3896 '
+  + 'C -0.1243 -0.3896 -0.225 -0.4143 -0.225 -0.4448 Z '
+  // Narrower shoulders, curved for the same reason the man's are.
+  + 'M -0.1 -0.39 Q -0.29 -0.352 -0.45 -0.26 '
+  // The arms stop above the flare of the skirt — any lower and the hands are
+  // swallowed by it, since this is all one outline.
+  + 'L -0.435 -0.12 L -0.41 0 L -0.4 0.06 L -0.3 0.065 '
+  + 'L -0.275 0 L -0.265 -0.12 L -0.255 -0.235 '
+  // Chest to a high waist, then out to the hem on a curve rather than a
+  // straight taper, which reads as cloth instead of as a traffic cone.
+  + 'L -0.235 -0.19 L -0.2 -0.02 Q -0.3 0.16 -0.5 0.3 '
+  // Along the hem, with the lower legs below it.
+  + 'L -0.17 0.3 L -0.14 0.5 L -0.045 0.5 L -0.04 0.3 '
+  + 'L 0.04 0.3 L 0.045 0.5 L 0.14 0.5 L 0.17 0.3 L 0.5 0.3 '
+  + 'Q 0.3 0.16 0.2 -0.02 L 0.235 -0.19 L 0.255 -0.235 '
+  + 'L 0.265 -0.12 L 0.275 0 L 0.3 0.065 L 0.4 0.06 L 0.41 0 '
+  + 'L 0.435 -0.12 L 0.45 -0.26 Q 0.29 -0.352 0.1 -0.39 Z';
 
 /*
  * The Magbot Rover from the side: a boxy body carried on one big driven wheel
