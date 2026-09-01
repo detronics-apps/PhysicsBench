@@ -1086,3 +1086,39 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   margin: 0 var(--space-1);
   accent-color: var(--wall);
 }
+
+/*
+ * A fold inside a panel. Deliberately quieter than `.section`: no border along
+ * the bottom, a smaller label, and indented just enough to read as belonging to
+ * the panel above it rather than as another panel.
+ */
+.subsection {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.subsection__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+}
+.subsection__title::-webkit-details-marker { display: none; }
+.subsection__title::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--motion-fast, 120ms) ease;
+}
+.subsection[open] > .subsection__title::after { transform: rotate(45deg) translate(-1px, -1px); }
+.subsection__title:hover { color: var(--text-dim); }
+.subsection__body { padding-bottom: var(--space-2); }

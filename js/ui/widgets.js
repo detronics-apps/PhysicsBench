@@ -55,6 +55,35 @@ export function configureSections(store) {
  * So a recorded state always wins, and `open` decides only what happens before
  * there is one.
  */
+/**
+ * A fold *inside* a panel, for the settings most readers never touch.
+ *
+ * Not `section` with different styling: a panel is the top level of the sidebar
+ * and carries the padding and the border that go with that, and nesting one
+ * inside another indents twice and reads as a mistake. This is the smaller
+ * thing — a line you can open, closed by default, remembered like any panel.
+ *
+ * What belongs in here is the settings that are real controls but not the ones
+ * the step is about. A cannon is aimed and loaded far more often than its shots
+ * are re-frictioned, and three sliders about grip in the middle of that panel
+ * pushed the position controls below the fold.
+ */
+export function subsection(title, children, { key = null, open = false } = {}) {
+  const id = key || title;
+  const remembered = sectionStore.get(id);
+  const showing = remembered === undefined || remembered === null ? open : remembered;
+
+  return el('details', {
+    class: 'subsection',
+    open: showing ? '' : null,
+    'data-section': id,
+    on: { toggle: (event) => sectionStore.set(id, event.target.open) },
+  }, [
+    el('summary', { class: 'subsection__title' }, title),
+    el('div', { class: 'subsection__body' }, Array.isArray(children) ? children : [children]),
+  ]);
+}
+
 export function section(title, children, { info = null, actions = null, key = null, open = null } = {}) {
   const id = key || title;
   const remembered = sectionStore.get(id);

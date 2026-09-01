@@ -8,7 +8,8 @@
 
 import { el } from './dom.js';
 import {
-  section, numberField, sliderField, selectField, toggleField, stat, banner, table, buttonRow, button,
+  section, subsection, numberField, sliderField, selectField, toggleField, stat, banner, table,
+  buttonRow, button,
 } from './widgets.js';
 import { explain, equationPanel } from './explain.js';
 import { equation } from '../models.js';
@@ -851,43 +852,56 @@ function cannonsSection(ctx) {
       // is the short version; the section's own hint carries the long one.
       format: (v) => (v > 0 ? `every ${fmtFixed(v, 2)} s` : 'one shot'),
     }),
-    numberField('Shot mass', c.mass, (v) => ctx.setCannon(i, { mass: v }), {
-      unit: 'kg', min: 0.001, max: 1000, step: 0.1, key: `c:mass:${i}`,
-    }),
-    sliderField('Shot size', c.size, (v) => ctx.setCannon(i, { size: v }), {
-      min: 0.02, max: 2, step: 0.02, key: `c:size:${i}`, format: (v) => `${fmtFixed(v, 2)} m`,
-    }),
-    selectField('Shot shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), c.shapeId,
-      (v) => ctx.setCannon(i, { shapeId: v }), { key: `c:shape:${i}` }),
-    selectField('Shot material',
-      MATERIALS.map((x) => ({ value: x.id, label: `${x.label} — bounce ${x.bounce}` })),
-      c.materialId, (v) => ctx.setCannon(i, { materialId: v }), {
-        key: `c:material:${i}`,
-        hint: describeBounce(ctx.params.materialId, c.materialId),
+    /*
+     * Everything about the projectile itself, folded away.
+     *
+     * The split is between aiming a cannon and loading it. Where it stands,
+     * which way it points, how fast and how often it fires are what a reader
+     * reaches for again and again; what the shot is made of and how it behaves
+     * once it lands are set once and then left. Seven controls of the second
+     * kind in the middle of the panel pushed the position sliders below the
+     * fold, which is the wrong way round.
+     */
+    subsection('Advanced — projectile properties', [
+      numberField('Shot mass', c.mass, (v) => ctx.setCannon(i, { mass: v }), {
+        unit: 'kg', min: 0.001, max: 1000, step: 0.1, key: `c:mass:${i}`,
       }),
-    el('div', { class: 'grid-2' }, [
-      sliderField('Shot grip μs', c.muS ?? 2, (v) => ctx.setCannon(i, { muS: v }), {
-        min: 0, max: 5, step: 0.05, key: `c:muS:${i}`, format: (v) => fmtFixed(v, 2),
-        info: 'How hard its shots grip what they land on. Shots carry their own '
-          + 'friction rather than the one set for the bench, because a shot is not the '
-          + 'experiment — it is what you fire at the experiment.',
+      sliderField('Shot size', c.size, (v) => ctx.setCannon(i, { size: v }), {
+        min: 0.02, max: 2, step: 0.02, key: `c:size:${i}`, format: (v) => `${fmtFixed(v, 2)} m`,
       }),
-      sliderField('Shot slide μk', Math.min(c.muK ?? 1.5, c.muS ?? 2),
-        (v) => ctx.setCannon(i, { muK: Math.min(v, c.muS ?? 2) }), {
-          min: 0, max: 5, step: 0.05, key: `c:muK:${i}`, format: (v) => fmtFixed(v, 2),
-          info: 'Once it is sliding. Never more than the static value above — '
-            + 'that is what the two words mean.',
+      selectField('Shot shape', SHAPES.map((x) => ({ value: x.id, label: x.label })), c.shapeId,
+        (v) => ctx.setCannon(i, { shapeId: v }), { key: `c:shape:${i}` }),
+      selectField('Shot material',
+        MATERIALS.map((x) => ({ value: x.id, label: `${x.label} — bounce ${x.bounce}` })),
+        c.materialId, (v) => ctx.setCannon(i, { materialId: v }), {
+          key: `c:material:${i}`,
+          hint: describeBounce(ctx.params.materialId, c.materialId),
         }),
-    ]),
-    sliderField('Shot roll drag', c.rolling ?? 0.25, (v) => ctx.setCannon(i, { rolling: v }), {
-      min: 0, max: 2, step: 0.01, key: `c:rolling:${i}`, format: (v) => `C_rr ${fmtFixed(v, 2)}`,
-      info: 'What stops a round shot. A ball rolls rather than slides, so the two '
-        + 'grip sliders above do nothing to it — rolling resistance is a different '
-        + 'mechanism, and normally a hundred times weaker, which is why a fired '
-        + 'ball otherwise crosses the bench and keeps going.',
-      hint: 'Set this to zero and a round shot rolls until something stops it. '
-        + 'The grip sliders act on shots that slide: a cube, a plate, a car.',
-    }),
+      el('div', { class: 'grid-2' }, [
+        sliderField('Shot grip μs', c.muS ?? 2, (v) => ctx.setCannon(i, { muS: v }), {
+          min: 0, max: 5, step: 0.05, key: `c:muS:${i}`, format: (v) => fmtFixed(v, 2),
+          info: 'How hard its shots grip what they land on. Shots carry their own '
+            + 'friction rather than the one set for the bench, because a shot is not the '
+            + 'experiment — it is what you fire at the experiment.',
+        }),
+        sliderField('Shot slide μk', Math.min(c.muK ?? 1.5, c.muS ?? 2),
+          (v) => ctx.setCannon(i, { muK: Math.min(v, c.muS ?? 2) }), {
+            min: 0, max: 5, step: 0.05, key: `c:muK:${i}`, format: (v) => fmtFixed(v, 2),
+            info: 'Once it is sliding. Never more than the static value above — '
+              + 'that is what the two words mean.',
+          }),
+      ]),
+      sliderField('Shot roll drag', c.rolling ?? 0.25, (v) => ctx.setCannon(i, { rolling: v }), {
+        min: 0, max: 2, step: 0.01, key: `c:rolling:${i}`, format: (v) => `C_rr ${fmtFixed(v, 2)}`,
+        info: 'What stops a round shot. A ball rolls rather than slides, so the two '
+          + 'grip sliders above do nothing to it — rolling resistance is a different '
+          + 'mechanism, and normally a hundred times weaker, which is why a fired '
+          + 'ball otherwise crosses the bench and keeps going.',
+        hint: 'Set this to zero and a round shot rolls until something stops it. '
+          + 'The grip sliders act on shots that slide: a cube, a plate, a car.',
+      }),
+    ], { key: `c:advanced:${i}` }),
+
     el('div', { class: 'grid-2' }, [
       sliderField('At x', c.x, (v) => ctx.setCannon(i, { x: v }), {
         min: -40, max: 40, step: 0.5, key: `c:x:${i}`, format: (v) => `${fmtFixed(v, 1)} m`,
