@@ -757,7 +757,6 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   padding-top: 5px;
 }
 .vectors__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); flex: 1 1 auto; }
-.vectors__foot { margin-top: var(--space-2); }
 
 /* A chip that carries the arrow's own colour, so the picker and the drawing
    cannot end up describing different things. */
@@ -1057,4 +1056,33 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   /* The glyphs are ◐ ○ ● — centring them optically needs no nudge, but they
      must not inherit the letter-spacing the button text uses. */
   letter-spacing: 0;
+}
+
+/*
+ * The arrow filter and the view controls share one row: filter left, view
+ * right. They stack on a narrow screen rather than squeezing, because four
+ * buttons and a long label do not fit across a phone.
+ */
+.vectors__foot {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.vectors__view {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@media (max-width: 640px) {
+  .vectors__view { margin-left: 0; }
+}
+
+/* The curve slider sits inside the wall chip, short enough to keep one row. */
+.wall-chip__curve {
+  width: 84px;
+  margin: 0 var(--space-1);
+  accent-color: var(--wall);
 }

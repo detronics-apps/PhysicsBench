@@ -34,7 +34,7 @@ import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
 import { outline } from '../shapes.js';
-import { wallBounds, alongWall } from '../segments.js';
+import { wallBounds, alongWall, arcOf } from '../segments.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
 import { alongSurface } from '../orient.js';
 import { fmtFixed } from '../format.js';
@@ -245,7 +245,23 @@ export function sceneCamera(world, focusId = 'main', view = null) {
       world.walls, world.cannons,
     );
 
-  const framed = view?.camera?.mode === 'manual' ? manualBox(view.camera) : box;
+  /*
+   * Three ways of framing, not two.
+   *
+   *   auto    fits whatever is on the bench, re-fitting as it moves
+   *   manual  a fixed window, held wherever it was put
+   *   follow  the reader's zoom, kept, centred on the object being watched
+   *
+   * `follow` exists because Home used to mean "give up my zoom and fit
+   * everything again", which is the wrong trade when the reason for zooming in
+   * was to watch one object closely. Losing the framing to recover the centre
+   * meant zooming back in every time the object drifted off the edge.
+   */
+  const framed = view?.camera?.mode === 'manual'
+    ? manualBox(view.camera)
+    : (view?.camera?.mode === 'follow' && focus
+      ? manualBox({ cx: focus.pos.x, cy: focus.pos.y, span: view.camera.span })
+      : box);
   return createCamera({
     world: framed, viewWidth: VIEW_W, viewHeight: VIEW_H, padding: SCENE_PADDING,
   });
@@ -469,10 +485,7 @@ function drawWalls(cam, walls) {
     const a = toScreen(cam, { x: w.x1, y: w.y1 });
     const b = toScreen(cam, { x: w.x2, y: w.y2 });
     if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) continue;
-    group.appendChild(svg('line', {
-      x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
-      stroke: 'var(--wall)', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-opacity': 0.85,
-    }));
+    group.appendChild(wallStroke(cam, w, a, b));
     for (const end of [a, b]) {
       group.appendChild(svg('circle', {
         cx: r(end.x), cy: r(end.y), r: 3.2, fill: 'var(--wall)', 'fill-opacity': 0.9,
@@ -480,6 +493,38 @@ function drawWalls(cam, walls) {
     }
   }
   return group;
+}
+
+/**
+ * One wall, straight or curved, as a single stroke.
+ *
+ * A curved wall is one SVG arc rather than a chain of short lines: the browser
+ * draws the true circle, so it stays smooth at any zoom and the export is a
+ * curve rather than a polygon pretending to be one.
+ *
+ * The sweep flag is inverted against the world's sense of rotation, because
+ * screen y points down and world y points up — the renderer's single y-flip,
+ * showing up here as it does everywhere else.
+ */
+function wallStroke(cam, w, a, b) {
+  const ink = {
+    stroke: 'var(--wall)', 'stroke-width': 6, 'stroke-linecap': 'round',
+    'stroke-opacity': 0.85, fill: 'none',
+  };
+  const arc = arcOf(w);
+  if (!arc) {
+    return svg('line', { x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y), ...ink });
+  }
+  const radius = toPixels(cam, arc.radius);
+  const large = arc.sweep > Math.PI ? 1 : 0;
+  const sweep = arc.dir > 0 ? 0 : 1;
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return svg('line', { x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y), ...ink });
+  }
+  return svg('path', {
+    d: `M ${r(a.x)} ${r(a.y)} A ${r(radius)} ${r(radius)} 0 ${large} ${sweep} ${r(b.x)} ${r(b.y)}`,
+    ...ink,
+  });
 }
 
 /** The wall currently being dragged out, before the mouse has been let go. */

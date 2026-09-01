@@ -26,8 +26,15 @@ const HEIGHT = 226;
  * to group them. `axisLabel` names the unit once, on the axis, rather than
  * repeating it on every tick.
  */
+/*
+ * More points than this and the graph is drawing several per pixel, which costs
+ * real time on every redraw and shows nothing a reader can see.
+ */
+const MAX_POINTS = 600;
+
 export function renderGraph(recorder, channelIds, options = {}) {
-  return renderSeriesGraph(multiSeries(recorder, channelIds).filter((s) => s.channel), options);
+  const series = multiSeries(recorder, channelIds, { maxPoints: MAX_POINTS });
+  return renderSeriesGraph(series.filter((s) => s.channel), options);
 }
 
 /**

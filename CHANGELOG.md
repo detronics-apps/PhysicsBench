@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.2.0
+
+Curved obstacles, and seven fixes.
+
+- **Walls can be curved.** A wall is now two ends and a bulge — how far its middle bows off the
+  straight line between them — so a bowl, a dome, a banked corner or a loop is the same object as a
+  ramp with one number changed. Zero bulge is exactly a straight wall, so nothing drawn before
+  behaves differently. Draw one with "Draw an arc", or bend any existing wall with the curve slider
+  beside it, through flat and out the other side.
+- **Cannon shots carry their own grip.** They used to take a generic 0.4 and skate. Shots that slide
+  now have a strong static coefficient of 2 by default, and — because a round shot *rolls* rather
+  than slides, and no amount of μ acts on a rolling ball — they also carry their own rolling
+  resistance. Both are adjustable per cannon. Measured: a fired ball that never stopped now stops
+  after 7.6 m, and still rolls 30 m if the roll drag is set to zero.
+- **"Drop it from" works on every step that has a floor.** It moved the object at step four and was
+  silently discarded from step five on, because the starting height was hard-coded to zero wherever
+  there was ground to stand on.
+- **Editing a value no longer throws the page back to the top.** On a narrow screen the document is
+  the thing that scrolls, and its position was never being saved across a redraw — so committing a
+  value in the fourth object down meant scrolling back to it every time.
+- **Zoom, Pan and Home sit above the drawing**, right-aligned in the same row as the arrow filter,
+  instead of at the bottom of a sidebar panel you had to scroll away from the drawing to reach.
+- **Home keeps your zoom.** It now recentres on the object being watched and goes on following it at
+  the magnification you chose, rather than discarding the zoom to re-fit the whole bench. "Fit
+  everything", in the drawing panel, still does that.
+- **The bench holds ten objects**, cannon shots included, rather than twenty.
+- **The size readout says "0.50 m", not "0.50 m long".**
+
+Graphs now draw at most 600 points per trace rather than one per recorded frame. A long run was
+handing each graph three points per pixel and rebuilding all of them several times a second, which
+is what left a phone with nothing spare to answer a tap on Pause.
+
 ## 1.1.0
 
 New starting values. The bench now opens on a prepared scene rather than a blank one.

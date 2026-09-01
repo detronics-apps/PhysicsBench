@@ -44,7 +44,7 @@ import { facing } from './orient.js';
 import { fmtFixed } from './format.js';
 
 /** How many objects one scene may hold, cannon shots included. */
-export const MAX_OBJECTS = 20;
+export const MAX_OBJECTS = 10;
 
 /* ------------------------------------------------------------- the steps -- */
 
@@ -205,7 +205,17 @@ export function objectList(p, f) {
     shapeId: p.shapeId,
     materialId: p.materialId,
     x: p.x0 ?? 0,
-    y: f.has('ground') ? 0 : (p.y0 ?? 0),
+    /*
+     * On a floor, "drop it from" is the height — the same control the step
+     * before used, still meaning the same thing.
+     *
+     * This read `0` on any step with ground, which threw the value away
+     * everywhere it was most visible: the control moved the object at step
+     * four, where the floor has not been drawn yet, and then appeared to do
+     * nothing at all from step five on. `startPosition` was already willing to
+     * lift the object — it was handed a zero and had nothing to lift.
+     */
+    y: f.has('ground') ? Math.max(0, p.dropHeight ?? 0) : (p.y0 ?? 0),
     vx: p.v0 ?? 0,
     vy: 0,
     colour: 0,

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   wall, wallLength, isRealWall, closestPoint, contact, nearestContact, wallBounds,
-  boxWalls, alongWall, wallAngle,
+  boxWalls, alongWall, wallAngle, arcOf, isCurved, pointAt, arcLength,
 } from '../js/segments.js';
 
 const close = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -107,4 +107,130 @@ test('hostile numbers become a usable wall rather than a NaN one', () => {
   assert.ok(Number.isFinite(w.x2) && Number.isFinite(w.y2));
   assert.ok(w.restitution >= 0 && w.restitution <= 1);
   assert.ok(w.mu >= 0);
+});
+
+/* ------------------------------------------------------------- curves -- */
+
+/**
+ * A curved wall is the same wall with a bulge, and that is the whole design.
+ *
+ * The bulge is the sagitta: how far the middle bows off the straight line
+ * between the ends. Zero has to be *exactly* straight rather than a circle of
+ * enormous radius, or every wall drawn before curves existed would start
+ * behaving fractionally differently.
+ */
+test('a wall with no bulge is straight, and stays the wall it always was', () => {
+  const flat = wall({ x1: 0, y1: 0, x2: 4, y2: 0 });
+  assert.equal(flat.bulge, 0);
+  assert.equal(arcOf(flat), null);
+  assert.equal(isCurved(flat), false);
+  assert.deepEqual(pointAt(flat, 0.5), { x: 2, y: 0 });
+  assert.equal(arcLength(flat), wallLength(flat));
+
+  // And a bulge too small to see is treated as none at all, rather than
+  // computing a circle whose centre is over the horizon.
+  assert.equal(arcOf(wall({ x1: 0, y1: 0, x2: 4, y2: 0, bulge: 1e-12 })), null);
+});
+
+test('a bulge of half the span is exactly a semicircle', () => {
+  const w = wall({ x1: 0, y1: 0, x2: 4, y2: 0, bulge: 2 });
+  const arc = arcOf(w);
+  close(arc.radius, 2, 1e-9);
+  close(arc.sweep, Math.PI, 1e-9);
+  close(arc.cx, 2, 1e-9);
+  close(arc.cy, 0, 1e-9);
+  close(arcLength(w), Math.PI * 2, 1e-9);
+});
+
+test('however hard it is bowed, an arc still ends where its ends are', () => {
+  // Including past a half-circle, where the arc is longer than its own
+  // diameter and the centre has crossed to the other side of the chord.
+  for (const bulge of [-9, -3, -1, -0.2, 0, 0.2, 1, 3, 9]) {
+    const w = wall({ x1: -1, y1: 0.5, x2: 3, y2: 2, bulge });
+    const a = pointAt(w, 0);
+    const b = pointAt(w, 1);
+    close(a.x, w.x1, 1e-9);
+    close(a.y, w.y1, 1e-9);
+    close(b.x, w.x2, 1e-9);
+    close(b.y, w.y2, 1e-9);
+  }
+});
+
+test('every point along an arc is on its circle, and the middle is the apex', () => {
+  const w = wall({ x1: -2, y1: 1, x2: 3, y2: -1, bulge: 1.7 });
+  const arc = arcOf(w);
+  for (let i = 0; i <= 20; i += 1) {
+    const p = pointAt(w, i / 20);
+    close(Math.hypot(p.x - arc.cx, p.y - arc.cy), arc.radius, 1e-9);
+  }
+  const mid = pointAt(w, 0.5);
+  close(mid.x, arc.apexX, 1e-9);
+  close(mid.y, arc.apexY, 1e-9);
+});
+
+test('the sign of the bulge is which side it bows to', () => {
+  const up = arcOf(wall({ x1: 0, y1: 0, x2: 4, y2: 0, bulge: 1 }));
+  const down = arcOf(wall({ x1: 0, y1: 0, x2: 4, y2: 0, bulge: -1 }));
+  close(up.apexY, 1, 1e-9);
+  close(down.apexY, -1, 1e-9);
+  // Mirrored, not merely different.
+  close(up.apexX, down.apexX, 1e-9);
+});
+
+test('a curved wall has ends, and past them the nearest point is the end', () => {
+  const bowl = wall({ x1: -2, y1: 0, x2: 2, y2: 0, bulge: -1.5 });
+  const off = closestPoint(bowl, { x: 10, y: 0 });
+  close(off.x, 2, 1e-9);
+  close(off.y, 0, 1e-9);
+  assert.equal(off.t, 1);
+
+  // Directly above a bowl is *outside* it: the nearest point is a rim, not the
+  // far side of the circle the arc was cut from.
+  const above = closestPoint(bowl, { x: 0, y: 5 });
+  close(Math.abs(above.x), 2, 1e-9);
+  assert.ok(above.t === 0 || above.t === 1);
+});
+
+test('a body sitting in a bowl is pushed up, wherever in the bowl it sits', () => {
+  const bowl = wall({ x1: -3, y1: 0, x2: 3, y2: 0, bulge: -2 });
+  const hit = contact(bowl, { x: 0, y: -1.7 }, 0.5);
+  assert.ok(hit, 'nothing touching at the bottom of the bowl');
+  close(hit.normal.x, 0, 1e-9);
+  close(hit.normal.y, 1, 1e-9);
+  assert.ok(hit.depth > 0);
+
+  // Off to one side the normal tilts inward — that is what makes it a bowl
+  // rather than a floor, and it is what rolls the body back to the middle.
+  const side = contact(bowl, { x: 1.8, y: -1.2 }, 0.5);
+  assert.ok(side, 'nothing touching on the side of the bowl');
+  assert.ok(side.normal.y > 0, 'a bowl cannot push downward');
+  assert.ok(side.normal.x < 0, 'the side of a bowl pushes back towards the middle');
+});
+
+test('the camera box covers the bulge, not just the ends', () => {
+  // A dome framed to its chord would have its top cut off the drawing.
+  const dome = wall({ x1: -2, y1: 0, x2: 2, y2: 0, bulge: 2 });
+  const box = wallBounds([dome]);
+  close(box.maxY, 2, 1e-9);
+  close(box.minX, -2, 1e-9);
+  close(box.maxX, 2, 1e-9);
+
+  // And a straight wall is still bounded by its ends alone.
+  const flat = wallBounds([wall({ x1: 0, y1: 0, x2: 4, y2: 1 })]);
+  assert.deepEqual(flat, { minX: 0, maxX: 4, minY: 0, maxY: 1 });
+});
+
+test('the direction along a curve is the tangent there, not the chord', () => {
+  const w = wall({ x1: 0, y1: 0, x2: 4, y2: 0, bulge: 2 });
+  // At the top of a semicircle the surface runs horizontally.
+  const top = alongWall(w, 0.5);
+  close(Math.abs(top.y), 0, 1e-9);
+  close(Math.abs(top.x), 1, 1e-9);
+  // At the ends it runs vertically — nothing like the chord, which is flat.
+  const start = alongWall(w, 0);
+  close(Math.abs(start.x), 0, 1e-9);
+  close(Math.abs(start.y), 1, 1e-9);
+  // A straight wall answers the same thing wherever it is asked.
+  const line = wall({ x1: 0, y1: 0, x2: 3, y2: 4 });
+  assert.deepEqual(alongWall(line, 0), alongWall(line, 1));
 });

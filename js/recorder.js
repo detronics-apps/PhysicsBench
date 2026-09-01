@@ -147,7 +147,7 @@ export const indexAt = (recorder, t) => {
  * path silently breaks the whole line in SVG, which looks like a bug in the
  * physics rather than a gap in the data.
  */
-export function series(recorder, channelId) {
+export function series(recorder, channelId, { maxPoints = Infinity } = {}) {
   const channel = channelById(channelId);
   if (!channel) return { id: channelId, points: [], channel: null };
   const points = [];
@@ -156,13 +156,37 @@ export function series(recorder, channelId) {
     if (Number.isFinite(value)) points.push({ x: frame.t, y: value });
   }
   return {
-    id: channelId, channel, points,
+    id: channelId, channel, points: thin(points, maxPoints),
     label: channel.label, unit: channel.unit, axis: channel.axis, token: channel.token,
   };
 }
 
+/**
+ * Drop points a graph has no pixels to draw.
+ *
+ * The recorder samples 120 times a second and keeps three thousand frames, so a
+ * long run hands a nine-hundred-pixel graph three points per pixel — and every
+ * one of them is an SVG coordinate that has to be built, parsed and rasterised,
+ * several graphs over, several times a second. That cost grows with the length
+ * of the run, which is why the controls got less responsive the longer
+ * something was left going: on a phone the main thread had nothing left over to
+ * answer a tap on Pause with.
+ *
+ * The last point is always kept. It is the live end of the trace, and dropping
+ * it would make the line stop short of the playhead.
+ */
+function thin(points, maxPoints) {
+  if (!(maxPoints > 1) || points.length <= maxPoints) return points;
+  const stride = Math.ceil(points.length / maxPoints);
+  const out = [];
+  for (let i = 0; i < points.length; i += stride) out.push(points[i]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
 /** Several channels at once, which is what a multi-trace graph needs. */
-export const multiSeries = (recorder, ids) => ids.map((id) => series(recorder, id));
+export const multiSeries = (recorder, ids, options) => ids.map((id) => series(recorder, id, options));
 
 /** The value of one channel at one moment — what the readout shows when paused. */
 export function valueAt(recorder, channelId, t) {

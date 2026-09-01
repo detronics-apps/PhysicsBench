@@ -424,15 +424,18 @@ test('every step still declares all four kinds, in space as well as on a world',
   }
 });
 
-test('up to twenty objects, each with its own size, mass and shape', () => {
-  const objects = Array.from({ length: 25 }, (_, i) => ({
+test('the bench fills to its limit and stops, each object its own', () => {
+  // Asks for far more than the cap, and reads the cap from the source rather
+  // than repeating the number — a test that hard-codes 20 does not check the
+  // limit, it checks that nobody has changed their mind about it.
+  const objects = Array.from({ length: MAX_OBJECTS + 15 }, (_, i) => ({
     id: 'o' + (i + 2), mass: i + 2, size: 0.2 + i * 0.01, shapeId: 'cube', x: i, y: 0, vx: 0, vy: 0,
   }));
   const s = build('collide', { ...defaults().bench, objects });
   const movable = s.world.bodies.filter((b) => !b.fixed);
-  assert.equal(movable.length, 20);
-  // Each really is its own object, not twenty copies of one.
-  assert.equal(new Set(movable.map((b) => b.mass)).size, 20);
+  assert.equal(movable.length, MAX_OBJECTS);
+  // Each really is its own object, not one copied MAX_OBJECTS times.
+  assert.equal(new Set(movable.map((b) => b.mass)).size, MAX_OBJECTS);
 });
 
 /* ------------------------------------------------ the drop, and solidity -- */

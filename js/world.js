@@ -106,6 +106,19 @@ export function body(spec = {}) {
     controlForce: spec.controlForce || ZERO,
     restitution: clamp01(spec.restitution ?? 0.5),
     muS: Math.max(0, spec.muS ?? 0.4),
+    /*
+     * How hard it is to keep this thing rolling, if it is not the ground's
+     * business. Null means the ground decides, which is the honest default —
+     * rolling resistance is a property of the pair, not of the ball alone.
+     *
+     * A cannon shot is the exception worth having: it is the one body whose
+     * whole job is to arrive and stop, and a ball on a hard floor rolls a very
+     * long way. Sliding friction cannot help there — a rolling ball is not
+     * sliding, so mu does not enter — which is why this had to exist at all.
+     */
+    rollingCoefficient: Number.isFinite(spec.rollingCoefficient) && spec.rollingCoefficient >= 0
+      ? spec.rollingCoefficient
+      : null,
     muK: Math.max(0, spec.muK ?? 0.3),
     // A planet is immovable unless told otherwise. Newton's third law does
     // apply to it — the object pulls back just as hard — but a 1 kg mass
@@ -235,6 +248,30 @@ export function cannon(spec = {}) {
     // Resolved from the material by the caller, so the stepper does not need a
     // material table to fire something with the right bounciness.
     restitution: Number.isFinite(spec.restitution) ? spec.restitution : undefined,
+    /*
+     * How hard its shots grip whatever they land on.
+     *
+     * Shots used to take the generic body default of 0.4 and nothing else,
+     * which is a skid: fired along a floor they slid almost indefinitely,
+     * behaving like ice regardless of what the bench was set to. Two is a
+     * deliberately strong grip — rubber on dry tarmac territory — so a shot
+     * lands, bites and stops, and the interesting part is the collision rather
+     * than the long glide afterwards. Adjustable, because a shot skittering
+     * across a smooth floor is also a thing worth seeing.
+     */
+    muS: Math.max(0, Number.isFinite(spec.muS) ? spec.muS : 2),
+    muK: Math.max(0, Number.isFinite(spec.muK) ? spec.muK : 1.5),
+    /*
+     * And how hard its shots are to keep rolling.
+     *
+     * Round shots roll rather than slide, and rolling resistance is one to
+     * three orders of magnitude weaker than friction — so a fired ball on the
+     * ground's default 0.01 crosses the bench and keeps going. This is the
+     * lever that actually stops one; mu above is the lever that stops a shot
+     * that slides. They are different mechanisms and neither substitutes for
+     * the other, which is exactly the distinction step six is about.
+     */
+    rolling: Math.max(0, Number.isFinite(spec.rolling) ? spec.rolling : 0.25),
     // Zero means a single shot when the run starts; anything else is a rate.
     everySeconds: Math.max(0, Number.isFinite(spec.everySeconds) ? spec.everySeconds : 1),
     fired: spec.fired ?? 0,
@@ -286,7 +323,7 @@ export function contactFor(world, b) {
       muS: combine(world.ground.muS, b.muS),
       muK: combine(world.ground.muK, b.muK),
       rolling: b.rolls,
-      rollingCoefficient: world.ground.rolling,
+      rollingCoefficient: b.rollingCoefficient ?? world.ground.rolling,
       surface: 'ground',
     };
   }
@@ -300,7 +337,7 @@ export function contactFor(world, b) {
     muS: combine(hit.mu, b.muS),
     muK: combine(hit.mu * 0.75, b.muK),
     rolling: b.rolls,
-    rollingCoefficient: world.ground?.rolling ?? 0.01,
+    rollingCoefficient: b.rollingCoefficient ?? world.ground?.rolling ?? 0.01,
     surface: 'wall',
   };
 }
@@ -633,6 +670,11 @@ function fireCannons(world, bodies, t, events, ledger) {
       pos: vec(c.x, c.y),
       vel: muzzleVelocity(c),
       materialId: c.materialId,
+      // Its own grip, so a shot stops where it lands instead of skating on —
+      // whether it gets there by sliding or by rolling.
+      muS: c.muS,
+      muK: c.muK,
+      rollingCoefficient: c.rolling,
       // Its own bounciness, so a steel shot and a clay shot hit differently.
       restitution: world.materialBounce && c.restitution !== undefined
         ? c.restitution

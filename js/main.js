@@ -33,7 +33,7 @@ import { controlForce } from './control.js';
 import { describe as describeObject } from './shapes.js';
 import { surfaceGravity } from './gravitation.js';
 import { fmtFixed } from './format.js';
-import { boxWalls } from './segments.js';
+import { boxWalls, MAX_WALLS } from './segments.js';
 import { toWorld } from './camera.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -647,6 +647,17 @@ function captureFocus() {
   return {
     sidebar: dom.sidebar?.scrollTop ?? 0,
     viewport: dom.workspace?.scrollTop ?? 0,
+    /*
+     * The document's own scroll, which on a narrow screen is the only one that
+     * matters: the layout stops being two columns and simply stacks, so neither
+     * the sidebar nor the workspace scrolls any more — the page does.
+     *
+     * Not capturing it is what threw the reader back to the top after every
+     * edit. Replacing a panel briefly shortens the document, the browser clamps
+     * the scroll position to the shorter height, and nothing ever put it back.
+     * Committing a value in the fourth object down meant scrolling to it again.
+     */
+    page: window.scrollY || document.documentElement.scrollTop || 0,
     key: key || null,
     start: key && active.selectionStart != null ? active.selectionStart : null,
     end: key && active.selectionEnd != null ? active.selectionEnd : null,
@@ -665,6 +676,24 @@ function restoreFocus(snap) {
   }
   if (dom.sidebar) dom.sidebar.scrollTop = snap.sidebar;
   if (dom.workspace) dom.workspace.scrollTop = snap.viewport;
+  restorePageScroll(snap);
+}
+
+/**
+ * Put the document back where it was, twice.
+ *
+ * Once now, and once after the browser has finished laying the new panel out —
+ * because if the document is still momentarily shorter than it was, the first
+ * attempt is clamped to the old height and silently lost.
+ */
+function restorePageScroll(snap) {
+  if (!snap || typeof window.scrollTo !== 'function') return;
+  const want = snap.page ?? 0;
+  if (Math.abs((window.scrollY || 0) - want) < 1) return;
+  window.scrollTo(0, want);
+  requestAnimationFrame(() => {
+    if (Math.abs((window.scrollY || 0) - want) >= 1) window.scrollTo(0, want);
+  });
 }
 
 /* -------------------------------------------------------------- render -- */
@@ -712,10 +741,34 @@ export function render({ controls = true } = {}) {
     (id, on) => update((draft) => { draft.vectors[id] = on; }, { sim: 'none' }),
     (patch) => update((draft) => { Object.assign(draft.vectors, patch); }, { sim: 'none' }),
   ));
+  /*
+   * The arrow filter on the left, the view controls on the right, one row.
+   *
+   * These were at the bottom of a sidebar panel, which is the wrong place for
+   * them: zooming is something you do *while looking at the drawing*, and
+   * reaching it meant scrolling away from the thing being zoomed. Directly
+   * under the filters and above the drawing, they are next to what they act on.
+   */
   dom.vectors.appendChild(el('div', { class: 'vectors__foot' }, [
     button('Just what matters here', () => update((draft) => {
       Object.assign(draft.vectors, suggestionFor(state.stage, available));
     }, { sim: 'none' }), { small: true, title: 'Show only the arrows this step is about' }),
+    el('div', { class: 'vectors__view' }, [
+      button('Zoom in', () => ctx.zoomBy(1.5), { small: true, title: 'Closer' }),
+      button('Zoom out', () => ctx.zoomBy(1 / 1.5), { small: true, title: 'Wider' }),
+      el('button', {
+        class: `btn btn-sm${state.ui.tool === 'pan' ? ' is-armed' : ''}`,
+        type: 'button',
+        'data-field': 'tool:pan',
+        title: 'Drag the drawing to move the view',
+        on: { click: () => ctx.setTool(state.ui.tool === 'pan' ? 'none' : 'pan') },
+      }, state.ui.tool === 'pan' ? 'Panning — click to stop' : 'Pan'),
+      button('Home', () => ctx.goHome(), {
+        small: true,
+        primary: state.view.camera.mode === 'manual',
+        title: 'Centre on the object being watched, keeping this zoom',
+      }),
+    ]),
   ]));
 
   clear(dom.controls);
@@ -931,15 +984,30 @@ function context() {
       draft.view.camera.cx += dx * draft.view.camera.span;
       draft.view.camera.cy += dy * draft.view.camera.span;
     }, { sim: 'none' }),
-    // Home is not "zoom to fit once" — it hands the framing back to the scene,
-    // so it keeps following whatever happens next.
-    goHome: () => update((draft) => { draft.view.camera.mode = 'auto'; }, { sim: 'none' }),
+    /*
+     * Home recentres on the object being watched and keeps the zoom.
+     *
+     * It used to hand the framing back to the scene, which also threw away the
+     * zoom — so the only way to recover the centre was to lose the magnification
+     * that was the reason for looking closely in the first place, and then zoom
+     * back in. Now it centres, holds the span, and goes on following.
+     */
+    goHome: () => update((draft) => {
+      const cam = draft.view.camera;
+      const span = cam.mode === 'auto' ? autoView(shownWorld(), 'main').span : cam.span;
+      draft.view.camera = { ...cam, mode: 'follow', span };
+    }, { sim: 'none' }),
+    /** Back to framing everything, which is what Home used to do. */
+    fitAll: () => update((draft) => { draft.view.camera.mode = 'auto'; }, { sim: 'none' }),
     setGrid: (value) => update((draft) => { draft.view.grid = value; }, { sim: 'none' }),
     setPrint: (part, on) => update((draft) => { draft.view.print[part] = on; }, { sim: 'none' }),
     removeWall: (index) => update((draft) => {
       draft.bench.walls = draft.bench.walls.filter((_, i) => i !== index);
     }),
     clearWalls: () => update((draft) => { draft.bench.walls = []; }),
+    setWall: (index, patch) => update((draft) => {
+      draft.bench.walls = draft.bench.walls.map((w, i) => (i === index ? { ...w, ...patch } : w));
+    }),
     addBox: () => update((draft) => {
       // Sized to what is actually on the bench, so the box contains the
       // experiment rather than an arbitrary rectangle near it.
@@ -1228,7 +1296,7 @@ function wireInput() {
       input.panning = { from: at };
       return;
     }
-    if (state.ui.tool === 'wall') {
+    if (state.ui.tool === 'wall' || state.ui.tool === 'arc') {
       const at = pointerToWorld(event);
       if (!at) return;
       event.preventDefault();
@@ -1268,11 +1336,22 @@ function wireInput() {
       paint(true);
       return;
     }
+    /*
+     * An arc is drawn end to end like a wall, and arrives already bowed.
+     *
+     * Asking for a third click to place the curve would make the common case —
+     * a gentle ramp — cost more than it does now, and a curve that starts at
+     * zero is indistinguishable from the straight wall next to it, so the tool
+     * would appear not to have worked. A quarter of the span is a visible bow
+     * that is obviously a curve and obviously adjustable; the slider in the
+     * wall list takes it from there, in either direction.
+     */
+    const bulge = state.ui.tool === 'arc' ? length * 0.25 : 0;
     update((draft) => {
       draft.bench.walls = [...draft.bench.walls, {
         x1: pending.from.x, y1: pending.from.y, x2: pending.to.x, y2: pending.to.y,
-        restitution: 0.3, mu: 0.6,
-      }].slice(0, 40);
+        bulge, restitution: 0.3, mu: 0.6,
+      }].slice(0, MAX_WALLS);
     });
   };
 

@@ -14,7 +14,7 @@ import { explain, equationPanel } from './explain.js';
 import { equation } from '../models.js';
 import { stageById, featuresAt, pushState, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
-import { boxWalls, wallAngle, wallLength, MAX_WALLS } from '../segments.js';
+import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
 import {
   SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
 } from '../friction.js';
@@ -103,7 +103,7 @@ function objectSection(ctx, object, f) {
       max: Math.max(4, Math.round(typicalFor(p.shapeId).size * 2)),
       step: Math.max(0.01, typicalFor(p.shapeId).size / 100),
       key: 'size',
-      format: (v) => `${fmtFixed(v, 2)} m long`,
+      format: (v) => `${fmtFixed(v, 2)} m`,
       info: 'Changes the volume, the frontal area and how it sits on a surface — '
         + 'but not the mass, which is set directly above. So making it bigger '
         + 'makes it less dense.',
@@ -700,28 +700,65 @@ function wallsSection(ctx) {
         title: 'Drag on the drawing to lay down a wall',
         on: { click: () => ctx.setTool(armed ? 'none' : 'wall') },
       }, armed ? 'Drawing — click to stop' : 'Draw a wall'),
+      el('button', {
+        class: `btn btn-sm${state.ui.tool === 'arc' ? ' is-armed' : ''}`,
+        type: 'button',
+        'data-field': 'tool:arc',
+        title: 'Drag on the drawing to lay down a curved wall',
+        on: { click: () => ctx.setTool(state.ui.tool === 'arc' ? 'none' : 'arc') },
+      }, state.ui.tool === 'arc' ? 'Drawing — click to stop' : 'Draw an arc'),
       button('Add a box', () => ctx.addBox(), { small: true, title: 'Four walls around what is on the bench' }),
       walls.length ? button('Clear', () => ctx.clearWalls(), { small: true }) : null,
     ].filter(Boolean)),
 
     el('div', {
       class: 'field__hint',
-      text: armed
-        ? 'Drag across the drawing. A wall is a straight segment with two ends — '
-          + 'an object rests on it exactly as it rests on the ground, and rolls '
-          + 'off the end of it.'
+      text: armed || state.ui.tool === 'arc'
+        ? 'Drag across the drawing, end to end. An object rests on it exactly as '
+          + 'it rests on the ground, and rolls off the end of it. An arc arrives '
+          + 'already bowed — use the curve slider on it to open it out, flatten '
+          + 'it, or bend it the other way.'
         : `Up to ${MAX_WALLS}. Each one behaves like the ground: same normal force, `
-          + 'same friction, same settling.',
+          + 'same friction, same settling. Curve is how far the middle bows off '
+          + 'straight, so zero is a straight wall and there is no separate kind '
+          + 'of thing to choose between.',
     }),
 
-    walls.length ? el('div', { class: 'wall-list' }, walls.map((w, i) => el('span', { class: 'wall-chip' }, [
-      el('span', { text: `${fmtFixed(wallLength(w), 2)} m at ${fmtFixed(wallAngle(w), 0)}°` }),
-      el('button', {
-        class: 'link-btn', type: 'button', title: 'Remove this wall',
-        'data-field': `wall:${i}`,
-        on: { click: () => ctx.removeWall(i) },
-      }, '×'),
-    ]))) : null,
+    /*
+     * One row per wall: what it is, how much it bows, and a way to be rid of it.
+     *
+     * The curve slider is here rather than behind a per-wall panel because
+     * bending a ramp is something you do while watching what runs down it, and
+     * it spans both signs — dragging through zero flattens the wall and out the
+     * other side without ever leaving the control.
+     */
+    walls.length ? el('div', { class: 'wall-list' }, walls.map((w, i) => {
+      const span = Math.max(0.2, wallLength(w));
+      return el('span', { class: 'wall-chip' }, [
+        el('span', {
+          text: isCurved(w)
+            ? `${fmtFixed(arcLength(w), 2)} m curved`
+            : `${fmtFixed(wallLength(w), 2)} m at ${fmtFixed(wallAngle(w), 0)}°`,
+        }),
+        el('input', {
+          class: 'wall-chip__curve',
+          type: 'range',
+          // Bounded by the wall's own span: a bulge of one span is already most
+          // of a circle, and anything past that is a loop with its ends buried.
+          min: -span, max: span, step: span / 100,
+          value: w.bulge || 0,
+          'aria-label': `Curve of wall ${i + 1}`,
+          title: 'How far the middle bows off straight. Centre is a straight wall.',
+          'data-field': `wall:curve:${i}`,
+          on: { input: (event) => ctx.setWall(i, { bulge: Number(event.target.value) }) },
+        }),
+        el('button', {
+          class: 'link-btn', type: 'button', title: 'Remove this wall',
+          'data-field': `wall:${i}`,
+          on: { click: () => ctx.removeWall(i) },
+        }, '×'),
+      ]);
+    })) : null,
   ].filter(Boolean), { key: 'walls' });
 }
 
@@ -777,6 +814,29 @@ function cannonsSection(ctx) {
         key: `c:material:${i}`,
         hint: describeBounce(ctx.params.materialId, c.materialId),
       }),
+    el('div', { class: 'grid-2' }, [
+      sliderField('Shot grip μs', c.muS ?? 2, (v) => ctx.setCannon(i, { muS: v }), {
+        min: 0, max: 5, step: 0.05, key: `c:muS:${i}`, format: (v) => fmtFixed(v, 2),
+        info: 'How hard its shots grip what they land on. Shots carry their own '
+          + 'friction rather than the one set for the bench, because a shot is not the '
+          + 'experiment — it is what you fire at the experiment.',
+      }),
+      sliderField('Shot slide μk', Math.min(c.muK ?? 1.5, c.muS ?? 2),
+        (v) => ctx.setCannon(i, { muK: Math.min(v, c.muS ?? 2) }), {
+          min: 0, max: 5, step: 0.05, key: `c:muK:${i}`, format: (v) => fmtFixed(v, 2),
+          info: 'Once it is sliding. Never more than the static value above — '
+            + 'that is what the two words mean.',
+        }),
+    ]),
+    sliderField('Shot roll drag', c.rolling ?? 0.25, (v) => ctx.setCannon(i, { rolling: v }), {
+      min: 0, max: 2, step: 0.01, key: `c:rolling:${i}`, format: (v) => `C_rr ${fmtFixed(v, 2)}`,
+      info: 'What stops a round shot. A ball rolls rather than slides, so the two '
+        + 'grip sliders above do nothing to it — rolling resistance is a different '
+        + 'mechanism, and normally a hundred times weaker, which is why a fired '
+        + 'ball otherwise crosses the bench and keeps going.',
+      hint: 'Set this to zero and a round shot rolls until something stops it. '
+        + 'The grip sliders act on shots that slide: a cube, a plate, a car.',
+    }),
     el('div', { class: 'grid-2' }, [
       sliderField('At x', c.x, (v) => ctx.setCannon(i, { x: v }), {
         min: -40, max: 40, step: 0.5, key: `c:x:${i}`, format: (v) => `${fmtFixed(v, 1)} m`,
@@ -871,19 +931,16 @@ function viewSection(ctx) {
      * Home does not mean "fit once" — it hands the framing back to the scene,
      * so it goes on following whatever happens next.
      */
+    /*
+     * Zoom, pan and Home live above the drawing now, beside the arrow filters,
+     * because they are things you reach for while looking at it. What stays
+     * here is the one that is not: going back to framing the whole bench, which
+     * is a decision about the experiment rather than a nudge to the view.
+     */
     el('div', { class: 'tool-row' }, [
-      button('Zoom in', () => ctx.zoomBy(1.5), { small: true, title: 'Closer' }),
-      button('Zoom out', () => ctx.zoomBy(1 / 1.5), { small: true, title: 'Wider' }),
-      el('button', {
-        class: `btn btn-sm${state.ui.tool === 'pan' ? ' is-armed' : ''}`,
-        type: 'button',
-        'data-field': 'tool:pan',
-        title: 'Drag the drawing to move the view',
-        on: { click: () => ctx.setTool(state.ui.tool === 'pan' ? 'none' : 'pan') },
-      }, state.ui.tool === 'pan' ? 'Panning — click to stop' : 'Pan'),
-      button('Home', () => ctx.goHome(), {
-        small: true, primary: cam.mode === 'manual',
-        title: 'Back to following the scene automatically',
+      button('Fit everything', () => ctx.fitAll(), {
+        small: true, primary: cam.mode !== 'auto',
+        title: 'Frame the whole bench again, and keep re-framing as it moves',
       }),
     ]),
     el('div', {
@@ -891,9 +948,12 @@ function viewSection(ctx) {
       text: cam.mode === 'manual'
         ? `Held at ${fmtFixed(cam.span, cam.span < 10 ? 2 : 0)} m across, centred on `
           + `(${fmtFixed(cam.cx, 1)}, ${fmtFixed(cam.cy, 1)}). It will stay there while things `
-          + 'move — press Home to follow the scene again.'
-        : 'Following the scene: the view widens and narrows to hold whatever is on '
-          + 'the bench. Zoom or pan and it will hold still instead.',
+          + 'move — press Home to centre on the object at this zoom.'
+        : cam.mode === 'follow'
+          ? `Following the object at ${fmtFixed(cam.span, cam.span < 10 ? 2 : 0)} m across. `
+            + 'The zoom is yours and stays put; the centre keeps up with it.'
+          : 'Following the scene: the view widens and narrows to hold whatever is on '
+            + 'the bench. Zoom or pan and it will hold still instead.',
     }),
 
     selectField('Grid spacing', [

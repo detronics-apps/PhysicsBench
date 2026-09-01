@@ -244,7 +244,7 @@ export const defaults = () => ({
      * which is a hand missing by a pixel and not a decision.
      */
     walls: [
-      { x1: 1.68, y1: 0, x2: 3.56, y2: 1.2, restitution: 0.3, mu: 0.6 },
+      { x1: 1.68, y1: 0, x2: 3.56, y2: 1.2, bulge: 0, restitution: 0.3, mu: 0.6 },
     ],
 
     /*
@@ -261,7 +261,7 @@ export const defaults = () => ({
       {
         id: 'cannon1', x: -3, y: 0.2, angleDeg: 5, speed: 9,
         mass: 0.5, size: 0.2, shapeId: 'sphere', materialId: 'steel',
-        everySeconds: 2,
+        muS: 2, muK: 1.5, rolling: 0.25, everySeconds: 2,
       },
     ],
 
@@ -330,7 +330,7 @@ export function migrate(incoming) {
         ? 'auto'
         : Math.min(1000, Number(incoming.view.grid)),
       camera: {
-        mode: oneOf(incoming.view?.camera?.mode, ['auto', 'manual'], 'auto'),
+        mode: oneOf(incoming.view?.camera?.mode, ['auto', 'manual', 'follow'], 'auto'),
         cx: clamp(incoming.view?.camera?.cx, -1e6, 1e6, 0),
         cy: clamp(incoming.view?.camera?.cy, -1e6, 1e6, 0),
         span: clamp(incoming.view?.camera?.span, 1e-4, 1e9, 6),
@@ -392,7 +392,7 @@ export function migrate(incoming) {
       : [],
     ui: {
       sections: sectionFlags(incoming.ui?.sections),
-      tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'pan'], 'none'),
+      tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
     },
   };
 }
@@ -438,6 +438,9 @@ function wallsFrom(incoming) {
       y1: clamp(w.y1, -1000, 1000, 0),
       x2: clamp(w.x2, -1000, 1000, 1),
       y2: clamp(w.y2, -1000, 1000, 0),
+      // How far it bows off straight. Absent means zero means straight, which
+      // is what every wall drawn before curves existed is.
+      bulge: clamp(w.bulge, -1000, 1000, 0),
       restitution: clamp(w.restitution, 0, 1, 0.3),
       mu: clamp(w.mu, 0, 5, 0.6),
     }))
@@ -460,6 +463,9 @@ function cannonsFrom(incoming) {
       size: clamp(c.size, 0.01, 5, 0.2),
       shapeId: oneOf(c.shapeId, SHAPE_IDS, 'sphere'),
       materialId: oneOf(c.materialId, MATERIAL_IDS, 'steel'),
+      muS: clamp(c.muS, 0, 5, 2),
+      muK: Math.min(clamp(c.muK, 0, 5, 1.5), clamp(c.muS, 0, 5, 2)),
+      rolling: clamp(c.rolling, 0, 2, 0.25),
       everySeconds: clamp(c.everySeconds, 0, 60, 1),
     }));
 }
