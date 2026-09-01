@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.4.0
+
+Three new shapes, an atmosphere that thins with height, and seven steps instead of eight.
+
+### The bench
+
+- **Seven steps.** The surface step has been folded into friction, and the tilt control it owned
+  now sits under "The world it is on" beside the surface gravity — a slope is a fact about the
+  ground you are standing on in the same way its gravity is. A saved session or share link that
+  names the old step lands on the friction step with its tilt intact, rather than at step one.
+- **Fluids and objects (step 6) is only that.** Walls and cannons have moved to the playground,
+  where everything you draw or fire belongs. Anything already set is kept, not deleted.
+
+### New shapes
+
+- **A person, as a man and as a woman** — 1.76 m / 73 kg and 1.63 m / 60 kg, laid out to published
+  fractions of stature rather than by eye. Both come out at about 985 kg/m³, a whisker under water,
+  which is why a person floats with full lungs and sinks with empty ones. Worth putting in the
+  fluid step to watch.
+- **The Magbot Rover** — 12 cm, 600 g, 0.00173 m³, drawn from the photographs with its face panel,
+  sensor, connector sockets and a driven wheel that turns as it moves. It has wheels and still does
+  not roll: N20 gearmotors will not back-drive, so unpowered it grips and stops rather than
+  coasting, which is exactly what the real one does.
+
+### Air that behaves like air
+
+- **The Atmosphere** is a fluid whose density, viscosity, temperature and pressure are read at the
+  object's own height, to the International Standard Atmosphere. A balloon in it does not rise for
+  ever — it stops where the air is as thin as the balloon is. Measured: an 8 kg balloon of 91 m³
+  settles at 19,988 m, where the air is 0.0882 kg/m³ and the balloon is 0.0882.
+- The books still balance in it. Buoyancy in a fluid that thins with height is conservative, but its
+  potential is the *integral* of ρ(y)·V·g rather than the local value times the rise — a fall from
+  8 km closes to 0.02 J in 6.28 MJ.
+
+### Seeing it
+
+- **Elevation** in the corner of the drawing, wherever there is something to be above.
+- **Zoom reaches millimetres.** A cap of 400 pixels per metre had been putting a floor of about two
+  metres under the visible width whatever the zoom said, so a 12 cm robot could never be more than a
+  fifteenth of the canvas. The grid now runs 0.25 m, 5 cm, 1 cm, 5 mm, 2.5 mm as you go in, and the
+  automatic framing sizes itself to what is on the bench instead of a fixed six metres.
+- **Home keeps your zoom**, and the view re-fits when you change the object rather than holding a
+  window sized for the last one.
+- Objects are drawn as ordered pieces where one is in front of another, so a near thing hides a far
+  thing's outline instead of both being drawn through each other.
+
+### Controls
+
+- **The push slider is sized by the object** — zero to twenty times its own weight, so a kilogram
+  gets 200 N and a hundred kilograms gets 20 kN, and the far end is twenty gravities whatever is on
+  the bench. It starts at zero: a push has a size and a direction, and the direction is the slider
+  underneath.
+- **A cannon's projectile settings fold away**, so aiming it does not push the position controls off
+  the panel. Shots also carry their own grip and roll drag, because a fired ball on the ground's
+  default rolling resistance crosses the bench and keeps going.
+
+### Fixed
+
+- **Cannon shots passed through people.** Body-to-body contact treated every shape as a circle of
+  half its width, which for a standing figure is a 22 cm disc at chest height — anything rolling
+  along the floor went underneath it. Bodies are capsules now, which is the same circle whenever a
+  shape is as wide as it is tall.
+- Something that stopped no longer snaps round to face right; it keeps the way it was going.
+- "Drop it from" works on every step that has a floor, not only the one before it.
+- The size readout says "0.50 m", not "0.50 m long".
+
+The bench holds ten objects, cannon shots included, rather than twenty.
+
 ## 1.3.0
 
 Step seven is about fluids and objects, and now contains only those.
