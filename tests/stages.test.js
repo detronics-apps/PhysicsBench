@@ -32,7 +32,7 @@ function run(stageId, patch = {}, seconds = 0, frame = 1 / 120) {
 /* ------------------------------------------------------------ the shape -- */
 
 test('the steps accumulate — nothing is ever taken away', () => {
-  assert.equal(STAGES.length, 8);
+  assert.equal(STAGES.length, 7);
   for (let i = 1; i < STAGES.length; i += 1) {
     const before = featuresAt(STAGES[i - 1].id);
     const after = featuresAt(STAGES[i].id);
@@ -162,10 +162,13 @@ test('step 4: only one weight arrow, whatever is doing the pulling', () => {
   assert.ok(weights[0].magnitude > 1);
 });
 
-test('step 5: the surface splits the weight, and the two parts add back up', () => {
+test('a tilted surface splits the weight, and the two parts add back up', () => {
   const g = surfaceGravity(P.planetMass, P.planetRadius);
   for (const slopeDeg of [0, 20, 35, 50]) {
-    const { world } = run('surface', { mass: 4, slopeDeg, shapeId: 'cube', size: 0.4, pushForce: 0, pushSeconds: 0 });
+    // Tilt is set under "the world it is on" now, and the step that owns the
+    // floor is the friction step — but the split itself is unchanged, which is
+    // the point of checking it here rather than trusting the move.
+    const { world } = run('friction', { mass: 4, slopeDeg, shapeId: 'cube', size: 0.4, pushForce: 0, pushSeconds: 0, muS: 0, muK: 0 });
     const main = inspect(world, 'main');
     const rad = (slopeDeg * Math.PI) / 180;
     close(main.forces.find((f) => f.id === 'normal').magnitude, 4 * g * Math.cos(rad), 1e-6);
@@ -304,7 +307,7 @@ test('pushState reports what the push is doing', () => {
 test('stage lookups fall back rather than throwing', () => {
   assert.equal(stageById('nonsense').id, 'mass');
   assert.equal(stageIndex('nonsense'), 0);
-  assert.equal(stageIndex('collide'), 7);
+  assert.equal(stageIndex('collide'), STAGES.length - 1);
 });
 
 
@@ -891,7 +894,7 @@ test('a shape rests at its own height on a planet, as it does on the ground', ()
     // On a planet, where contact is with another body.
     close(settle('planet', shapeId), expected, 2e-3);
     // And on the drawn ground, which was always right — the two must agree.
-    close(settle('surface', shapeId), expected, 2e-3);
+    close(settle('friction', shapeId), expected, 2e-3);
   }
 
   // A flat plate is nowhere near as tall as a cube, which is the case that was

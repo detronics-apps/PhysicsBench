@@ -380,6 +380,32 @@ function worldSection(ctx) {
         + 'above — which is why a small dense world can out-pull a huge fluffy one.',
     }),
 
+    /*
+     * The tilt of the ground, and what tilting it does to the weight.
+     *
+     * This belongs with the world rather than in a panel of its own: the slope
+     * is a fact about the ground you are standing on, in the same way its
+     * gravity is, and reading "surface gravity" and "tilt" as two unrelated
+     * settings in two places made the surface look like a separate object that
+     * had arrived from somewhere. Only shown where there is a floor to tilt.
+     */
+    f.has('ground') && !ctx.space ? sliderField('Tilt', p.slopeDeg, (v) => set('slopeDeg', v), {
+      min: -60, max: 60, step: 1, key: 'slopeDeg',
+      format: (v) => `${v}°`,
+      info: 'Tilt the ground and only part of the weight presses into it. The rest '
+        + 'is left over along the slope, and that leftover is what makes things '
+        + 'slide — which is why the normal force shrinks as the tilt grows.',
+      hint: 'A positive angle rises to the right, so downhill is to the left.',
+    }) : null,
+    f.has('ground') && !ctx.space ? el('div', { class: 'dims' }, [
+      el('dt', { text: 'Weight' }),
+      el('dd', { text: `${fmtFixed(p.mass * world.g, 2)} N` }),
+      el('dt', { text: 'Pressing into the surface' }),
+      el('dd', { text: `${fmtFixed(p.mass * world.g * Math.cos((p.slopeDeg * Math.PI) / 180), 2)} N` }),
+      el('dt', { text: 'Left over, along the slope' }),
+      el('dd', { text: `${fmtFixed(Math.abs(p.mass * world.g * Math.sin((p.slopeDeg * Math.PI) / 180)), 2)} N` }),
+    ]) : null,
+
     sliderField('Drop it from', p.dropHeight, (v) => set('dropHeight', v), {
       min: 0, max: 20, step: 0.1, key: 'dropHeight', format: (v) => `${fmtFixed(v, 1)} m up`,
       info: 'How far above the surface it is released. It only moves the object '
@@ -399,20 +425,6 @@ function surfaceSection(ctx) {
   const weight = p.mass * world.g;
 
   return section('The surface', [
-    sliderField('Tilt', p.slopeDeg, (v) => set('slopeDeg', v), {
-      min: -60, max: 60, step: 1, key: 'slopeDeg',
-      format: (v) => `${v}°`,
-      hint: 'A positive angle rises to the right, so downhill is to the left.',
-    }),
-    el('div', { class: 'dims' }, [
-      el('dt', { text: 'Weight' }),
-      el('dd', { text: `${fmtFixed(weight, 2)} N` }),
-      el('dt', { text: 'Pressing into the surface' }),
-      el('dd', { text: `${fmtFixed(weight * Math.cos(rad), 2)} N` }),
-      el('dt', { text: 'Left over, along the slope' }),
-      el('dd', { text: `${fmtFixed(Math.abs(weight * Math.sin(rad)), 2)} N` }),
-    ]),
-
     /*
      * A named pair of surfaces, not just two numbers.
      *

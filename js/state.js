@@ -31,6 +31,9 @@ const KEY = 'physics-bench';
 export const STATE_VERSION = 3;
 
 export const STAGE_IDS = STAGES.map((s) => s.id);
+
+/** Steps that have been folded into others, and where their readers go now. */
+const RETIRED_STAGES = { surface: 'friction' };
 const SHAPE_IDS = SHAPES.map((s) => s.id);
 const FLUID_IDS = FLUIDS.map((f) => f.id);
 const WORLD_IDS = [...WORLDS.map((w) => w.id), 'custom'];
@@ -302,7 +305,11 @@ export function migrate(incoming) {
 
   return {
     version: STATE_VERSION,
-    stage: oneOf(incoming.stage, STAGE_IDS, base.stage),
+    // A saved session or a share link may name the surface step, which no
+    // longer exists. Sending it to the step that absorbed it is the only
+    // answer that keeps the reader where they were; the plain fallback would
+    // drop them back at step one.
+    stage: oneOf(RETIRED_STAGES[incoming.stage] ?? incoming.stage, STAGE_IDS, base.stage),
     theme: oneOf(incoming.theme, ['system', 'light', 'dark'], base.theme),
     selectedId: typeof incoming.selectedId === 'string' ? incoming.selectedId : 'main',
 

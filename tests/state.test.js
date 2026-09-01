@@ -120,7 +120,9 @@ test('a real old blob survives, rather than a freshly generated one', () => {
     bench: { mass: 12, slopeDeg: 30, shapeId: 'cube' },
   };
   const m = migrate(old);
-  assert.equal(m.stage, 'surface');
+  // The surface step has since been folded into the friction step, so a reader
+  // who saved on it lands there rather than being dropped back at step one.
+  assert.equal(m.stage, 'friction');
   assert.equal(m.theme, 'dark');
   assert.equal(m.bench.mass, 12);
   assert.equal(m.bench.slopeDeg, 30);

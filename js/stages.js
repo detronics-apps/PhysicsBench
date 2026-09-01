@@ -106,32 +106,33 @@ export const STAGES = [
       + 'world of the same mass pulls less.',
   },
   {
-    id: 'surface',
-    label: 'Surface',
-    short: 'Surface',
-    features: ['applied', 'planet', 'ground', 'shape', 'space'],
-    ask: 'If gravity is still pulling, what holds it up?',
-    discover: 'The surface pushes back — exactly hard enough, and no harder. '
-      + 'Tilt the surface and only part of the weight presses into it; the rest '
-      + 'is left over, and the object slides. Change the shape and how it sits '
-      + 'changes with it.',
-    watch: 'Tilt the ramp and watch the normal force shrink as the leftover '
-      + 'along the slope grows. Then switch the world to deep space: the floor '
-      + 'and the weight both go, and the normal force goes with them, because '
-      + 'there is nothing left for it to hold up.',
-  },
-  {
+    /*
+     * The floor arrives here, along with friction.
+     *
+     * There was a step in between that introduced the surface on its own — the
+     * normal force, the tilt, and what tilting does to the weight. Its controls
+     * now live with the world they describe, so the step had nothing left that
+     * this one does not also do, and what it taught is said here instead: you
+     * cannot explain friction without first explaining what it is proportional
+     * to, so the two were always going to be read together.
+     */
     id: 'friction',
     label: 'Friction',
     short: 'Friction',
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction'],
-    ask: 'What happens if the surface holds on?',
-    discover: 'Friction takes whatever value it needs to stop the object '
-      + 'sliding — up to a limit set by how hard the surfaces are pressed '
-      + 'together. Past that limit it lets go, and drops to a lower value, which '
-      + 'is why a stuck object lurches when it finally moves.',
-    watch: 'Push gently and watch friction match you exactly. Push past the '
-      + 'static limit and watch it fall.',
+    ask: 'Now there is a floor. What holds the object up, and what holds it back?',
+    discover: 'The surface pushes back — exactly hard enough, and no harder. '
+      + 'Tilt it and only part of the weight presses in; the rest is left over '
+      + 'along the slope, and that leftover is what the object slides on. '
+      + 'Friction then takes whatever value it needs to stop it sliding, up to a '
+      + 'limit set by how hard the surfaces are pressed together — which is the '
+      + 'normal force again. Past that limit it lets go and drops to a lower '
+      + 'value, which is why a stuck object lurches when it finally moves.',
+    watch: 'Tilt the ground under "The world it is on" and watch the normal '
+      + 'force shrink as the leftover along the slope grows. Push gently and '
+      + 'watch friction match you exactly, then push past the static limit and '
+      + 'watch it fall. Switch the world to deep space and the floor, the '
+      + 'weight and the normal force all go together.',
   },
   {
     id: 'fluid',
