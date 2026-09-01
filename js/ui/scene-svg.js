@@ -33,11 +33,12 @@ import {
 import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
-import { outline } from '../shapes.js';
+import { outline, detail } from '../shapes.js';
 import { wallBounds, alongWall, arcOf } from '../segments.js';
+import { elevation } from '../world.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
 import { alongSurface } from '../orient.js';
-import { fmtFixed } from '../format.js';
+import { fmtFixed, fmtLength } from '../format.js';
 
 const VIEW_W = 880;
 const VIEW_H = 460;
@@ -186,6 +187,26 @@ export function renderScene(world, {
    */
   root.appendChild(drawLabels(labels));
 
+  /*
+   * How high the object is, in the top corner, where there is something for it
+   * to be high above.
+   *
+   * A number that is on screen all the time and never moves is worth more than
+   * one buried in a panel below the fold: how far up it is now is the question
+   * a drop is about, and it is the one thing the drawing itself cannot show,
+   * because the camera keeps re-framing and takes the sense of scale with it.
+   *
+   * Nothing is shown in deep space with no world in it, where an elevation
+   * would be a height above an origin nobody chose.
+   */
+  const up = elevation(world, selectedId || focusId);
+  if (up !== null && Number.isFinite(up)) {
+    root.appendChild(svg('text', {
+      x: 8, y: 16, fill: 'var(--text-dim)', 'font-size': 11,
+      class: 'scene__elevation',
+    }, `elevation ${fmtLength(Math.max(0, up))}`));
+  }
+
   return root;
 }
 
@@ -224,6 +245,27 @@ export const boxView = (box) => ({
   span: Math.max(1e-6, box.maxX - box.minX),
 });
 
+/**
+ * The smallest window the automatic framing will settle into, given what is on
+ * the bench.
+ *
+ * A fixed six-metre floor is right for a car and absurd for a twelve-centimetre
+ * robot, which it draws seventeen pixels wide with a great deal of empty room
+ * around it. Twenty-four times the largest object keeps the default scene
+ * exactly as it was — the half-metre sphere it opens with lands on six metres
+ * to the digit — and tightens from there for anything smaller. The margin has
+ * to come down with it, or half a metre of padding swamps the robot on its own.
+ */
+function benchFloor(bodies) {
+  let biggest = 0;
+  for (const b of bodies) {
+    biggest = Math.max(biggest, b.radius || 0, (b.width || 0) / 2, (b.height || 0) / 2);
+  }
+  if (!(biggest > 0)) return {};
+  const width = Math.min(6, Math.max(0.01, biggest * 24));
+  return { minWidth: width, minHeight: width / 2, margin: Math.min(0.5, biggest * 2) };
+}
+
 export function sceneCamera(world, focusId = 'main', view = null) {
   const planets = world.bodies.filter((b) => b.kind === 'planet');
   const ordinary = world.bodies.filter((b) => b.kind !== 'planet');
@@ -241,7 +283,10 @@ export function sceneCamera(world, focusId = 'main', view = null) {
   const box = planets.length && focus
     ? windowAround(focus, framing.length ? framing : ordinary, planets)
     : withWalls(
-      boundsFor(framing.length ? framing : ordinary, { ground: world.ground }),
+      boundsFor(framing.length ? framing : ordinary, {
+        ground: world.ground,
+        ...benchFloor(framing.length ? framing : ordinary),
+      }),
       world.walls, world.cannons,
     );
 
@@ -439,7 +484,7 @@ function drawGrid(cam, override = 'auto') {
   }
   group.appendChild(svg('text', {
     x: 8, y: VIEW_H - 8, fill: 'var(--text-faint)', 'font-size': 10,
-  }, `grid: ${step < 1 ? step.toPrecision(2) : fmtFixed(step, 0)} m`));
+  }, `grid: ${fmtLength(step)}`));
   return group;
 }
 
@@ -736,6 +781,7 @@ function drawBody(cam, body, selected, topDown, labels) {
   const strokeWidth = selected ? 3 : 1.5;
 
   const path = body.shapeId ? outline(body.shapeId, { topDown }) : null;
+  const markings = body.shapeId ? detail(body.shapeId, { topDown }) : null;
 
   if (path) {
     const w = Math.max(8, toPixels(cam, body.width || body.radius * 2));
@@ -754,10 +800,31 @@ function drawBody(cam, body, selected, topDown, labels) {
     group.appendChild(svg('g', {
       transform: `translate(${r(centre.x)} ${r(centre.y)}) rotate(${r(spin)}) `
         + `scale(${mirror} 1) translate(${r(-centre.x)} ${r(-centre.y)})`,
-    }, svg('path', {
-      d: `${scalePath(path, centre.x, centre.y, w, h)} Z`,
-      fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
-    })));
+    }, [
+      svg('path', {
+        d: `${scalePath(path, centre.x, centre.y, w, h)} Z`,
+        fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
+      }),
+      /*
+       * Markings on top of the outline — a panel, a sensor, a wheel hub.
+       *
+       * Stroked and never filled, so it reads at the forty pixels a small
+       * object is usually drawn at, and skipped entirely below that: detail on
+       * something twenty pixels wide is a smudge that makes the shape harder
+       * to recognise rather than easier.
+       */
+      markings && w >= 28
+        ? svg('path', {
+          d: scalePath(markings, centre.x, centre.y, w, h),
+          fill: 'none',
+          stroke,
+          'stroke-width': 1,
+          'stroke-linejoin': 'round',
+          'stroke-linecap': 'round',
+          opacity: 0.65,
+        })
+        : null,
+    ].filter(Boolean)));
   } else if (body.kind === 'ball' || !body.shapeId) {
     const radius = Math.max(4, toPixels(cam, body.radius));
     group.appendChild(svg('circle', {

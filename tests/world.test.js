@@ -5,7 +5,7 @@ import { vec, len } from '../js/vec.js';
 import { G_STANDARD } from '../js/constants.js';
 import {
   body, createWorld, groundNormal, groundGap, forcesFor,
-  advance, step, findBody, inspect, totals, snapshot, restore,
+  advance, step, findBody, inspect, totals, snapshot, restore, elevation,
 } from '../js/world.js';
 
 const close = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -512,4 +512,49 @@ test('a rolling ball turns the way it is going, by the distance it covers', () =
   const left = roll(-3);
   close(left.turned, -left.moved / left.radius, 1e-6);
   assert.ok(left.turned > 0, 'it rolled left and turned clockwise');
+});
+
+/* ------------------------------------------------------------ elevation -- */
+
+/**
+ * How high the object is above whatever it would land on.
+ *
+ * The honest answer in deep space is nothing at all. Returning `pos.y` there
+ * would be a height above an origin nobody chose, and it would read as a real
+ * measurement on the drawing rather than as the coordinate it is.
+ */
+test('elevation is measured from whatever is underneath, or is nothing', () => {
+  const ground = { y: 0, slopeDeg: 0, muS: 0.5, muK: 0.3, restitution: 0.3, rolling: 0.01 };
+
+  const resting = createWorld({
+    g: 9.81, field: vec(0, -9.81), ground,
+    bodies: [body({ id: 'main', kind: 'ball', mass: 1, radius: 0.25, pos: vec(0, 0.25) })],
+  });
+  close(elevation(resting), 0, 1e-9);
+
+  const lifted = createWorld({
+    g: 9.81, field: vec(0, -9.81), ground,
+    bodies: [body({ id: 'main', kind: 'ball', mass: 1, radius: 0.25, pos: vec(0, 3.25) })],
+  });
+  close(elevation(lifted), 3, 1e-9);
+
+  // No floor and no world to fall towards: there is no elevation to report.
+  // `ground: null` said plainly, because createWorld keeps a floor otherwise.
+  const empty = createWorld({
+    g: 0, field: vec(0, 0), ground: null,
+    bodies: [body({ id: 'main', kind: 'ball', mass: 1, radius: 0.25, pos: vec(0, 12) })],
+  });
+  assert.equal(elevation(empty), null);
+});
+
+test('above a planet, elevation is measured from its surface', () => {
+  const world = createWorld({
+    g: 0, field: vec(0, 0), mutualGravity: true, ground: null,
+    bodies: [
+      body({ id: 'planet', kind: 'planet', mass: 5.97e24, radius: 100, pos: vec(0, -100), fixed: true }),
+      body({ id: 'main', kind: 'ball', mass: 1, radius: 0.5, pos: vec(0, 5) }),
+    ],
+  });
+  // Centres are 105 apart; take the planet's 100 and the ball's own 0.5.
+  close(elevation(world), 4.5, 1e-9);
 });

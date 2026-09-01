@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById,
-  floats, outline, TYPICAL, contactKind,
+  floats, outline, detail, TYPICAL, contactKind,
 } from '../js/shapes.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -282,4 +282,28 @@ test('the rover and the car are each drawn twice, side on and from above', () =>
   }
   // A person looks the same standing whichever way you walk round them.
   assert.equal(outline('human-m'), outline('human-m', { topDown: true }));
+});
+
+test('the rover carries markings, and they are only ever decoration', () => {
+  // Side and top get their own, and they differ — the top one has the arrow.
+  assert.ok(detail('magbot'), 'the rover lost its markings');
+  assert.ok(detail('magbot', { topDown: true }));
+  assert.notEqual(detail('magbot'), detail('magbot', { topDown: true }));
+  // A shape without any says so plainly rather than returning something empty.
+  assert.equal(detail('cube'), null);
+  assert.equal(detail('sphere'), null);
+
+  // Markings stay inside the outline's box, or they would be clipped or would
+  // stretch the shape's apparent size.
+  for (const topDown of [false, true]) {
+    const d = detail('magbot', { topDown });
+    const numbers = d.trim().split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+    assert.ok(numbers.every((v) => Math.abs(v) <= 0.5 + 1e-9), 'a marking runs outside the box');
+  }
+});
+
+test('the woman is drawn differently enough to tell apart', () => {
+  // Both fill the same box, so the difference has to be in the shape itself —
+  // a few centimetres of shoulder width is one pixel at the size these draw at.
+  assert.notEqual(outline('human-m'), outline('human-f'));
 });

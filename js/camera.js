@@ -29,7 +29,21 @@ export function createCamera({
   viewWidth = 760,
   viewHeight = 380,
   padding = 24,
-  maxScale = 400,              // px per metre — stops a tiny scene being absurd
+  /*
+   * The finest the drawing will ever get, in pixels per metre.
+   *
+   * This was 400, which put a floor of about two metres under the visible
+   * width whatever the zoom said — so a twelve-centimetre robot could never be
+   * more than a fifteenth of the canvas, and the grid could never report
+   * anything below 0.2 m however far in you went. The cap existed to stop an
+   * empty scene being blown up absurdly, and the automatic framing now sizes
+   * itself to what is on the bench, which does that job properly.
+   *
+   * A million puts roughly a millimetre across the canvas at full zoom, which
+   * is past anything this app models and still comfortably inside the range
+   * where the arithmetic is exact.
+   */
+  maxScale = 1e6,
   // Low enough that any scene fits. A 2 km drop is a legitimate experiment, and
   // a floor that stopped it fitting would push the balls off the canvas rather
   // than protect anything.

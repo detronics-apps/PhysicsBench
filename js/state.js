@@ -352,9 +352,11 @@ export function migrate(incoming) {
       showTrail: bool(incoming.view?.showTrail, true),
       showGrid: bool(incoming.view?.showGrid, true),
       graphs: bool(incoming.view?.graphs, true),
+      // A grid may be as fine as a millimetre now, so the floor comes down
+      // with the ceiling — the old guard only refused values at or below zero.
       grid: incoming.view?.grid === 'auto' || !(Number(incoming.view?.grid) > 0)
         ? 'auto'
-        : Math.min(1000, Number(incoming.view.grid)),
+        : Math.min(1000, Math.max(1e-4, Number(incoming.view.grid))),
       camera: {
         mode: oneOf(incoming.view?.camera?.mode, ['auto', 'manual', 'follow'], 'auto'),
         cx: clamp(incoming.view?.camera?.cx, -1e6, 1e6, 0),

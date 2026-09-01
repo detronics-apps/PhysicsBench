@@ -981,6 +981,31 @@ export function inspect(world, id) {
   };
 }
 
+/**
+ * How high a body is above whatever it would land on, or `null` if nothing.
+ *
+ * Two different surfaces can be underneath: a drawn floor, where the answer is
+ * the gap plus the body's own support so it reads zero when resting; or a
+ * planet, where it is the distance between the centres less the planet's radius
+ * and the body's support. In deep space with neither, there is no such thing as
+ * an elevation and the honest answer is nothing at all rather than the y
+ * coordinate, which would be a height above an origin nobody chose.
+ */
+export function elevation(world, bodyId = 'main') {
+  const b = world.bodies.find((x) => x.id === bodyId) || world.bodies.find((x) => !x.fixed);
+  if (!b) return null;
+  const support = b.kind === 'ball' ? b.radius : b.height / 2;
+
+  if (world.ground) return groundGap(world.ground, b);
+
+  const planet = world.bodies.find((x) => x.kind === 'planet');
+  if (planet) {
+    const gap = len(sub(b.pos, planet.pos)) - (planet.radius || 0) - support;
+    return Number.isFinite(gap) ? gap : null;
+  }
+  return null;
+}
+
 /** Total momentum and energy of the whole world, for the conservation readouts. */
 export function totals(world) {
   let px = 0;

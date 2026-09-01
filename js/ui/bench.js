@@ -29,7 +29,7 @@ import { FLUIDS, fluidById, drag as fluidDrag, terminalSpeed } from '../drag.js'
 import { WORLDS, describeWorld, surfaceGravity, everydayComparison, massForGravity } from '../gravitation.js';
 import { inspect, totals, findBody } from '../world.js';
 import { len } from '../vec.js';
-import { fmtFixed, fmtDirectionWords } from '../format.js';
+import { fmtFixed, fmtDirectionWords, fmtLength } from '../format.js';
 import { G, G_STANDARD } from '../constants.js';
 
 /* ---------------------------------------------------------- the controls -- */
@@ -990,14 +990,17 @@ function viewSection(ctx) {
 
     selectField('Grid spacing', [
       { value: 'auto', label: 'Automatic — always readable' },
-      ...[0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100].map((v) => ({ value: String(v), label: `${v} m` })),
+      // Down to a millimetre, because a twelve-centimetre robot on a
+      // metre-spaced grid has no grid on it at all.
+      ...[0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100]
+        .map((v) => ({ value: String(v), label: fmtLength(v) })),
     ], String(state.view.grid), (v) => ctx.setGrid(v === 'auto' ? 'auto' : Number(v)), {
       key: 'view:gridsize',
       hint: state.view.grid === 'auto'
         ? 'Chosen to keep the lines 40 to 120 pixels apart at any zoom, which is '
           + 'right for reading a distance off and wrong for comparing two runs at '
           + 'different scales — fix it to a number for that.'
-        : `Fixed at ${state.view.grid} m, so the same distance looks the same at any `
+        : `Fixed at ${fmtLength(state.view.grid)}, so the same distance looks the same at any `
           + 'zoom. Zoom far enough out and the lines will be too dense to read.',
     }),
 

@@ -98,6 +98,34 @@ export function fmtSigned(value, decimals = 2) {
 
 export const fmtKg = (v, d = 2) => `${fmtFixed(v, d)} kg`;
 export const fmtM = (v, d = 2) => `${fmtFixed(v, d)} m`;
+
+/**
+ * A length in whatever unit makes it readable, from kilometres down to microns.
+ *
+ * A grid label reading "0.0050 m" is technically right and useless; on a bench
+ * where the object is a 12 cm robot the answer a person wants is "5 mm". The
+ * thresholds are set so that everything a metre and up stays in metres, which
+ * is where this app spends almost all of its time — nothing about the ordinary
+ * case changes.
+ */
+export function fmtLength(metres) {
+  // `Number(null)` is 0 and `Number('')` is 0, and neither is a length — an
+  // absent value has to read as absent rather than as the object resting on
+  // the floor.
+  if (metres === null || metres === undefined || metres === '') return '—';
+  const v = Number(metres);
+  if (!Number.isFinite(v)) return '—';
+  const size = Math.abs(v);
+  if (size === 0) return '0 m';
+  if (size >= 1000) return `${tidy(v / 1000)} km`;
+  if (size >= 0.1) return `${tidy(v)} m`;
+  if (size >= 0.01) return `${tidy(v * 100)} cm`;
+  if (size >= 0.00001) return `${tidy(v * 1000)} mm`;
+  return `${tidy(v * 1e6)} µm`;
+}
+
+/** Up to three decimals, with the trailing zeros taken off again. */
+const tidy = (v) => trimZeros(v.toFixed(3));
 export const fmtMps = (v, d = 2) => `${fmtFixed(v, d)} m/s`;
 export const fmtMps2 = (v, d = 2) => `${fmtFixed(v, d)} m/s²`;
 export const fmtN = (v, d = 2) => `${fmtFixed(v, d)} N`;

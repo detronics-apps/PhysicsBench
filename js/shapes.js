@@ -54,12 +54,20 @@ const MAN = 'M 0 -0.5 C 0.1 -0.5 0.15 -0.44 0.15 -0.38 C 0.15 -0.32 0.1 -0.27 0 
   + 'L 0.21 0.13 L 0.17 0.5 L 0.04 0.5 L 0 0.19 L -0.04 0.5 L -0.17 0.5 '
   + 'L -0.21 0.13 L -0.23 -0.06 L -0.36 0.21 L -0.5 0.14 L -0.36 -0.17 Z';
 
-/** The same figure with narrower shoulders and a lower waist. */
+/*
+ * The same figure with narrower shoulders, and a dress.
+ *
+ * The torso narrows to a waist and then flares to a hem, with the lower legs
+ * below it — which is what makes the two figures tell apart at the size they
+ * are actually drawn, where a difference of a few centimetres in shoulder width
+ * is a pixel and reads as nothing at all.
+ */
 const WOMAN = 'M 0 -0.5 C 0.1 -0.5 0.145 -0.445 0.145 -0.385 C 0.145 -0.325 0.1 -0.275 0 -0.275 '
   + 'C -0.1 -0.275 -0.145 -0.325 -0.145 -0.385 C -0.145 -0.445 -0.1 -0.5 0 -0.5 Z '
   + 'M -0.15 -0.245 L 0.15 -0.245 L 0.33 -0.175 L 0.5 0.13 L 0.37 0.2 L 0.23 -0.05 '
-  + 'L 0.24 0.1 L 0.17 0.5 L 0.04 0.5 L 0 0.2 L -0.04 0.5 L -0.17 0.5 '
-  + 'L -0.24 0.1 L -0.23 -0.05 L -0.37 0.2 L -0.5 0.13 L -0.33 -0.175 Z';
+  + 'L 0.14 0.06 L 0.3 0.34 L 0.11 0.34 L 0.11 0.5 L 0.03 0.5 L 0.03 0.34 '
+  + 'L -0.03 0.34 L -0.03 0.5 L -0.11 0.5 L -0.11 0.34 L -0.3 0.34 L -0.14 0.06 '
+  + 'L -0.23 -0.05 L -0.37 0.2 L -0.5 0.13 L -0.33 -0.175 Z';
 
 /*
  * The Magbot Rover from the side: a boxy body carried on one big driven wheel
@@ -102,6 +110,54 @@ const MAGBOT_TOP =
   // A wheel out either side, which is also what tells you which way it drives.
   + 'M -0.16 -0.5 L 0.2 -0.5 L 0.2 -0.3 L -0.16 -0.3 Z '
   + 'M -0.16 0.3 L 0.2 0.3 L 0.2 0.5 L -0.16 0.5 Z';
+
+/*
+ * What turns the rover from a box on wheels into a recognisable Magbot: the
+ * front panel, the ultrasonic sensor's two eyes, the wheel hubs and the
+ * connectors along the top edge.
+ *
+ * Drawn as a stroked overlay rather than as holes in the body, because a hole
+ * needs the subpath wound the other way and every one of these would have to be
+ * reversed by hand — and because a stroke stays visible when the whole robot is
+ * forty pixels wide, which is the size it is usually drawn at.
+ *
+ * Circles are four cubics rather than arc commands: `scalePath` reads every
+ * pair of numbers after a command as a coordinate, and an arc carries flags
+ * that are not coordinates.
+ */
+const MAGBOT_DETAIL =
+  // The front panel.
+  'M -0.34 -0.38 L 0.34 -0.38 L 0.34 0.06 L -0.34 0.06 Z '
+  // Two sensor eyes.
+  + 'M -0.215 -0.2 C -0.215 -0.2414 -0.1814 -0.275 -0.14 -0.275 '
+  + 'C -0.0986 -0.275 -0.065 -0.2414 -0.065 -0.2 '
+  + 'C -0.065 -0.1586 -0.0986 -0.125 -0.14 -0.125 '
+  + 'C -0.1814 -0.125 -0.215 -0.1586 -0.215 -0.2 Z '
+  + 'M 0.025 -0.2 C 0.025 -0.2414 0.0586 -0.275 0.1 -0.275 '
+  + 'C 0.1414 -0.275 0.175 -0.2414 0.175 -0.2 '
+  + 'C 0.175 -0.1586 0.1414 -0.125 0.1 -0.125 '
+  + 'C 0.0586 -0.125 0.025 -0.1586 0.025 -0.2 Z '
+  // Wheel hubs.
+  + 'M -0.34 0.28 C -0.34 0.2358 -0.3042 0.2 -0.26 0.2 '
+  + 'C -0.2158 0.2 -0.18 0.2358 -0.18 0.28 '
+  + 'C -0.18 0.3242 -0.2158 0.36 -0.26 0.36 '
+  + 'C -0.3042 0.36 -0.34 0.3242 -0.34 0.28 Z '
+  + 'M 0.18 0.28 C 0.18 0.2358 0.2158 0.2 0.26 0.2 '
+  + 'C 0.3042 0.2 0.34 0.2358 0.34 0.28 '
+  + 'C 0.34 0.3242 0.3042 0.36 0.26 0.36 '
+  + 'C 0.2158 0.36 0.18 0.3242 0.18 0.28 Z '
+  // Connectors along the top.
+  + 'M -0.24 -0.5 L -0.24 -0.44 M -0.08 -0.5 L -0.08 -0.44 '
+  + 'M 0.08 -0.5 L 0.08 -0.44 M 0.24 -0.5 L 0.24 -0.44';
+
+/** From above: the deck panel, the direction arrow, and tread across the tyres. */
+const MAGBOT_TOP_DETAIL =
+  'M -0.4 -0.2 L -0.04 -0.2 L -0.04 0.2 L -0.4 0.2 Z '
+  // An arrow along the way it drives, which is the whole point of a top view.
+  + 'M 0.04 -0.16 L 0.28 0 L 0.04 0.16 '
+  // Tread.
+  + 'M -0.08 -0.5 L -0.08 -0.3 M 0.04 -0.5 L 0.04 -0.3 M 0.14 -0.5 L 0.14 -0.3 '
+  + 'M -0.08 0.3 L -0.08 0.5 M 0.04 0.3 L 0.04 0.5 M 0.14 0.3 L 0.14 0.5';
 
 const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
   + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '
@@ -340,6 +396,8 @@ export const SHAPES = [
     align: 'travel',
     path: MAGBOT_SIDE,
     pathTop: MAGBOT_TOP,
+    detail: MAGBOT_DETAIL,
+    detailTop: MAGBOT_TOP_DETAIL,
     note: 'A Detronics Magbot Rover: 12 cm, 600 g, 0.00173 m³. It runs on rubber '
       + 'tyres driven through N20 gearmotors, and those will not back-drive — so '
       + 'unpowered it does not coast the way a car does. It grips and stops '
@@ -441,6 +499,19 @@ export function outline(shapeId, { topDown = false } = {}) {
   const shape = shapeById(shapeId);
   if (shape.circle) return null;
   return topDown && shape.pathTop ? shape.pathTop : shape.path;
+}
+
+/**
+ * The markings drawn on top of an outline, or `null` for shapes that have none.
+ *
+ * Stroked, never filled, and never load-bearing: nothing here changes a volume,
+ * an area or where the thing rests. It exists so a Magbot looks like a Magbot
+ * rather than like a box, and a shape without any is not worse off for it.
+ */
+export function detail(shapeId, { topDown = false } = {}) {
+  const shape = shapeById(shapeId);
+  if (!shape.detail) return null;
+  return topDown && shape.detailTop ? shape.detailTop : shape.detail;
 }
 
 /**

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   sig, fmtNum, fmtFixed, fmtSigned, fmtVec, fmtMag, fmtDirectionWords, fmtBearing,
-  fmtMps, fmtN, fmtKg, quantity,
+  fmtMps, fmtN, fmtKg, fmtLength, quantity,
 } from '../js/format.js';
 
 test('sig rounds to significant figures', () => {
@@ -86,4 +86,36 @@ test('a live readout stays readable when the numbers stop being ordinary', () =>
   const exponent = Number([...power].map((c) => digits[c] ?? c).join(''));
   const read = Number(mantissa.replace('−', '-')) * 10 ** exponent;
   assert.ok(Math.abs(read - 2.53355e17) / 2.53355e17 < 0.01);
+});
+
+/**
+ * A length in the unit a person would use for it.
+ *
+ * Everything a metre and up stays in metres, which is where this app spends
+ * almost all of its time — so nothing about the ordinary case changed when this
+ * arrived. It exists for the other end: a grid label reading "0.0050 m" on a
+ * bench holding a 12 cm robot is correct and useless.
+ */
+test('lengths come out in a unit worth reading', () => {
+  assert.equal(fmtLength(12000), '12 km');
+  assert.equal(fmtLength(1500), '1.5 km');
+  assert.equal(fmtLength(5), '5 m');
+  assert.equal(fmtLength(0.5), '0.5 m');
+  assert.equal(fmtLength(0.2), '0.2 m');
+  assert.equal(fmtLength(0.1), '0.1 m');
+  // Below a tenth of a metre it stops being a sensible number of metres.
+  assert.equal(fmtLength(0.05), '5 cm');
+  assert.equal(fmtLength(0.025), '2.5 cm');
+  assert.equal(fmtLength(0.01), '1 cm');
+  assert.equal(fmtLength(0.005), '5 mm');
+  assert.equal(fmtLength(0.001), '1 mm');
+  assert.equal(fmtLength(0.00025), '0.25 mm');
+  assert.equal(fmtLength(0.000005), '5 µm');
+  assert.equal(fmtLength(0), '0 m');
+});
+
+test('a length that is not a number says so rather than printing NaN', () => {
+  for (const bad of [NaN, Infinity, undefined, null, 'x']) {
+    assert.equal(fmtLength(bad), '—', `fmtLength(${String(bad)})`);
+  }
 });
