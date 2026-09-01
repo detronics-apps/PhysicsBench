@@ -201,6 +201,14 @@ function focusNewSections(previous) {
 }
 
 function goToStage(id) {
+  /*
+   * Walking to another step leaves the prepared experiment behind.
+   *
+   * Its explanation describes one arrangement on one step, so carrying the note
+   * onto a step the reader navigated to themselves would leave it describing
+   * something that is no longer on screen.
+   */
+  if (id !== state.stage) state.exampleId = null;
   const previous = sectionKeys();
   const firstVisit = !visited.has(id);
   visited.add(id);

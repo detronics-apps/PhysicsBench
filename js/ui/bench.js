@@ -16,6 +16,7 @@ import { equation } from '../models.js';
 import { stageById, featuresAt, pushState, pushRange, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
+import { exampleById } from '../examples.js';
 import {
   SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
 } from '../friction.js';
@@ -1329,6 +1330,30 @@ export function explains(ctx) {
   const stage = stageById(ctx.state.stage);
   const main = inspect(ctx.world, 'main');
   const out = [];
+
+  /*
+   * A prepared experiment explains itself, above the step it happens to sit on.
+   *
+   * Loading one drops a reader into a scene somebody else arranged, and without
+   * this they are left to work out what they are looking at from the sliders.
+   * It goes first and open, because it is the reason they are on this screen;
+   * the step's own panel still follows, since the example is an instance of the
+   * step rather than a replacement for it.
+   */
+  const example = exampleById(ctx.state.exampleId);
+  if (example?.teach) {
+    const t = example.teach;
+    out.push(explain({
+      title: `This experiment: ${example.title.toLowerCase()}`,
+      plain: [t.how],
+      notes: [
+        ...(t.tryThis || []).map((line) => `Try: ${line}`),
+        ...(t.watch || []).map((line) => `Watch: ${line}`),
+        t.learn ? `The point: ${t.learn}` : null,
+      ].filter(Boolean),
+      open: true,
+    }));
+  }
 
   out.push(explain({
     title: `What this step adds: ${stage.label.toLowerCase()}`,

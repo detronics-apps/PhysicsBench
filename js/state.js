@@ -53,6 +53,16 @@ export const defaults = () => ({
   stage: 'mass',
   theme: 'system',
   selectedId: 'main',
+  /*
+   * Which prepared experiment is on the bench, if any.
+   *
+   * Kept so the explanation of it survives a reload and travels in a share
+   * link — someone sent a prepared scene should get the scene *and* the note
+   * about what to do with it. Cleared the moment the reader changes the step,
+   * because at that point they have left the experiment and the note would be
+   * describing something no longer on screen.
+   */
+  exampleId: null,
 
   transport: {
     playing: false,
@@ -331,6 +341,7 @@ export function migrate(incoming) {
     stage: oneOf(RETIRED_STAGES[incoming.stage] ?? incoming.stage, STAGE_IDS, base.stage),
     theme: oneOf(incoming.theme, ['system', 'light', 'dark'], base.theme),
     selectedId: typeof incoming.selectedId === 'string' ? incoming.selectedId : 'main',
+    exampleId: typeof incoming.exampleId === 'string' ? incoming.exampleId : null,
 
     transport: {
       playing: bool(incoming.transport?.playing, false),

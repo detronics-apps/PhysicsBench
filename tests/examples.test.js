@@ -88,6 +88,19 @@ test('every example runs without falling over', () => {
       assert.ok(Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y), `${e.id}: ${b.id} position`);
       assert.ok(Number.isFinite(b.vel.x) && Number.isFinite(b.vel.y), `${e.id}: ${b.id} velocity`);
       assert.ok(Math.abs(b.pos.x) < 1e6 && Math.abs(b.pos.y) < 1e6, `${e.id}: ${b.id} left the universe`);
+      /*
+       * And nothing may reach a speed that is obviously the solver rather than
+       * the physics.
+       *
+       * "Finite" was not a strong enough bar: a helium ball in water gains
+       * 491 m/s in a single step against a terminal velocity of 3 m/s, and the
+       * drag correction that follows diverges. It came out at seven million
+       * metres a second — perfectly finite, perfectly wrong, and this test said
+       * nothing. A prepared example must not be arranged so that the integrator
+       * cannot cope.
+       */
+      assert.ok(Math.hypot(b.vel.x, b.vel.y) < 1e4,
+        `${e.id}: ${b.id} reached ${Math.hypot(b.vel.x, b.vel.y).toExponential(2)} m/s — the solver has diverged`);
     }
     // And the books close, which is the app's own standard for "it worked".
     const t = totals(world);
@@ -171,4 +184,103 @@ test('a few more degrees and the crate lets go', () => {
 
   // And the drop from static to kinetic is what makes it lurch rather than creep.
   assert.ok(state.bench.muK < state.bench.muS * 0.8, 'the stick-slip drop should be worth seeing');
+});
+
+/* ------------------------------------------------------- the teaching -- */
+
+/**
+ * Every example explains itself.
+ *
+ * Loading one drops a reader into a scene somebody else arranged. Without a
+ * note saying what it is, what to do and what to look for, they are left to
+ * reverse-engineer the point from the sliders — which is exactly the work a
+ * prepared experiment exists to save them.
+ */
+test('every example says how it works, what to do, and what it is for', () => {
+  for (const e of EXAMPLES) {
+    const t = e.teach;
+    assert.ok(t, `${e.id} has no teaching notes`);
+    assert.ok(t.how && t.how.length > 120, `${e.id}: "how it works" is too thin`);
+    assert.ok(Array.isArray(t.tryThis) && t.tryThis.length >= 2, `${e.id}: give the reader things to do`);
+    assert.ok(Array.isArray(t.watch) && t.watch.length >= 2, `${e.id}: say what to look at`);
+    assert.ok(t.learn && t.learn.length > 80, `${e.id}: say what it is for`);
+
+    // Instructions that name a control the step does not have send a reader
+    // hunting for something that is not there.
+    const f = featuresAt(e.stage);
+    const words = [t.how, ...t.tryThis, ...t.watch, t.learn].join(' ').toLowerCase();
+    if (/\btilt\b/.test(words)) assert.ok(f.has('ground'), `${e.id} mentions tilt on a step with no ground`);
+    if (/\bfluid\b|\bhoney\b|\bwater\b/.test(words)) assert.ok(f.has('fluid'), `${e.id} mentions a fluid on a step without one`);
+    if (/\bcannon\b/.test(words)) assert.ok(f.has('obstacles'), `${e.id} mentions cannons where there are none`);
+  }
+});
+
+test('the example travels with the state, and is dropped on leaving it', () => {
+  for (const e of EXAMPLES) {
+    assert.equal(exampleState(e.id).exampleId, e.id, `${e.id} does not record itself`);
+  }
+  // A state that names an example nobody wrote keeps nothing.
+  assert.equal(exampleById('no-such-thing'), null);
+  assert.equal(exampleState('no-such-thing'), null);
+  // And a plain default is not pretending to be an example.
+  assert.equal(defaults().exampleId, null);
+});
+
+/* -------------------------------------------- five densities, one fluid -- */
+
+/**
+ * The whole demonstration is that the fluid, not the ball, decides.
+ *
+ * Five spheres the same size, so they displace the same volume and feel the
+ * same buoyant force; the only difference between them is their own weight. If
+ * the masses drift away from their materials' densities the ladder collapses
+ * and the example stops making its point.
+ */
+test('the five balls really are the materials they claim to be', () => {
+  const state = exampleState('five-densities');
+  const world = build('fluid', state.bench).world;
+  const wanted = { polystyrene: 20, balsa: 160, pine: 500, rubber: 1100, steel: 7850 };
+
+  const movable = world.bodies.filter((b) => !b.fixed);
+  assert.equal(movable.length, 5, 'five balls');
+  for (const b of movable) {
+    const density = b.mass / b.volume;
+    assert.ok(Math.abs(density / wanted[b.materialId] - 1) < 0.005,
+      `${b.materialId} came out at ${density.toFixed(1)} kg/m³`);
+    // Same size, so the same volume, so the same push from the fluid.
+    close(b.volume, movable[0].volume, 1e-9);
+  }
+});
+
+test('switching the fluid re-sorts them, and rubber is the one that changes', () => {
+  const state = exampleState('five-densities');
+  /*
+   * Which way each ball is pushed, read off the forces rather than off the
+   * motion a second later.
+   *
+   * Watching velocities looked simpler and was wrong: in air the heavy balls
+   * reach the floor in under a second and *bounce*, so they come back reading
+   * as rising. The net force at the start has no such ambiguity, and it is the
+   * thing the example is actually about — weight against the weight of the
+   * fluid pushed aside.
+   */
+  const rising = (fluidId) => {
+    const p = { ...state.bench, fluidId };
+    const w = build('fluid', p).world;
+    return w.bodies
+      .filter((b) => !b.fixed && inspect(w, b.id).net.vec.y > 0)
+      .map((b) => b.materialId)
+      .sort();
+  };
+
+  // The ladder the example is built on.
+  assert.deepEqual(rising('air'), []);
+  assert.deepEqual(rising('water'), ['balsa', 'pine', 'polystyrene']);
+  assert.deepEqual(rising('honey'), ['balsa', 'pine', 'polystyrene', 'rubber']);
+
+  // Rubber is the one that answers differently between water and honey, which
+  // is why it is the ball the readouts follow.
+  assert.equal(state.selectedId, 'o4');
+  const rubber = build('fluid', state.bench).world.bodies.find((b) => b.id === 'o4');
+  assert.equal(rubber.materialId, 'rubber');
 });
