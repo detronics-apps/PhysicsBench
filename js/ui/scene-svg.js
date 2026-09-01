@@ -33,7 +33,7 @@ import {
 import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
-import { outline, outlineParts, detail } from '../shapes.js';
+import { outline, outlineParts, outlineFront, detail, detailFront, wheelPivot } from '../shapes.js';
 import { wallBounds, alongWall, arcOf } from '../segments.js';
 import { elevation } from '../world.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
@@ -765,6 +765,17 @@ function scalePath(d, cx, cy, width, height) {
   return out.join(' ');
 }
 
+/** Markings: stroked, never filled, and always the same weight. */
+const marking = (d, centre, w, h, stroke) => svg('path', {
+  d: scalePath(d, centre.x, centre.y, w, h),
+  fill: 'none',
+  stroke,
+  'stroke-width': 1,
+  'stroke-linejoin': 'round',
+  'stroke-linecap': 'round',
+  opacity: 0.65,
+});
+
 function drawBody(cam, body, selected, topDown, labels) {
   const group = svg('g', {
     // Marked, because a shot is the one thing allowed to be drawn outside the
@@ -793,6 +804,15 @@ function drawBody(cam, body, selected, topDown, labels) {
    */
   const parts = body.shapeId ? outlineParts(body.shapeId, { topDown }) : null;
   const markings = body.shapeId ? detail(body.shapeId, { topDown }) : null;
+  /*
+   * Pieces that go on *after* the markings, and the markings that go on after
+   * those. A wheel in front of a chassis has to cover the panel drawn on the
+   * chassis, and its own spokes have to sit on the wheel rather than under it,
+   * so the order is body, panel, wheel, spokes.
+   */
+  const front = body.shapeId ? outlineFront(body.shapeId, { topDown }) : null;
+  const frontMarks = body.shapeId ? detailFront(body.shapeId, { topDown }) : null;
+  const pivot = body.shapeId ? wheelPivot(body.shapeId, { topDown }) : null;
 
   if (path) {
     const w = Math.max(8, toPixels(cam, body.width || body.radius * 2));
@@ -824,16 +844,26 @@ function drawBody(cam, body, selected, topDown, labels) {
        * eyes and a wheel rim inside thirty pixels is a smudge that makes the
        * shape harder to recognise rather than easier.
        */
-      markings && w >= 40
-        ? svg('path', {
-          d: scalePath(markings, centre.x, centre.y, w, h),
-          fill: 'none',
-          stroke,
-          'stroke-width': 1,
-          'stroke-linejoin': 'round',
-          'stroke-linecap': 'round',
-          opacity: 0.65,
-        })
+      markings && w >= 40 ? marking(markings, centre, w, h, stroke) : null,
+      // The front pieces, painted over those markings.
+      ...(front || []).map((piece) => svg('path', {
+        d: `${scalePath(piece, centre.x, centre.y, w, h)} Z`,
+        fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
+      })),
+      /*
+       * And the wheel's own spokes, turned by how far it has rolled.
+       *
+       * A rim is a circle and a circle looks the same however far it has
+       * turned, so without these a wheeled thing slides along looking locked.
+       * `spin` is the same s/R the sphere's single spoke uses.
+       */
+      frontMarks && w >= 40
+        ? svg('g', {
+          transform: pivot
+            ? `rotate(${r(-((body.spin || 0) * 180) / Math.PI)} `
+              + `${r(centre.x + pivot.x * w)} ${r(centre.y + pivot.y * h)})`
+            : null,
+        }, marking(frontMarks, centre, w, h, stroke))
         : null,
     ].filter(Boolean)));
   } else if (body.kind === 'ball' || !body.shapeId) {

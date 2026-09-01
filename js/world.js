@@ -132,6 +132,15 @@ export function body(spec = {}) {
     colour: spec.colour ?? 0,
     align: spec.align || 'surface',
     rolls: !!spec.rolls,
+    /*
+     * The radius its wheel turns on, in metres, for a body that has wheels but
+     * does not roll — a rover whose gearmotors will not back-drive still has
+     * tyres that go round. Null for everything else, which then turns on its
+     * own radius or not at all.
+     */
+    wheelRadius: Number.isFinite(spec.wheelRadius) && spec.wheelRadius > 0
+      ? spec.wheelRadius
+      : null,
     angle: spec.angle ?? 0,
     flip: !!spec.flip,
     spin: spec.spin ?? 0,
@@ -569,8 +578,15 @@ export function step(world, dt) {
     const rollTangent = result.contact.touching && result.contact.normal
       ? alongSurface(result.contact.normal)
       : null;
-    const spin = b.rolls && rollTangent
-      ? rollAngle(b.spin, ((dot(b.vel, rollTangent) + dot(vel, rollTangent)) / 2) * dt, b.radius)
+    /*
+     * How far it has turned. A rolling body turns on its own radius; a wheeled
+     * one turns on its wheel's, which is smaller and so turns faster. Both are
+     * s/R over the distance actually travelled along the surface.
+     */
+    const turning = b.rolls || b.wheelRadius > 0;
+    const spinRadius = b.wheelRadius > 0 ? b.wheelRadius : b.radius;
+    const spin = turning && rollTangent
+      ? rollAngle(b.spin, ((dot(b.vel, rollTangent) + dot(vel, rollTangent)) / 2) * dt, spinRadius)
       : b.spin;
 
     return { ...b, pos, vel, angle, flip: wanted.flip, spin };

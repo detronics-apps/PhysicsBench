@@ -352,6 +352,8 @@ function bodyFor(spec, p, f, { space, surfaceRest, hasGround }) {
     // first is a drawing rule; the second is a different contact mechanism.
     align: object.align,
     rolls: object.rolls,
+    // A rover's tyres go round even though its body does not roll.
+    wheelRadius: object.wheelRadius,
     materialId: spec.materialId,
     angle: startAngle(p, f, { hasGround, align: object.align }),
     pos: surfaceRest(object, spec),

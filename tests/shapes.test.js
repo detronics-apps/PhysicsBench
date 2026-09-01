@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById,
-  floats, outline, outlineParts, detail, TYPICAL, contactKind,
+  floats, outline, outlineParts, outlineFront, detail, detailFront, wheelPivot,
+  TYPICAL, contactKind,
 } from '../js/shapes.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -357,57 +358,85 @@ test('a head sits at the top of the figure, with the body below it', () => {
 /**
  * The rover is a stack, and the order it is painted in is the point.
  *
- * Its wheel sits behind the chassis. Drawn as one path that cannot be shown:
- * one path is one stroke, so the hidden half of the wheel's edge is drawn
- * straight through the body and there is no telling which is in front. The
- * pieces are ordered instead, far ones first, and the body comes last so its
- * fill covers what is behind it.
- *
- * So the thing to check is not that nothing overlaps — the wheel is *meant* to
- * — but that the piece which should be in front is painted last.
+ * The near wheel is in front of the chassis. Drawn as one path that cannot be
+ * shown — one path is one stroke, so the hidden half of an edge is drawn
+ * whether it is in front or behind and there is no telling which. The pieces
+ * are ordered instead, and the markings go *between* the chassis and the wheel
+ * so the wheel covers the panel rather than the panel being stroked across it.
  */
-test('the rover is painted back to front, with the chassis last', () => {
-  for (const topDown of [false, true]) {
-    const parts = outlineParts('magbot', { topDown });
-    assert.ok(parts && parts.length >= 2, 'the rover should be several pieces');
+test('the rover is painted body, panel, wheel, spokes', () => {
+  const back = outlineParts('magbot');
+  const front = outlineFront('magbot');
+  assert.ok(back && back.length >= 2, 'the chassis layer should be several pieces');
+  assert.ok(front && front.length >= 1, 'the wheel should be its own layer in front');
+  assert.ok(detail('magbot'), 'the panel goes between them');
+  assert.ok(detailFront('magbot'), 'the spokes go on after the wheel');
 
-    const boxOf = (d) => {
-      const n = d.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
-      const xs = n.filter((_, i) => i % 2 === 0);
-      const ys = n.filter((_, i) => i % 2 === 1);
-      return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-    };
-    // The chassis is the biggest piece, and it is the last one painted.
-    const areas = parts.map((d) => boxOf(d).w * boxOf(d).h);
-    assert.equal(areas.indexOf(Math.max(...areas)), parts.length - 1,
-      `the largest piece is not painted last in the ${topDown ? 'top' : 'side'} view`);
+  const boxOf = (d) => {
+    const n = d.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+    const xs = n.filter((_, i) => i % 2 === 0);
+    const ys = n.filter((_, i) => i % 2 === 1);
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+  };
+  // The chassis is the last of the back pieces, and the wheel really does lie
+  // over it — otherwise none of this ordering would be doing anything.
+  const body = boxOf(back[back.length - 1]);
+  const wheel = boxOf(front[0]);
+  assert.ok(wheel.minX < body.maxX && wheel.maxX > body.minX
+    && wheel.minY < body.maxY && wheel.maxY > body.minY,
+  'the wheel does not overlap the chassis, so the layering is pointless');
 
-    // Joined, they are still the silhouette everything else reads.
-    assert.equal(parts.join(' '), outline('magbot', { topDown }));
-  }
+  // Joined, back then front, they are still the silhouette everything reads.
+  assert.equal([...back, ...front].join(' '), outline('magbot'));
 
-  // A shape that is a single silhouette says so plainly rather than returning
-  // a one-element list nobody needs.
+  // From above you are looking down the axle, so there is no front layer and
+  // nothing to turn.
+  assert.equal(outlineFront('magbot', { topDown: true }), null);
+  assert.equal(detailFront('magbot', { topDown: true }), null);
+  assert.equal(wheelPivot('magbot', { topDown: true }), null);
+
+  // And a shape that is a single silhouette says so plainly.
   assert.equal(outlineParts('cube'), null);
-  assert.equal(outlineParts('sphere'), null);
+  assert.equal(outlineFront('cube'), null);
 });
 
-test('the rover keeps the panel proportions read off the photographs', () => {
+test('the chassis is square, and the panel on it is the same square smaller', () => {
   const boxOf = (d) => {
     const n = d.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
     const xs = n.filter((_, i) => i % 2 === 0);
     const ys = n.filter((_, i) => i % 2 === 1);
     return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   };
-  const parts = outlineParts('magbot');
-  const body = boxOf(parts[parts.length - 1]);
-  const [panel, module_] = detail('magbot').split(/(?=M )/).map((d) => d.trim()).filter(Boolean).map(boxOf);
+  const back = outlineParts('magbot');
+  const body = boxOf(back[back.length - 1]);
+  const [panel, module_] = detail('magbot').split(/(?=M )/)
+    .map((d) => d.trim()).filter(Boolean).map(boxOf);
 
-  // The panel covers about four fifths of the side and three fifths of its
-  // height, as it does in the photograph.
-  assert.ok(Math.abs(panel.w / body.w - 0.81) < 0.05, `panel ${(panel.w / body.w).toFixed(2)} wide`);
-  assert.ok(Math.abs(panel.h / body.h - 0.61) < 0.05, `panel ${(panel.h / body.h).toFixed(2)} tall`);
-  // And the module on it is taller than wide, which is the detail that was
-  // backwards twice.
+  // Square, or at least no wider than it is tall.
+  assert.ok(body.w <= body.h + 1e-9, `chassis is ${body.w} by ${body.h}, wider than tall`);
+  // The panel is the body's own proportions, a size smaller.
+  assert.ok(Math.abs(panel.w / panel.h - body.w / body.h) < 0.05,
+    `panel ${(panel.w / panel.h).toFixed(2)}:1 against a body ${(body.w / body.h).toFixed(2)}:1`);
+  assert.ok(panel.w / body.w > 0.6 && panel.w / body.w < 0.9, 'panel is not "a bit smaller"');
+  // And the module on it is taller than wide, which was backwards twice.
   assert.ok(module_.w < module_.h, 'the module reads as a letterbox, not a switch');
+});
+
+/**
+ * The wheel turns by the distance travelled over its own radius.
+ *
+ * A rover whose gearmotors will not back-drive still has tyres that go round —
+ * so `rolls` stays false, and the turning comes from the wheel radius instead.
+ * Without it the rover slides along looking locked.
+ */
+test('a rover turns its wheel on the wheel, not on the body', () => {
+  const d = describe({ shapeId: 'magbot', size: 0.12, mass: 0.6 });
+  assert.equal(d.rolls, false, 'the rover should still grip rather than coast');
+  assert.ok(d.wheelRadius > 0, 'but its wheel has to have a radius to turn on');
+  // Smaller than the body, so it turns faster than a ball of the same size.
+  assert.ok(d.wheelRadius < d.support, `wheel ${d.wheelRadius} against support ${d.support}`);
+  close(d.wheelRadius, 0.22 * 0.12, 1e-9);
+
+  // A shape without wheels does not pretend to have one.
+  assert.equal(describe({ shapeId: 'cube', size: 1, mass: 1 }).wheelRadius, null);
 });
