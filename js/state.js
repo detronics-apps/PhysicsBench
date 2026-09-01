@@ -291,6 +291,24 @@ const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : f
 const mass = (value, fallback) => clamp(value, 1e-6, 1e32, fallback);
 
 /**
+ * A push, as a size and a direction — never a negative size.
+ *
+ * The force slider used to run from -200 to 200, so a saved experiment can
+ * carry a negative one, meaning "the same push, the other way". That is what
+ * the angle says, and having two controls able to say it left them free to
+ * disagree. Clamping the force to zero would silently delete somebody's push,
+ * so it is turned through half a turn instead and comes out doing exactly what
+ * it did before.
+ */
+function pushFrom(b, d) {
+  const force = clamp(b.pushForce, -100000, 100000, d.pushForce);
+  const angleDeg = clamp(b.pushAngleDeg, -180, 180, d.pushAngleDeg);
+  if (force >= 0) return { force, angleDeg };
+  const turned = angleDeg > 0 ? angleDeg - 180 : angleDeg + 180;
+  return { force: -force, angleDeg: clamp(turned, -180, 180, d.pushAngleDeg) };
+}
+
+/**
  * Bring any incoming state — old, partial, or hostile — up to the current
  * shape. Every field is coerced rather than trusted: a share link is a string
  * a stranger can edit, and a NaN mass reaches the physics as a silent NaN
@@ -302,6 +320,7 @@ export function migrate(incoming) {
 
   const b = incoming.bench && typeof incoming.bench === 'object' ? incoming.bench : {};
   const d = base.bench;
+  const push = pushFrom(b, d);
 
   return {
     version: STATE_VERSION,
@@ -355,8 +374,8 @@ export function migrate(incoming) {
       y0: clamp(b.y0, -500, 500, d.y0),
       v0: clamp(b.v0, -500, 500, d.v0),
 
-      pushForce: clamp(b.pushForce, -100000, 100000, d.pushForce),
-      pushAngleDeg: clamp(b.pushAngleDeg, -180, 180, d.pushAngleDeg),
+      pushForce: push.force,
+      pushAngleDeg: push.angleDeg,
       pushSeconds: clamp(b.pushSeconds, 0, 120, d.pushSeconds),
 
       otherMass: mass(b.otherMass, d.otherMass),

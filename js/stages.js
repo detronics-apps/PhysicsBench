@@ -243,6 +243,46 @@ export function objectList(p, f) {
 }
 
 /**
+ * How far the "how hard" slider should reach, for this object on this world.
+ *
+ * A fixed 0-200 N slider is the wrong instrument twice over. On a gram it is a
+ * cannon — every usable value crammed into the first pixel — and on a tonne it
+ * is a nudge that does visibly nothing however far it is dragged. So the range
+ * is set by the object: twenty times its own weight, which is twenty gravities
+ * of acceleration at the top whatever is on the bench. A kilogram on Earth gets
+ * a slider to 200 N; a hundred kilograms gets one to 20 kN, and both feel the
+ * same to drag.
+ *
+ * It starts at zero because a push has a size and a direction, and the
+ * direction is the other slider. A negative force was a second way of saying
+ * "the other way", which is the sort of duplication that leaves two controls
+ * disagreeing about which way the object is going.
+ *
+ * The top is rounded up to two significant figures, so the number under the
+ * thumb is one a person would say out loud.
+ */
+export function pushRange(mass, g) {
+  const weight = Math.max(1e-9, (Number(mass) || 0) * (Number(g) || 0));
+  const max = niceCeil(20 * weight);
+  return { min: 0, max, step: niceStep(max / 200) };
+}
+
+/** Round up to two significant figures: 196.1 becomes 200, 25.7 becomes 26. */
+function niceCeil(v) {
+  if (!(v > 0) || !Number.isFinite(v)) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(v) - 1);
+  return Math.ceil(v / magnitude) * magnitude;
+}
+
+/** The nearest sensible slider increment at or above `v` — one, two or five. */
+function niceStep(v) {
+  if (!(v > 0) || !Number.isFinite(v)) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(v));
+  const lead = v / magnitude;
+  return (lead <= 1 ? 1 : lead <= 2 ? 2 : lead <= 5 ? 5 : 10) * magnitude;
+}
+
+/**
  * Where an object starts, given what there is to stand on.
  *
  * One function, called by both `build` and `applyLive`, because the two

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   STAGES, stageById, stageIndex, featuresAt, build, applyPush, pushState,
   channelsFor, vectorsFor, applyLive, structuralKey, MAX_OBJECTS, inSpace,
-  collisionsOn, collisionsForced, startPosition,
+  collisionsOn, collisionsForced, startPosition, pushRange,
 } from '../js/stages.js';
 import { defaults, VECTOR_IDS } from '../js/state.js';
 import { describe as describeShape } from '../js/shapes.js';
@@ -12,7 +12,7 @@ import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { CHANNELS } from '../js/recorder.js';
 import { surfaceGravity } from '../js/gravitation.js';
 import { len } from '../js/vec.js';
-import { G } from '../js/constants.js';
+import { G, G_STANDARD } from '../js/constants.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 const P = defaults().bench;
@@ -951,4 +951,61 @@ test('step eight is where obstacles arrive, and it keeps everything before it', 
   // And the same parameters carried back to step seven are held, not destroyed.
   assert.equal(build('fluid', p).world.walls.length, 0);
   assert.equal(p.walls.length, 1, 'the wall was deleted rather than merely not drawn');
+});
+
+/* --------------------------------------------------------- the push slider -- */
+
+/**
+ * The push slider is sized by the object, not by a fixed pair of numbers.
+ *
+ * A fixed 0-200 N range is a cannon on a gram and a nudge on a tonne. Twenty
+ * times the object's own weight puts twenty gravities of acceleration at the
+ * far end whatever is on the bench, so the control feels the same to drag at
+ * every mass.
+ */
+test('the push slider reaches twenty times what the object weighs', () => {
+  // The case worth pinning by hand: a kilogram on Earth gets a slider to 200 N.
+  const kilo = pushRange(1, G_STANDARD);
+  assert.equal(kilo.min, 0);
+  assert.equal(kilo.max, 200);
+
+  // And the rule holds across five orders of magnitude of mass.
+  for (const mass of [0.01, 0.1, 1, 12, 250, 4000]) {
+    const r = pushRange(mass, G_STANDARD);
+    const wanted = 20 * mass * G_STANDARD;
+    assert.equal(r.min, 0, 'a push has a size and a direction; the size is not negative');
+    assert.ok(r.max >= wanted, `${mass} kg cannot reach twenty times its weight`);
+    // Rounded up to two significant figures, so never wildly past it either.
+    assert.ok(r.max < wanted * 1.15, `${mass} kg overshoots: ${r.max} for ${wanted}`);
+    // The top of the slider is always twenty gravities, whatever the mass.
+    close(r.max / mass / G_STANDARD, 20, 20 * 0.15);
+  }
+});
+
+test('a weaker world gives a shorter slider, because weight is what sets it', () => {
+  const earth = pushRange(1, G_STANDARD);
+  const moon = pushRange(1, 1.62);
+  assert.ok(moon.max < earth.max / 5, 'the Moon should need a much smaller push');
+  close(moon.max / 1 / 1.62, 20, 3);
+});
+
+test('the slider step is readable, and never zero', () => {
+  for (const mass of [0.001, 0.05, 1, 7.3, 900, 1e5]) {
+    const r = pushRange(mass, G_STANDARD);
+    assert.ok(r.step > 0, 'a zero step makes the slider unusable');
+    assert.ok(r.max / r.step >= 100, 'too few positions to choose from');
+    assert.ok(r.max / r.step <= 400, 'more positions than pixels');
+    // One, two or five times a power of ten — a number a person would say.
+    const lead = r.step / 10 ** Math.floor(Math.log10(r.step));
+    assert.ok([1, 2, 5].some((n) => Math.abs(lead - n) < 1e-9), `odd step ${r.step}`);
+  }
+});
+
+test('a massless or nonsense object still gets a usable slider', () => {
+  for (const [mass, g] of [[0, G_STANDARD], [1, 0], [NaN, G_STANDARD], [1, NaN]]) {
+    const r = pushRange(mass, g);
+    assert.ok(Number.isFinite(r.max) && r.max > 0, `no slider for ${mass} kg at g=${g}`);
+    assert.ok(Number.isFinite(r.step) && r.step > 0);
+    assert.equal(r.min, 0);
+  }
 });

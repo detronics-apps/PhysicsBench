@@ -12,7 +12,7 @@ import {
 } from './widgets.js';
 import { explain, equationPanel } from './explain.js';
 import { equation } from '../models.js';
-import { stageById, featuresAt, pushState, MAX_OBJECTS } from '../stages.js';
+import { stageById, featuresAt, pushState, pushRange, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
 import {
@@ -249,15 +249,35 @@ function shapeDoesNothingYet(ctx) {
 
 function pushSection(ctx) {
   const { params: p, set } = ctx;
+  const f = ctx.features;
   const accel = p.mass > 0 ? p.pushForce / p.mass : 0;
   const gained = accel * p.pushSeconds;
 
+  /*
+   * The slider is sized by what the object weighs, so `g` has to come from
+   * somewhere even where there is no world yet.
+   *
+   * Steps one and two have no planet at all, and deep space has no weight, but
+   * the control still needs a sensible reach — so those fall back to standard
+   * gravity. That is a decision about how far a slider travels, not a claim
+   * that anything weighs anything: nothing on the bench reads this.
+   */
+  const onWorld = f.has('planet') && !ctx.space;
+  const g = onWorld
+    ? describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId }).g
+    : G_STANDARD;
+  const range = pushRange(p.mass, g);
+
   return section('The push', [
     sliderField('How hard', p.pushForce, (v) => set('pushForce', v), {
-      min: -200, max: 200, step: 1, key: 'pushForce',
-      format: (v) => `${fmtFixed(v, 0)} N`,
+      ...range, key: 'pushForce',
+      format: (v) => `${fmtFixed(v, range.step < 1 ? 2 : 0)} N`,
       info: 'A force, in newtons. Divided by the mass it gives the acceleration — '
         + 'so the same push does less to a heavier object.',
+      hint: `The slider reaches ${fmtFixed(range.max, range.max < 10 ? 1 : 0)} N — twenty times `
+        + `what this object weighs${onWorld ? '' : ' on Earth'}, so the far end is twenty `
+        + 'gravities of acceleration whatever is on the bench. Make it heavier and '
+        + 'the slider grows with it. Push the other way with the angle below.',
     }),
     sliderField('Which way', p.pushAngleDeg, (v) => set('pushAngleDeg', v), {
       min: -180, max: 180, step: 5, key: 'pushAngleDeg',

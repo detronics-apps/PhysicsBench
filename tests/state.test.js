@@ -150,3 +150,38 @@ test('only stage:section booleans survive in the section flags', () => {
   assert.deepEqual(m.ui.sections, { 'push:object': true });
   assert.deepEqual(migrate({ ui: { sections: 'nope' } }).ui.sections, {});
 });
+
+/**
+ * A negative push is turned round rather than thrown away.
+ *
+ * The force slider used to run from -200 to 200, so saved experiments and share
+ * links carry negative forces meaning "the same push, the other way" — which is
+ * what the angle already said. Clamping to zero would delete somebody's push
+ * outright; turning it through half a turn leaves it doing exactly what it did.
+ */
+test('a saved negative push comes back the same push, pointing the same way', () => {
+  const cases = [
+    [-40, 0, 40, 180],      // pushing left, said as a negative force
+    [-40, 180, 40, 0],      // and back again
+    [-12, 90, 12, -90],     // up becomes down
+    [-12, -90, 12, 90],
+    [-5, 45, 5, -135],
+  ];
+  for (const [force, angleDeg, wantForce, wantAngle] of cases) {
+    const m = migrate({ bench: { pushForce: force, pushAngleDeg: angleDeg } });
+    assert.equal(m.bench.pushForce, wantForce, `force from ${force} at ${angleDeg}`);
+    assert.equal(m.bench.pushAngleDeg, wantAngle, `angle from ${force} at ${angleDeg}`);
+
+    // The physics of it is unchanged, which is the whole claim.
+    const rad = (angleDeg * Math.PI) / 180;
+    const wantRad = (wantAngle * Math.PI) / 180;
+    assert.ok(Math.abs(force * Math.cos(rad) - wantForce * Math.cos(wantRad)) < 1e-9);
+    assert.ok(Math.abs(force * Math.sin(rad) - wantForce * Math.sin(wantRad)) < 1e-9);
+  }
+});
+
+test('a positive push is left exactly alone', () => {
+  const m = migrate({ bench: { pushForce: 33, pushAngleDeg: -20 } });
+  assert.equal(m.bench.pushForce, 33);
+  assert.equal(m.bench.pushAngleDeg, -20);
+});
