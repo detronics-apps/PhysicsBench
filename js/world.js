@@ -21,7 +21,7 @@
  */
 
 import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
-import { forcesOn, uniformField, buoyantMass } from './forces.js';
+import { forcesOn, uniformField, buoyantMass, potentialEnergy, potentialShift } from './forces.js';
 import { wall as makeWall, nearestContact, isRealWall } from './segments.js';
 import { facing, settleAngle, rollAngle, alongSurface } from './orient.js';
 import { attractionVector, surfaceGravity } from './gravitation.js';
@@ -171,6 +171,15 @@ export function createWorld(spec = {}) {
       field: spec.field || uniformField(g),
       fluidDensity: Math.max(0, spec.fluidDensity ?? 0),
       viscosity: Math.max(0, spec.viscosity ?? 0),
+      /*
+       * Named rather than a function, so a world stays plain data and can be
+       * snapshotted, restored and compared like any other. 'isa' means the
+       * density is looked up at the body's own height instead of read here.
+       */
+      fluidProfile: spec.fluidProfile ?? null,
+      // Where the height in that lookup is measured from. The ground sits at
+      // y = 0, so sea level does too unless a scene says otherwise.
+      seaLevel: Number.isFinite(spec.seaLevel) ? spec.seaLevel : 0,
       wind: spec.wind || ZERO,
       // When true, bodies pull on each other by G·m₁·m₂/r² instead of sitting
       // in a uniform field. That is the difference between "gravity is a
@@ -625,7 +634,7 @@ function retireSpentShots(bodies, dt, world, ledger, events) {
     const still = spent ? b.still + dt : 0;
 
     if (still >= FADE_SECONDS) {
-      const potential = buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
+      const potential = potentialEnergy(b, world.env, world.ground?.y ?? 0);
       ledger.removed += 0.5 * b.mass * len2(b.vel) + potential;
       events.push({ type: 'retired', id: b.id, t: world.t });
       continue;
@@ -764,7 +773,7 @@ function bookContact(before, pos, vel, world, ledger) {
   // Against the *effective* mass: a fluid holding part of the weight up means
   // less potential energy is bought by the same rise, and charging the full mass
   // would book a contact as having lost energy it never had.
-  const potentialChange = -buoyantMass(before, world.env) * dot(world.env.field, sub(pos, before.pos));
+  const potentialChange = potentialShift(before, world.env, before.pos, pos);
   const lost = (kineticBefore - kineticAfter) - potentialChange;
   if (lost > 0) ledger.impact += lost;
 }
@@ -971,7 +980,7 @@ export function inspect(world, id) {
     acceleration: result.acceleration,
     momentum: scale(b.vel, b.mass),
     kinetic: 0.5 * b.mass * len(b.vel) ** 2,
-    potential: buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0)),
+    potential: potentialEnergy(b, world.env, world.ground?.y ?? 0),
     weight: b.mass * world.env.g,
     buoyantWeight: buoyantMass(b, world.env) * world.env.g,
     heightAboveGround: height,
@@ -1017,7 +1026,7 @@ export function totals(world) {
     px += b.mass * b.vel.x;
     py += b.mass * b.vel.y;
     kinetic += 0.5 * b.mass * len(b.vel) ** 2;
-    potential += buoyantMass(b, world.env) * world.env.g * (b.pos.y - (world.ground?.y ?? 0));
+    potential += potentialEnergy(b, world.env, world.ground?.y ?? 0);
   }
   // Energy that has left the mechanical account: turned to heat, spent in an
   // impact, or carried off the bench by a shot that was cleared away.

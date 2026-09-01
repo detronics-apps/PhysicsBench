@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { reynolds, sphereCd, regime, drag, terminalSpeed, FLUIDS, fluidById } from '../js/drag.js';
+import {
+  reynolds, sphereCd, regime, drag, terminalSpeed, FLUIDS, fluidById,
+  atmosphereAt, atmosphereColumn,
+} from '../js/drag.js';
 import { G_STANDARD as g } from '../js/constants.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -102,4 +105,80 @@ test('every fluid carries the two properties that decide its behaviour', () => {
   assert.ok(honey.density / water.density < 2);
   assert.ok(honey.viscosity / water.viscosity > 1000);
   assert.equal(fluidById('nonsense').id, 'vacuum');
+});
+
+/* ----------------------------------------------------- the atmosphere -- */
+
+/**
+ * Against the published International Standard Atmosphere.
+ *
+ * These are the numbers the standard defines, not ones this app invented, so
+ * they are worth pinning to the table rather than to whatever the code happens
+ * to produce. The small deviations are the standard's use of geopotential
+ * rather than geometric altitude, which is well under a tenth of a percent
+ * anywhere this app can reach.
+ */
+test('the atmosphere matches the standard table', () => {
+  const table = [
+    [0, 1.2250, 288.15, 101325],
+    [1000, 1.1117, 281.65, 89876],
+    [5000, 0.73643, 255.65, 54048],
+    [11000, 0.36392, 216.65, 22632],
+    [20000, 0.088035, 216.65, 5474.9],
+  ];
+  for (const [h, density, temperature, pressure] of table) {
+    const a = atmosphereAt(h);
+    assert.ok(Math.abs(a.density / density - 1) < 0.002, `${h} m: ${a.density} vs ${density}`);
+    close(a.temperature, temperature, 0.05);
+    assert.ok(Math.abs(a.pressure / pressure - 1) < 0.003, `${h} m: ${a.pressure} vs ${pressure}`);
+  }
+
+  // Sea level is exactly the figure the Air fluid quotes, or the two disagree
+  // in the same app.
+  close(atmosphereAt(0).density, 1.225, 1e-12);
+  // Viscosity depends on temperature, so it falls with height and then holds.
+  assert.ok(atmosphereAt(5000).viscosity < atmosphereAt(0).viscosity);
+  close(atmosphereAt(15000).viscosity, atmosphereAt(20000).viscosity, 1e-12);
+});
+
+test('below sea level the air is thicker, not undefined', () => {
+  assert.ok(atmosphereAt(-400).density > atmosphereAt(0).density);
+  assert.ok(Number.isFinite(atmosphereAt(-400).pressure));
+  // And nonsense in gives sea level rather than NaN out.
+  close(atmosphereAt(NaN).density, 1.225, 1e-12);
+  close(atmosphereAt(undefined).density, 1.225, 1e-12);
+});
+
+/**
+ * The column integral is what keeps the energy ledger honest.
+ *
+ * Buoyancy in a fluid that thins with height is still conservative, but the
+ * potential is the integral of ρ(y)·V·g rather than the local value times the
+ * rise. If this drifts from the true integral, the books drift with it.
+ */
+test('the air column agrees with integrating the density by hand', () => {
+  const numeric = (h, n = 20000) => {
+    let sum = 0;
+    const step = h / n;
+    for (let i = 0; i < n; i += 1) sum += atmosphereAt((i + 0.5) * step).density * step;
+    return sum;
+  };
+  for (const h of [10, 100, 1000, 8000, 11000, 20000]) {
+    assert.ok(Math.abs(atmosphereColumn(h) / numeric(h) - 1) < 1e-6,
+      `${h} m: ${atmosphereColumn(h)} vs ${numeric(h)}`);
+  }
+  assert.equal(atmosphereColumn(0), 0);
+  // Continuous across the tropopause, where the two formulas meet.
+  close(atmosphereColumn(11000), atmosphereColumn(11000.001), 1e-3);
+
+  // Half the atmosphere is below about 5.5 km, which is the fact everybody
+  // quotes and a good check that the whole thing is the right shape.
+  const total = atmosphereColumn(80000);
+  let lo = 0;
+  let hi = 80000;
+  for (let i = 0; i < 60; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (atmosphereColumn(mid) < total / 2) lo = mid; else hi = mid;
+  }
+  assert.ok(lo > 5200 && lo < 5800, `half the air below ${Math.round(lo)} m`);
 });

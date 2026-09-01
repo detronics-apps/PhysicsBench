@@ -326,12 +326,23 @@ function buildFooter() {
 
 /* -------------------------------------------------------------- the sim -- */
 
+/** The half-width of the largest thing on the bench, which is what framing follows. */
+function biggestExtent(world) {
+  let biggest = 0;
+  for (const b of world?.bodies || []) {
+    if (b.kind === 'planet') continue;
+    biggest = Math.max(biggest, b.radius || 0, (b.width || 0) / 2, (b.height || 0) / 2);
+  }
+  return biggest;
+}
+
 function rebuild() {
   sim.recorder = createRecorder({ interval: 1 / 60, capacity: 4000 });
   state.transport.scrubT = null;
   sim.key = structuralKey(state.stage, state.bench);
   sim.scenario = build(state.stage, state.bench);
   sim.world = applyPush(sim.scenario.world, state.bench, sim.scenario.features);
+
   if (!sim.world.bodies.some((b) => b.id === state.selectedId)) state.selectedId = 'main';
   sim.recorder = record(sim.recorder, sim.world, { bodyId: state.selectedId, force: true });
 }
@@ -613,10 +624,33 @@ function shownWorld() {
 export function update(mutate, { sim: how = 'live' } = {}) {
   // Touching any control means the reader has stopped watching the growth.
   if (how === 'full') stopGrowth();
+  const was = biggestExtent(sim.world);
   mutate(state);
   saveSoon();
   if (how === 'full') rebuild();
   else if (how !== 'none') applyParams();
+
+  /*
+   * A different object gets a fresh look at it.
+   *
+   * Zoom, pan and Home are about watching one experiment closely, and they
+   * rightly survive the thing moving about. They should not survive the thing
+   * being *replaced*: swapping a 12 cm rover for a 37 m spaceship left the held
+   * six-metre window on screen, so the rover was a speck and the spaceship ran
+   * off both edges, and the only way back was Fit everything.
+   *
+   * Here rather than in `rebuild`, because changing the shape does not rebuild
+   * — it is a live edit, deliberately, so that swapping a shape mid-flight does
+   * not reset the clock. Both paths pass through this function; only one of
+   * them passes through that one.
+   *
+   * A quarter is the threshold, so nudging a size slider does not yank the view
+   * out from under a reader who has deliberately zoomed in on something.
+   */
+  const now = biggestExtent(sim.world);
+  if (was > 0 && now > 0 && (now / was > 1.25 || was / now > 1.25)) {
+    state.view.camera.mode = 'auto';
+  }
   // Mid-drag the sidebar is left alone: rebuilding it would replace the slider
   // under the thumb and end the drag on its first movement. Everything that is
   // watched while dragging — the drawing, the readouts, the banners — is in

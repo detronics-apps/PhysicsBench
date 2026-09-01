@@ -11,6 +11,7 @@ import { describe as describeShape } from '../js/shapes.js';
 import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { CHANNELS } from '../js/recorder.js';
 import { surfaceGravity } from '../js/gravitation.js';
+import { atmosphereAt } from '../js/drag.js';
 import { len } from '../js/vec.js';
 import { G, G_STANDARD } from '../js/constants.js';
 
@@ -1008,4 +1009,65 @@ test('a massless or nonsense object still gets a usable slider', () => {
     assert.ok(Number.isFinite(r.step) && r.step > 0);
     assert.equal(r.min, 0);
   }
+});
+
+/* ------------------------------------------------- a fluid that thins -- */
+
+/**
+ * The books still balance when the fluid is not the same everywhere.
+ *
+ * This is the invariant most at risk from the atmosphere. Buoyancy in a
+ * stratified fluid is still conservative, but its potential is the integral of
+ * ρ(y)·V·g rather than the local density times the rise — so if the potential
+ * were computed the easy way, every frame would book a little energy that was
+ * never there, and a long fall would end up wildly out.
+ */
+test('a long fall through thinning air keeps the ledger closed', () => {
+  const p = {
+    ...defaults().bench,
+    objects: [], walls: [], cannons: [], pushForce: 0,
+    fluidId: 'atmosphere', shapeId: 'sphere', size: 0.5, mass: 80, dropHeight: 8000,
+  };
+  const start = run('collide', p);
+  const end = run('collide', p, 40, 1 / 240);
+  const a = totals(start.world);
+  const b = totals(end.world);
+
+  assert.ok(b.elsewhere.heat > 1000, 'a fall through 8 km of air should make heat');
+  // A tenth of a joule against megajoules — this is the closed-form integral
+  // earning its place.
+  close(b.balance, a.balance, Math.max(0.5, Math.abs(a.balance) * 1e-6));
+});
+
+test('air thins with height, so the same object falls faster higher up', () => {
+  const base = {
+    ...defaults().bench,
+    objects: [], walls: [], cannons: [], pushForce: 0,
+    fluidId: 'atmosphere', shapeId: 'plate', size: 1, mass: 5,
+  };
+  // Terminal speed goes as 1/√ρ, so thinner air means a faster fall.
+  const speedAfter = (dropHeight) => {
+    const { world } = run('collide', { ...base, dropHeight }, 12, 1 / 240);
+    return Math.abs(findBody(world, 'main').vel.y);
+  };
+  const low = speedAfter(2000);
+  const high = speedAfter(18000);
+  assert.ok(high > low * 1.5, `high ${high.toFixed(1)} should far exceed low ${low.toFixed(1)}`);
+});
+
+test('a balloon stops where the air is as thin as it is', () => {
+  const p = {
+    ...defaults().bench,
+    objects: [], walls: [], cannons: [], pushForce: 0,
+    fluidId: 'atmosphere', shapeId: 'balloon', size: 6, mass: 8, dropHeight: 1,
+  };
+  const { world } = run('collide', p, 3000, 1 / 120);
+  const b = findBody(world, 'main');
+  const own = p.mass / describeShape({ shapeId: 'balloon', size: 6, mass: 8 }).volume;
+
+  // It has come to rest, and where it rests the air matches its own density —
+  // which is the whole reason a balloon has a ceiling at all.
+  assert.ok(Math.abs(b.vel.y) < 0.2, `still climbing at ${b.vel.y.toFixed(2)} m/s`);
+  close(atmosphereAt(b.pos.y).density, own, own * 0.02);
+  assert.ok(b.pos.y > 15000 && b.pos.y < 25000, `ceiling at ${Math.round(b.pos.y)} m`);
 });

@@ -183,6 +183,116 @@ export function terminalSpeed({ mass, g, density, viscosity, diameter, area, cdS
  * water and about ten thousand times more viscous, and it is the viscosity that
  * makes it feel like honey.
  */
+/* ------------------------------------------------------- the atmosphere -- */
+
+/**
+ * The International Standard Atmosphere, which is where "1.225 kg/m³" comes
+ * from in the first place.
+ *
+ * Air is the one fluid on this bench that is not the same everywhere in it. A
+ * balloon does not rise for ever: it rises until the air around it is as thin
+ * as the balloon is, and that altitude is the answer to a question a fixed
+ * density cannot even ask. Drag falls away with the density too, which is why
+ * things thrown hard go further high up and why re-entry heating starts where
+ * it does.
+ *
+ * Two layers are enough to cover anything this app can model:
+ *
+ *   0 to 11 km   the troposphere, cooling at 6.5 K per km
+ *   above 11 km  the stratosphere, isothermal at 216.65 K
+ *
+ * Below sea level the troposphere formula is simply continued, which is right
+ * for the few hundred metres of it that exist on Earth.
+ */
+const ISA = {
+  seaLevelDensity: 1.225,          // kg/m³
+  seaLevelTemperature: 288.15,     // K
+  lapseRate: 0.0065,               // K/m
+  gasConstant: 287.0528,           // J/(kg·K) for dry air
+  g0: 9.80665,                     // m/s², the defined standard gravity
+  tropopause: 11000,               // m
+  tropopauseTemperature: 216.65,   // K
+};
+
+// ρ ∝ T^(g/(R·L) − 1). One exponent, derived rather than typed in.
+const ISA_EXPONENT = ISA.g0 / (ISA.gasConstant * ISA.lapseRate) - 1;
+// The scale height of the isothermal layer above the tropopause.
+const ISA_SCALE_HEIGHT = (ISA.gasConstant * ISA.tropopauseTemperature) / ISA.g0;
+const ISA_TROPOPAUSE_DENSITY = ISA.seaLevelDensity
+  * (ISA.tropopauseTemperature / ISA.seaLevelTemperature) ** ISA_EXPONENT;
+
+/*
+ * The air in a column from sea level to the tropopause, as a constant.
+ *
+ * Written out rather than fetched by calling `atmosphereColumn(11000)`, which
+ * is not below the tropopause and so recursed into itself for ever.
+ */
+const ISA_TROPOPAUSE_COLUMN = ((ISA.seaLevelDensity * ISA.seaLevelTemperature)
+  / (ISA.lapseRate * (ISA_EXPONENT + 1)))
+  * (1 - (ISA.tropopauseTemperature / ISA.seaLevelTemperature) ** (ISA_EXPONENT + 1));
+
+/** Sutherland's law — viscosity depends on temperature, not on pressure. */
+const sutherland = (temperature) => (1.458e-6 * temperature ** 1.5) / (temperature + 110.4);
+
+/**
+ * The air at a given height above sea level: what it weighs, how sticky it is,
+ * how cold it is and what it presses at.
+ */
+export function atmosphereAt(altitude) {
+  const h = Number.isFinite(altitude) ? altitude : 0;
+
+  if (h < ISA.tropopause) {
+    // Continued below sea level as well; a mine shaft is still troposphere.
+    const temperature = ISA.seaLevelTemperature - ISA.lapseRate * h;
+    const density = ISA.seaLevelDensity
+      * (temperature / ISA.seaLevelTemperature) ** ISA_EXPONENT;
+    return {
+      density,
+      viscosity: sutherland(temperature),
+      temperature,
+      pressure: density * ISA.gasConstant * temperature,
+    };
+  }
+
+  const temperature = ISA.tropopauseTemperature;
+  const density = ISA_TROPOPAUSE_DENSITY
+    * Math.exp(-(h - ISA.tropopause) / ISA_SCALE_HEIGHT);
+  return {
+    density,
+    viscosity: sutherland(temperature),
+    temperature,
+    pressure: density * ISA.gasConstant * temperature,
+  };
+}
+
+/**
+ * The mass of air in a column of unit area from sea level up to `altitude`.
+ *
+ * This is what makes buoyancy in a varying atmosphere still conservative, and
+ * therefore what keeps the energy ledger honest. The buoyant force on a body of
+ * volume V is ρ(y)·V·g, which depends on height — so the energy it takes to
+ * lift the body is the *integral* of that, not the local value times the rise.
+ * Using the local density instead would leave the books drifting by a little on
+ * every frame, in an app whose central claim is that they do not.
+ *
+ * Closed form rather than a numerical integral, because it is one, and because
+ * a per-body per-frame quadrature would be a real cost for no extra accuracy.
+ */
+export function atmosphereColumn(altitude) {
+  const h = Number.isFinite(altitude) ? altitude : 0;
+
+  if (h < ISA.tropopause) {
+    // ∫ρ0·u^n dh with u = T/T0, which integrates to a difference of powers.
+    const u = 1 - (ISA.lapseRate * h) / ISA.seaLevelTemperature;
+    return (ISA.seaLevelDensity * ISA.seaLevelTemperature)
+      / (ISA.lapseRate * (ISA_EXPONENT + 1))
+      * (1 - u ** (ISA_EXPONENT + 1));
+  }
+
+  return ISA_TROPOPAUSE_COLUMN + ISA_TROPOPAUSE_DENSITY * ISA_SCALE_HEIGHT
+    * (1 - Math.exp(-(h - ISA.tropopause) / ISA_SCALE_HEIGHT));
+}
+
 export const FLUIDS = [
   {
     id: 'vacuum',
@@ -200,6 +310,26 @@ export const FLUIDS = [
     note: 'Sea level, 15 °C — the International Standard Atmosphere. Thin and '
       + 'barely viscous, so almost everything you throw through it is well into '
       + 'the v² regime.',
+  },
+  {
+    id: 'atmosphere',
+    label: 'Atmosphere',
+    /*
+     * The only fluid here that is not the same everywhere in it.
+     *
+     * The figures below are the sea-level values, and they are what everything
+     * that does not know about the profile falls back to; `profile` is what
+     * tells the physics to look the density up at the body's own height
+     * instead.
+     */
+    density: 1.225,
+    viscosity: 1.7894e-5,
+    profile: 'isa',
+    note: 'Real air, thinning with height, to the International Standard '
+      + 'Atmosphere. Half of it is below 5.5 km. A balloon in this does not '
+      + 'rise for ever — it stops where the air is as thin as the balloon is, '
+      + 'which is a question a single fixed density cannot even ask. Drag falls '
+      + 'away with the density too.',
   },
   {
     id: 'water',

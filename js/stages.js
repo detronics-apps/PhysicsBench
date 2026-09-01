@@ -463,6 +463,8 @@ export function build(stageId, p) {
     mutualGravity: gravityMode === 'mutual',
     fluidDensity: fluid.density,
     viscosity: fluid.viscosity,
+    // Only the atmosphere carries one; everything else is uniform.
+    fluidProfile: fluid.profile ?? null,
     ground: hasGround
       ? {
         y: 0,

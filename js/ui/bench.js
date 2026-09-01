@@ -25,9 +25,9 @@ import {
   typicalFor, contactKind, materialById, pairBounce, describeBounce,
 } from '../shapes.js';
 import { MAX_CANNONS, PRINT_PARTS } from '../state.js';
-import { FLUIDS, fluidById, drag as fluidDrag, terminalSpeed } from '../drag.js';
+import { FLUIDS, fluidById, drag as fluidDrag, terminalSpeed, atmosphereAt } from '../drag.js';
 import { WORLDS, describeWorld, surfaceGravity, everydayComparison, massForGravity } from '../gravitation.js';
-import { inspect, totals, findBody } from '../world.js';
+import { inspect, totals, findBody, elevation } from '../world.js';
 import { len } from '../vec.js';
 import { fmtFixed, fmtDirectionWords, fmtLength } from '../format.js';
 import { G, G_STANDARD } from '../constants.js';
@@ -501,8 +501,19 @@ function surfaceSection(ctx) {
 
 function fluidSection(ctx, object) {
   const { params: p, set } = ctx;
-  const fluid = FLUIDS.find((x) => x.id === p.fluidId) || FLUIDS[0];
+  const table = FLUIDS.find((x) => x.id === p.fluidId) || FLUIDS[0];
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
+
+  /*
+   * The atmosphere is the one fluid whose numbers are not a property of the
+   * fluid but of where you are standing in it, so every figure below has to be
+   * read at the object's own height rather than off the table.
+   */
+  const up = elevation(ctx.world, ctx.selectedId) ?? 0;
+  const here = table.profile === 'isa' ? atmosphereAt(up) : null;
+  const fluid = here
+    ? { ...table, density: here.density, viscosity: here.viscosity }
+    : table;
   /*
    * Terminal speed is where drag balances the *buoyant* weight, not mg.
    *
@@ -525,11 +536,19 @@ function fluidSection(ctx, object) {
     selectField('Fluid', FLUIDS.map((x) => ({ value: x.id, label: x.label })), p.fluidId, (v) => set('fluidId', v), {
       key: 'fluidId', hint: fluid.note,
     }),
+    here ? el('div', { class: 'field__hint' }, [
+      el('strong', { text: `${fmtLength(up)} up: ` }),
+      el('span', {
+        text: `${fmtFixed(here.density, 4)} kg/m³, ${fmtFixed(here.temperature - 273.15, 1)} °C, `
+          + `${fmtFixed(here.pressure / 1000, 1)} kPa — `
+          + `${fmtFixed((here.density / 1.225) * 100, 0)}% of the density at sea level.`,
+      }),
+    ]) : null,
     el('div', { class: 'dims' }, [
-      el('dt', { text: 'Density' }),
-      el('dd', { text: `${fluid.density} kg/m³` }),
-      el('dt', { text: 'Viscosity' }),
-      el('dd', { text: `${fluid.viscosity} Pa·s` }),
+      el('dt', { text: here ? 'Density here' : 'Density' }),
+      el('dd', { text: `${here ? fmtFixed(here.density, 4) : fluid.density} kg/m³` }),
+      el('dt', { text: here ? 'Viscosity here' : 'Viscosity' }),
+      el('dd', { text: `${here ? here.viscosity.toExponential(3) : fluid.viscosity} Pa·s` }),
       el('dt', { text: 'Buoyant force' }),
       el('dd', { text: `${fmtFixed(fluid.density * object.volume * world.g, 3)} N up` }),
       el('dt', { text: Number.isFinite(rise) ? 'Steady rising speed' : 'Terminal speed' }),

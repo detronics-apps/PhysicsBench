@@ -18,7 +18,7 @@
  */
 
 import { vec, sub, scale, dot, len, norm, perp, sum, ZERO } from './vec.js';
-import { drag as fluidDrag } from './drag.js';
+import { drag as fluidDrag, atmosphereAt, atmosphereColumn } from './drag.js';
 
 /**
  * The visual language, in one place.
@@ -152,8 +152,75 @@ export function buoyancyForce(volume, fluidDensity, field) {
  * Negative for anything that floats, which is not a bug. It is what floating
  * means: the effective weight points upward.
  */
+/**
+ * The fluid where a body actually is, rather than everywhere at once.
+ *
+ * Every fluid on this bench is uniform except the atmosphere, which thins with
+ * height — so this is the one place that has to ask "where?" before it can say
+ * "how dense?". For everything else the answer does not depend on the position
+ * and the reading is the same one it always was.
+ */
+export function fluidAt(env = {}, y = 0) {
+  if (env.fluidProfile === 'isa') {
+    const air = atmosphereAt(y - (env.seaLevel ?? 0));
+    return { density: air.density, viscosity: air.viscosity };
+  }
+  return {
+    density: Math.max(0, env.fluidDensity ?? 0),
+    viscosity: Math.max(0, env.viscosity ?? 0),
+  };
+}
+
 export const buoyantMass = (body, env = {}) =>
-  body.mass - Math.max(0, env.fluidDensity ?? 0) * Math.max(0, body.volume ?? 0);
+  body.mass - fluidAt(env, body.pos?.y ?? 0).density * Math.max(0, body.volume ?? 0);
+
+/**
+ * Potential energy: gravitational, less whatever the fluid is holding up.
+ *
+ * In a uniform fluid this is just the buoyant mass times g times the height,
+ * which is what it has always been. In a fluid that thins with height it is
+ * not: the buoyant force changes as the body rises, so the energy is the
+ * *integral* of it, and `atmosphereColumn` is that integral in closed form.
+ *
+ * Using the local density times the rise instead would leave the energy ledger
+ * drifting by a little on every frame — in an app whose central claim is that
+ * the books balance whatever you do to them.
+ */
+export function potentialEnergy(body, env = {}, datumY = 0) {
+  const g = env.g ?? 0;
+  const y = body.pos?.y ?? 0;
+  const volume = Math.max(0, body.volume ?? 0);
+
+  if (env.fluidProfile === 'isa' && volume > 0) {
+    const sea = env.seaLevel ?? 0;
+    const displaced = atmosphereColumn(y - sea) - atmosphereColumn(datumY - sea);
+    return body.mass * g * (y - datumY) - g * volume * displaced;
+  }
+  return buoyantMass(body, env) * g * (y - datumY);
+}
+
+/**
+ * How much potential a body gains moving from one place to another.
+ *
+ * Kept separate from `potentialEnergy` because contact resolution works with a
+ * displacement against the field, which is the general form — it is still
+ * correct where the field is not straight down, and the buoyancy correction is
+ * the only part that has to know about height.
+ */
+export function potentialShift(body, env = {}, fromPos, toPos) {
+  const gravity = -body.mass * dot(env.field ?? ZERO, sub(toPos, fromPos));
+  const volume = Math.max(0, body.volume ?? 0);
+  if (volume <= 0) return gravity;
+
+  if (env.fluidProfile === 'isa') {
+    const sea = env.seaLevel ?? 0;
+    const displaced = atmosphereColumn(toPos.y - sea) - atmosphereColumn(fromPos.y - sea);
+    return gravity - (env.g ?? 0) * volume * displaced;
+  }
+  // Uniform: the same thing, with the density outside the integral.
+  const density = fluidAt(env, fromPos.y).density;
+  return gravity + density * volume * dot(env.field ?? ZERO, sub(toPos, fromPos));
+}
 
 /** Terminal speed, re-exported: the search lives with the drag model. */
 export { terminalSpeed } from './drag.js';
@@ -182,10 +249,11 @@ export function forcesOn(body, env = {}, contact = null) {
 
   /* Step one: everything that does not depend on the surface. */
   const applied = body.applied && len(body.applied) > 0 ? force('applied', body.applied) : null;
-  const drag = env.fluidDensity > 0 && body.area > 0
+  const local = fluidAt(env, body.pos?.y ?? 0);
+  const drag = local.density > 0 && body.area > 0
     ? dragForce(velocity, {
-      density: env.fluidDensity,
-      viscosity: env.viscosity ?? 0,
+      density: local.density,
+      viscosity: local.viscosity,
       cd: body.cd,
       area: body.area,
       diameter: body.diameter || body.radius * 2,
@@ -195,8 +263,8 @@ export function forcesOn(body, env = {}, contact = null) {
   const extra = (body.extraForces || []).map((f) => force(f.id || 'applied', f.vec, f.note || ''));
   // Buoyancy needs the volume, not the frontal area — a car and a cube of the
   // same width displace very different amounts of fluid.
-  const buoyancy = env.fluidDensity > 0 && body.volume > 0
-    ? buoyancyForce(body.volume, env.fluidDensity, field)
+  const buoyancy = local.density > 0 && body.volume > 0
+    ? buoyancyForce(body.volume, local.density, field)
     : null;
   // The control force is whatever the pointer or the keyboard is asking for. It
   // is an ordinary force in the ordinary sum — that is the whole reason driving
