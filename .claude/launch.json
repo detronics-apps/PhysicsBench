@@ -4,7 +4,7 @@
     {
       "name": "physics-bench",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8846"],
+      "runtimeArgs": ["tools/devserver.py", "8846"],
       "port": 8846
     }
   ]

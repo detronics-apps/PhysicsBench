@@ -47,12 +47,22 @@ const CAR_SIDE = 'M -0.5 0.2 L -0.46 -0.02 L -0.28 -0.06 L -0.16 -0.46 '
  * — the figure comes out narrow because `aspect` makes the box narrow, not
  * because the path is drawn small inside a square one. Getting that wrong is
  * how the car ended up rendering at a sixth of its width.
+ *
+ * Which is also why the head is a *wide ellipse* here and a circle on screen.
+ * The box is about four times taller than it is wide, so everything in this
+ * path is stretched four times vertically when it is drawn: a circle in these
+ * coordinates comes out as a tall oval, and the head has to be squashed by the
+ * same factor to end up round. The proportions below are worked in metres for
+ * a 1.76 m figure and converted, rather than eyeballed in a square box that
+ * nothing is ever drawn in.
  */
-const MAN = 'M 0 -0.5 C 0.1 -0.5 0.15 -0.44 0.15 -0.38 C 0.15 -0.32 0.1 -0.27 0 -0.27 '
-  + 'C -0.1 -0.27 -0.15 -0.32 -0.15 -0.38 C -0.15 -0.44 -0.1 -0.5 0 -0.5 Z '
-  + 'M -0.18 -0.24 L 0.18 -0.24 L 0.36 -0.17 L 0.5 0.14 L 0.36 0.21 L 0.23 -0.06 '
-  + 'L 0.21 0.13 L 0.17 0.5 L 0.04 0.5 L 0 0.19 L -0.04 0.5 L -0.17 0.5 '
-  + 'L -0.21 0.13 L -0.23 -0.06 L -0.36 0.21 L -0.5 0.14 L -0.36 -0.17 Z';
+const MAN = 'M -0.222 -0.4432 C -0.222 -0.4746 -0.1226 -0.5 0 -0.5 '
+  + 'C 0.1226 -0.5 0.222 -0.4746 0.222 -0.4432 '
+  + 'C 0.222 -0.4118 0.1226 -0.3864 0 -0.3864 '
+  + 'C -0.1226 -0.3864 -0.222 -0.4118 -0.222 -0.4432 Z '
+  + 'M -0.12 -0.383 L -0.5 -0.28 L -0.44 0.18 L -0.29 0.2 L -0.26 -0.16 '
+  + 'L -0.3 0.06 L -0.28 0.5 L -0.05 0.5 L 0 0.12 L 0.05 0.5 L 0.28 0.5 '
+  + 'L 0.3 0.06 L 0.26 -0.16 L 0.29 0.2 L 0.44 0.18 L 0.5 -0.28 L 0.12 -0.383 Z';
 
 /*
  * The same figure with narrower shoulders, and a dress.
@@ -60,56 +70,64 @@ const MAN = 'M 0 -0.5 C 0.1 -0.5 0.15 -0.44 0.15 -0.38 C 0.15 -0.32 0.1 -0.27 0 
  * The torso narrows to a waist and then flares to a hem, with the lower legs
  * below it — which is what makes the two figures tell apart at the size they
  * are actually drawn, where a difference of a few centimetres in shoulder width
- * is a pixel and reads as nothing at all.
+ * is one pixel and reads as nothing at all. Here the hem is the widest thing
+ * rather than the shoulders, so it is the hem that reaches the edge of the box.
+ *
+ * Head squashed by the aspect, as the man's is, so it draws round.
  */
-const WOMAN = 'M 0 -0.5 C 0.1 -0.5 0.145 -0.445 0.145 -0.385 C 0.145 -0.325 0.1 -0.275 0 -0.275 '
-  + 'C -0.1 -0.275 -0.145 -0.325 -0.145 -0.385 C -0.145 -0.445 -0.1 -0.5 0 -0.5 Z '
-  + 'M -0.15 -0.245 L 0.15 -0.245 L 0.33 -0.175 L 0.5 0.13 L 0.37 0.2 L 0.23 -0.05 '
-  + 'L 0.14 0.06 L 0.3 0.34 L 0.11 0.34 L 0.11 0.5 L 0.03 0.5 L 0.03 0.34 '
-  + 'L -0.03 0.34 L -0.03 0.5 L -0.11 0.5 L -0.11 0.34 L -0.3 0.34 L -0.14 0.06 '
-  + 'L -0.23 -0.05 L -0.37 0.2 L -0.5 0.13 L -0.33 -0.175 Z';
+const WOMAN = 'M -0.2375 -0.4417 C -0.2375 -0.4739 -0.1312 -0.5 0 -0.5 '
+  + 'C 0.1312 -0.5 0.2375 -0.4739 0.2375 -0.4417 '
+  + 'C 0.2375 -0.4095 0.1312 -0.3834 0 -0.3834 '
+  + 'C -0.1312 -0.3834 -0.2375 -0.4095 -0.2375 -0.4417 Z '
+  + 'M -0.115 -0.38 L -0.44 -0.28 L -0.4 0.1 L -0.26 0.12 L -0.24 -0.14 '
+  + 'L -0.18 0.02 L -0.5 0.32 L -0.2 0.32 L -0.2 0.5 L -0.06 0.5 L -0.06 0.32 '
+  + 'L 0.06 0.32 L 0.06 0.5 L 0.2 0.5 L 0.2 0.32 L 0.5 0.32 L 0.18 0.02 '
+  + 'L 0.24 -0.14 L 0.26 0.12 L 0.4 0.1 L 0.44 -0.28 L 0.115 -0.38 Z';
 
 /*
  * The Magbot Rover from the side: a boxy body carried on one big driven wheel
  * and a smaller one, with the connector stub at the back.
  */
+/*
+ * The Magbot from the side, as the robot actually is.
+ *
+ * One large driven wheel per side, not two little ones underneath: it is a
+ * two-wheeler, so a side view shows one wheel, and it is a big one — most of
+ * the height of the body. The body is a cube that sits well up off the ground
+ * with a short skid at the front, which is what keeps it level.
+ *
+ * Cubics rather than `A` for the wheel: an arc command carries flags — `0 1 0`
+ * — that are not coordinates, and both `scalePath` and the test that checks an
+ * outline fills its box read every number pair as a position. An arc would have
+ * them treating a large-arc flag as one.
+ */
 const MAGBOT_SIDE =
-  // The body: a box with the corners taken off, sitting clear of the ground.
-  'M -0.42 -0.5 L 0.42 -0.5 Q 0.5 -0.5 0.5 -0.42 L 0.5 0.1 '
-  + 'Q 0.5 0.18 0.42 0.18 L -0.42 0.18 Q -0.5 0.18 -0.5 0.1 '
-  + 'L -0.5 -0.42 Q -0.5 -0.5 -0.42 -0.5 Z '
-  /*
-   * Two wheels, as their own subpaths, so they read as wheels rather than as
-   * an arch bitten out of the bottom edge.
-   *
-   * Drawn as four cubics rather than with `A`, because an arc command carries
-   * flags — `0 1 0` — that are not coordinates, and the tests that check an
-   * outline fills its box read the numbers straight out of the path. An arc
-   * would have them measuring a large-arc flag as a position.
-   */
-  + 'M -0.48 0.28 C -0.48 0.1585 -0.3815 0.06 -0.26 0.06 '
-  + 'C -0.1385 0.06 -0.04 0.1585 -0.04 0.28 '
-  + 'C -0.04 0.4015 -0.1385 0.5 -0.26 0.5 '
-  + 'C -0.3815 0.5 -0.48 0.4015 -0.48 0.28 Z '
-  + 'M 0.04 0.28 C 0.04 0.1585 0.1385 0.06 0.26 0.06 '
-  + 'C 0.3815 0.06 0.48 0.1585 0.48 0.28 '
-  + 'C 0.48 0.4015 0.3815 0.5 0.26 0.5 '
-  + 'C 0.1385 0.5 0.04 0.4015 0.04 0.28 Z';
+  // The cube body, corners taken off.
+  'M -0.44 -0.5 L 0.24 -0.5 Q 0.3 -0.5 0.3 -0.44 L 0.3 0.3 Q 0.3 0.36 0.24 0.36 '
+  + 'L -0.44 0.36 Q -0.5 0.36 -0.5 0.3 L -0.5 -0.44 Q -0.5 -0.5 -0.44 -0.5 Z '
+  // The driven wheel.
+  + 'M -0.1 0.2 C -0.1 0.0343 0.0343 -0.1 0.2 -0.1 '
+  + 'C 0.3657 -0.1 0.5 0.0343 0.5 0.2 '
+  + 'C 0.5 0.3657 0.3657 0.5 0.2 0.5 '
+  + 'C 0.0343 0.5 -0.1 0.3657 -0.1 0.2 Z '
+  // And the skid at the front, so it stands level rather than nose-down.
+  + 'M -0.44 0.36 L -0.28 0.36 Q -0.26 0.36 -0.26 0.42 L -0.26 0.5 L -0.44 0.5 Z';
 
 /** And from above: a square body with a wheel out either side, driving +x. */
 const MAGBOT_TOP =
   /*
-   * The body, driving +x, with the leading edge rounded off. It runs the full
+   * The deck, driving +x, with the leading edge rounded off. It runs the full
    * width of the box because every outline here must: `aspect` is applied on
    * top of the path, so a shape that stops short of its own box is drawn
    * smaller than it is, which is how the car once rendered at a sixth of its
    * width. The wheels do the same job in the other direction.
    */
-  'M -0.5 -0.3 L 0.3 -0.3 Q 0.5 -0.3 0.5 -0.1 L 0.5 0.1 '
-  + 'Q 0.5 0.3 0.3 0.3 L -0.5 0.3 Z '
-  // A wheel out either side, which is also what tells you which way it drives.
-  + 'M -0.16 -0.5 L 0.2 -0.5 L 0.2 -0.3 L -0.16 -0.3 Z '
-  + 'M -0.16 0.3 L 0.2 0.3 L 0.2 0.5 L -0.16 0.5 Z';
+  'M -0.44 -0.34 L 0.32 -0.34 Q 0.5 -0.34 0.5 -0.16 L 0.5 0.16 '
+  + 'Q 0.5 0.34 0.32 0.34 L -0.44 0.34 Q -0.5 0.34 -0.5 0.28 '
+  + 'L -0.5 -0.28 Q -0.5 -0.34 -0.44 -0.34 Z '
+  // A wheel out either side — the pair that makes it a two-wheeler.
+  + 'M -0.22 -0.5 L 0.16 -0.5 L 0.16 -0.32 L -0.22 -0.32 Z '
+  + 'M -0.22 0.32 L 0.16 0.32 L 0.16 0.5 L -0.22 0.5 Z';
 
 /*
  * What turns the rover from a box on wheels into a recognisable Magbot: the
@@ -126,38 +144,42 @@ const MAGBOT_TOP =
  * that are not coordinates.
  */
 const MAGBOT_DETAIL =
-  // The front panel.
-  'M -0.34 -0.38 L 0.34 -0.38 L 0.34 0.06 L -0.34 0.06 Z '
-  // Two sensor eyes.
-  + 'M -0.215 -0.2 C -0.215 -0.2414 -0.1814 -0.275 -0.14 -0.275 '
-  + 'C -0.0986 -0.275 -0.065 -0.2414 -0.065 -0.2 '
-  + 'C -0.065 -0.1586 -0.0986 -0.125 -0.14 -0.125 '
-  + 'C -0.1814 -0.125 -0.215 -0.1586 -0.215 -0.2 Z '
-  + 'M 0.025 -0.2 C 0.025 -0.2414 0.0586 -0.275 0.1 -0.275 '
-  + 'C 0.1414 -0.275 0.175 -0.2414 0.175 -0.2 '
-  + 'C 0.175 -0.1586 0.1414 -0.125 0.1 -0.125 '
-  + 'C 0.0586 -0.125 0.025 -0.1586 0.025 -0.2 Z '
-  // Wheel hubs.
-  + 'M -0.34 0.28 C -0.34 0.2358 -0.3042 0.2 -0.26 0.2 '
-  + 'C -0.2158 0.2 -0.18 0.2358 -0.18 0.28 '
-  + 'C -0.18 0.3242 -0.2158 0.36 -0.26 0.36 '
-  + 'C -0.3042 0.36 -0.34 0.3242 -0.34 0.28 Z '
-  + 'M 0.18 0.28 C 0.18 0.2358 0.2158 0.2 0.26 0.2 '
-  + 'C 0.3042 0.2 0.34 0.2358 0.34 0.28 '
-  + 'C 0.34 0.3242 0.3042 0.36 0.26 0.36 '
-  + 'C 0.2158 0.36 0.18 0.3242 0.18 0.28 Z '
-  // Connectors along the top.
-  + 'M -0.24 -0.5 L -0.24 -0.44 M -0.08 -0.5 L -0.08 -0.44 '
-  + 'M 0.08 -0.5 L 0.08 -0.44 M 0.24 -0.5 L 0.24 -0.44';
+  // The inset face panel, which is most of the front of the robot.
+  'M -0.42 -0.42 L 0.22 -0.42 L 0.22 0.24 L -0.42 0.24 Z '
+  // The ultrasonic sensor's two eyes, up in the panel where they belong.
+  + 'M -0.29 -0.24 C -0.29 -0.2842 -0.2542 -0.32 -0.21 -0.32 '
+  + 'C -0.1658 -0.32 -0.13 -0.2842 -0.13 -0.24 '
+  + 'C -0.13 -0.1958 -0.1658 -0.16 -0.21 -0.16 '
+  + 'C -0.2542 -0.16 -0.29 -0.1958 -0.29 -0.24 Z '
+  + 'M -0.07 -0.24 C -0.07 -0.2842 -0.0342 -0.32 0.01 -0.32 '
+  + 'C 0.0542 -0.32 0.09 -0.2842 0.09 -0.24 '
+  + 'C 0.09 -0.1958 0.0542 -0.16 0.01 -0.16 '
+  + 'C -0.0342 -0.16 -0.07 -0.1958 -0.07 -0.24 Z '
+  // The wheel: hub, and a rim inside the tyre.
+  + 'M 0.1 0.2 C 0.1 0.1448 0.1448 0.1 0.2 0.1 '
+  + 'C 0.2552 0.1 0.3 0.1448 0.3 0.2 '
+  + 'C 0.3 0.2552 0.2552 0.3 0.2 0.3 '
+  + 'C 0.1448 0.3 0.1 0.2552 0.1 0.2 Z '
+  + 'M -0.02 0.2 C -0.02 0.0785 0.0785 -0.02 0.2 -0.02 '
+  + 'C 0.3215 -0.02 0.42 0.0785 0.42 0.2 '
+  + 'C 0.42 0.3215 0.3215 0.42 0.2 0.42 '
+  + 'C 0.0785 0.42 -0.02 0.3215 -0.02 0.2 Z '
+  // Connector sockets along the top edge.
+  + 'M -0.34 -0.5 L -0.34 -0.44 M -0.18 -0.5 L -0.18 -0.44 '
+  + 'M -0.02 -0.5 L -0.02 -0.44 M 0.14 -0.5 L 0.14 -0.44';
 
 /** From above: the deck panel, the direction arrow, and tread across the tyres. */
 const MAGBOT_TOP_DETAIL =
-  'M -0.4 -0.2 L -0.04 -0.2 L -0.04 0.2 L -0.4 0.2 Z '
-  // An arrow along the way it drives, which is the whole point of a top view.
-  + 'M 0.04 -0.16 L 0.28 0 L 0.04 0.16 '
-  // Tread.
-  + 'M -0.08 -0.5 L -0.08 -0.3 M 0.04 -0.5 L 0.04 -0.3 M 0.14 -0.5 L 0.14 -0.3 '
-  + 'M -0.08 0.3 L -0.08 0.5 M 0.04 0.3 L 0.04 0.5 M 0.14 0.3 L 0.14 0.5';
+  // The block of connector sockets on the deck.
+  'M -0.42 -0.22 L -0.06 -0.22 L -0.06 0.22 L -0.42 0.22 Z '
+  + 'M -0.3 -0.22 L -0.3 0.22 M -0.18 -0.22 L -0.18 0.22 '
+  + 'M -0.42 0 L -0.06 0 '
+  // The arrow that says which way it drives, which is the whole point of a
+  // view from above: nothing else in the outline distinguishes front from back.
+  + 'M 0.08 -0.18 L 0.34 0 L 0.08 0.18 '
+  // Tread across both tyres.
+  + 'M -0.12 -0.5 L -0.12 -0.32 M 0.0 -0.5 L 0.0 -0.32 M 0.1 -0.5 L 0.1 -0.32 '
+  + 'M -0.12 0.32 L -0.12 0.5 M 0.0 0.32 L 0.0 0.5 M 0.1 0.32 L 0.1 0.5';
 
 const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
   + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '

@@ -307,3 +307,49 @@ test('the woman is drawn differently enough to tell apart', () => {
   // a few centimetres of shoulder width is one pixel at the size these draw at.
   assert.notEqual(outline('human-m'), outline('human-f'));
 });
+
+/**
+ * The heads come out round on screen, which is not the same as round in the path.
+ *
+ * A person's box is about four times taller than it is wide, and `aspect`
+ * stretches everything in the path by that factor when it is drawn — so a
+ * circle in these coordinates renders as a tall oval, and a head that looks
+ * right in the source looks wrong in the app. The head has to be drawn as a
+ * wide ellipse, squashed by exactly the aspect, to come out circular.
+ *
+ * This measures the first subpath, which is the head, and asks what shape it
+ * will actually be once drawn.
+ */
+test('a person has a round head where it counts — on the drawing', () => {
+  for (const id of ['human-m', 'human-f']) {
+    const shape = shapeById(id);
+    const head = outline(id).split('Z')[0];
+    const numbers = head.trim().split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+    const xs = numbers.filter((_, i) => i % 2 === 0);
+    const ys = numbers.filter((_, i) => i % 2 === 1);
+    const wide = Math.max(...xs) - Math.min(...xs);
+    const tall = Math.max(...ys) - Math.min(...ys);
+
+    // Drawn width is size × wide; drawn height is size × aspect × tall.
+    const drawnRatio = wide / (tall * shape.aspect);
+    assert.ok(Math.abs(drawnRatio - 1) < 0.06,
+      `${id} head draws ${drawnRatio.toFixed(2)}:1, not round`);
+    // And it really is squashed in the source rather than circular there.
+    assert.ok(wide > tall * 2, `${id} head is circular in the path, so oval on screen`);
+  }
+});
+
+test('a head sits at the top of the figure, with the body below it', () => {
+  for (const id of ['human-m', 'human-f']) {
+    const [head, body] = outline(id).split('Z').slice(0, 2);
+    const ysOf = (d) => d.trim().split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t))
+      .map(Number).filter((_, i) => i % 2 === 1);
+    const headBottom = Math.max(...ysOf(head));
+    const bodyTop = Math.min(...ysOf(body));
+    // Touching, near enough — a gap here is a floating head and an overlap is a
+    // figure with no neck.
+    assert.ok(Math.abs(headBottom - bodyTop) < 0.02,
+      `${id} head bottom ${headBottom} against body top ${bodyTop}`);
+    assert.ok(Math.min(...ysOf(head)) <= -0.5 + 1e-9, `${id} head is not at the top`);
+  }
+});

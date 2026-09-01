@@ -808,12 +808,12 @@ function drawBody(cam, body, selected, topDown, labels) {
       /*
        * Markings on top of the outline — a panel, a sensor, a wheel hub.
        *
-       * Stroked and never filled, so it reads at the forty pixels a small
-       * object is usually drawn at, and skipped entirely below that: detail on
-       * something twenty pixels wide is a smudge that makes the shape harder
-       * to recognise rather than easier.
+       * Stroked and never filled, so it reads at the size a small object is
+       * usually drawn at, and skipped below forty pixels: a panel, two sensor
+       * eyes and a wheel rim inside thirty pixels is a smudge that makes the
+       * shape harder to recognise rather than easier.
        */
-      markings && w >= 28
+      markings && w >= 40
         ? svg('path', {
           d: scalePath(markings, centre.x, centre.y, w, h),
           fill: 'none',
