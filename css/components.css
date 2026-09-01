@@ -1122,3 +1122,89 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 .subsection[open] > .subsection__title::after { transform: rotate(45deg) translate(-1px, -1px); }
 .subsection__title:hover { color: var(--text-dim); }
 .subsection__body { padding-bottom: var(--space-2); }
+
+/* ------------------------------------------------ prepared experiments -- */
+
+/*
+ * The shelf. A card is a picture of an experiment and three lines about it, so
+ * the still is given the room and the text is kept to what fits under it.
+ */
+.gallery { display: flex; flex-direction: column; gap: var(--space-4); }
+.gallery__note {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.gallery__grid {
+  display: grid;
+  /* As many as fit, never narrower than a still can be read at. */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+.gallery__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.gallery__still {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  /* The scene draws at a fixed viewBox, so it scales to whatever the card is. */
+  aspect-ratio: 880 / 460;
+}
+.gallery__still svg { display: block; width: 100%; height: 100%; }
+.gallery__missing {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+.gallery__text { display: flex; flex-direction: column; gap: var(--space-1); }
+.gallery__name { margin: 0; font-size: 1rem; font-weight: 650; }
+.gallery__blurb { margin: 0; color: var(--text-dim); font-size: 0.9rem; line-height: 1.45; }
+.gallery__where {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.gallery__go { margin-top: auto; }
+
+/*
+ * The shelf's own tab: at the end of the row, and unnumbered, which is what
+ * says it is not another step to walk through.
+ */
+.stepper__step--aside { margin-left: var(--space-3); }
+.stepper__step--aside::before {
+  content: '';
+  align-self: stretch;
+  width: 1px;
+  margin-right: var(--space-3);
+  background: var(--border);
+}
+
+/*
+ * On the shelf, the bench is not merely empty — it is not there.
+ *
+ * Clearing the regions leaves their boxes behind: the drawing keeps its 300 px
+ * and its border with nothing in it, which put a large white rectangle under
+ * the cards. The stepper and the prompt stay, because they are how a reader
+ * gets back.
+ */
+[data-page='examples'] #vectors,
+[data-page='examples'] #stage,
+[data-page='examples'] #legend,
+[data-page='examples'] #transport,
+[data-page='examples'] #banners,
+[data-page='examples'] .viewport--more,
+[data-page='examples'] .sidebar { display: none; }

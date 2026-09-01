@@ -35,6 +35,7 @@ import { surfaceGravity } from './gravitation.js';
 import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
+import { galleryPage } from './ui/gallery.js';
 import { toWorld } from './camera.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
@@ -163,6 +164,25 @@ function renderStages() {
       el('span', { class: 'stepper__label tab-label--short', text: stage.short }),
     ]));
   });
+
+  /*
+   * The shelf, at the end of the row but not numbered.
+   *
+   * It is where a reader looks for it, and the missing number is what says it
+   * is not another step to walk through.
+   */
+  dom.stages.appendChild(el('button', {
+    class: `stepper__step stepper__step--aside${state.page === 'examples' ? ' is-current' : ''}`,
+    type: 'button',
+    role: 'tab',
+    'aria-selected': String(state.page === 'examples'),
+    title: 'Experiments already set up, with a note on what to watch',
+    'data-field': 'page:examples',
+    on: { click: () => showExamples() },
+  }, [
+    el('span', { class: 'stepper__label tab-label--long', text: 'Prepared experiments' }),
+    el('span', { class: 'stepper__label tab-label--short', text: 'Examples' }),
+  ]));
 }
 
 /**
@@ -756,12 +776,32 @@ export function loadExample(id) {
   if (!next) return false;
   stopGrowth();
   Object.assign(state, next);
+  // Picking one off the shelf means going to the bench with it.
+  state.page = 'bench';
   state.transport.playing = false;
   state.transport.scrubT = null;
   saveSoon();
   rebuild();
   render();
   return true;
+}
+
+/** Show the shelf of prepared experiments. */
+export function showExamples() {
+  if (state.page === 'examples') return;
+  state.transport.playing = false;
+  cancelAnimationFrame(clock.raf);
+  state.page = 'examples';
+  saveSoon();
+  render();
+}
+
+/** Back to the bench, exactly as it was left. */
+export function showBench() {
+  if (state.page === 'bench') return;
+  state.page = 'bench';
+  saveSoon();
+  render();
 }
 
 /* -------------------------------------------------------------- render -- */
@@ -785,6 +825,45 @@ export function render({ controls = true } = {}) {
       + 'Set it explicitly before screen-recording.';
   }
 
+  /*
+   * The gallery is a whole page, not a panel, so it replaces the bench rather
+   * than sitting alongside it.
+   *
+   * Everything below this rebuilds a region that assumes there is an experiment
+   * on the bench — a drawing, a legend, a transport bar, a sidebar of controls
+   * for it. On the shelf none of those mean anything, so they are emptied and
+   * the clock is left stopped. The stepper stays, because it is how a reader
+   * gets back.
+   */
+  if (state.page === 'examples') {
+    /*
+     * Marked on the root, and the CSS hides the bench from there.
+     *
+     * Emptying the regions is not enough on its own: the drawing keeps its
+     * 300 px and its border whether or not anything is in it, so the shelf sat
+     * above a large white rectangle. Hiding by structure rather than reaching
+     * in and setting styles keeps the two ways of being visible in one place.
+     */
+    document.documentElement.dataset.page = 'examples';
+    clear(dom.ask);
+    /*
+     * The two things a card can do, handed over by name.
+     *
+     * `actions` in this scope is the transport bag — play, pause, scrub — and
+     * passing it here compiled fine and failed at the click, which is the worst
+     * place to find out. The gallery needs exactly two functions and says so.
+     */
+    dom.ask.appendChild(galleryPage({ loadExample, showBench }));
+    for (const host of [dom.vectors, dom.stage, dom.legend, dom.transportHost,
+      dom.banners, dom.graphs, dom.measurements, dom.summary, dom.explain,
+      dom.controls]) {
+      clear(host);
+    }
+    restoreFocus(snap);
+    return;
+  }
+
+  document.documentElement.dataset.page = 'bench';
   const ctx = context();
   const stage = stageById(state.stage);
   const here = stageIndex(state.stage);
@@ -797,7 +876,9 @@ export function render({ controls = true } = {}) {
       here > 0 ? button('← Back', () => goToStage(STAGES[here - 1].id), { small: true }) : null,
       here < STAGES.length - 1
         ? button(`Next: ${STAGES[here + 1].label} →`, () => goToStage(STAGES[here + 1].id), { small: true, primary: true })
-        : null,
+        // Past the last step there is nowhere further to walk, so the shelf of
+        // prepared experiments is what comes next.
+        : button('Prepared experiments →', () => showExamples(), { small: true, primary: true }),
     ].filter(Boolean)),
   ]));
 
@@ -870,6 +951,17 @@ export function render({ controls = true } = {}) {
 }
 
 function paint(force = false) {
+  /*
+   * Nothing to paint while the shelf is up.
+   *
+   * `render` empties the bench regions when it switches to the gallery, but the
+   * animation loop goes on running and `paint` filled the graphs and readouts
+   * straight back in on the next frame — so the shelf appeared above a stack of
+   * charts belonging to an experiment nobody was looking at. Stopping the clock
+   * is not enough on its own, because paint runs for scrubbing and redraws too.
+   */
+  if (state.page !== 'bench') return;
+
   const ctx = context();
 
   clear(dom.stage);
@@ -1051,6 +1143,11 @@ function context() {
       draft.ui.tool = tool;
       input.drawing = null;
     }, { sim: 'none' }),
+
+    /* ------------------------------------------------------- the shelf -- */
+    loadExample,
+    showExamples,
+    showBench,
 
     /* ---------------------------------------------------------- the view -- */
     zoomBy: (factor) => update((draft) => {
@@ -1560,6 +1657,8 @@ window.PhysicsBench = {
   state, render, update, APP_VERSION, goToStage,
   examples: () => EXAMPLES.map(({ id, title, blurb, stage }) => ({ id, title, blurb, stage })),
   loadExample,
+  showExamples,
+  showBench,
   sim: () => sim,
   inspect: () => inspect(sim.world, state.selectedId),
   totals: () => totals(sim.world),

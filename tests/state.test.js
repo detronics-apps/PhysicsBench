@@ -185,3 +185,17 @@ test('a positive push is left exactly alone', () => {
   assert.equal(m.bench.pushForce, 33);
   assert.equal(m.bench.pushAngleDeg, -20);
 });
+
+/**
+ * Which page is showing is part of the state, so a share link opens where the
+ * sender was — including on the shelf of prepared experiments.
+ */
+test('the page is remembered, and only ever one of the two', () => {
+  assert.equal(defaults().page, 'bench');
+  assert.equal(migrate({ page: 'examples' }).page, 'examples');
+  assert.equal(migrate({ page: 'bench' }).page, 'bench');
+  // Anything else is somebody editing a share link by hand.
+  assert.equal(migrate({ page: 'nonsense' }).page, 'bench');
+  assert.equal(migrate({ page: 7 }).page, 'bench');
+  assert.equal(migrate({}).page, 'bench');
+});

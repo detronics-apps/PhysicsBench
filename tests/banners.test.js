@@ -199,3 +199,30 @@ test('Home holds the zoom rather than handing the framing back', () => {
   // And there is still a way back to framing everything.
   assert.match(main, /fitAll: \(\) => update\(\(draft\) => \{ draft\.view\.camera\.mode = 'auto'; \}/);
 });
+
+/**
+ * The animation loop stands down when the bench is not showing.
+ *
+ * `render` empties the bench regions on the way to the gallery, and that was
+ * not enough on its own: `paint` runs from the clock and for scrubbing, and it
+ * filled the graphs and readouts straight back in on the next frame — so the
+ * shelf appeared above a stack of charts belonging to an experiment nobody was
+ * looking at. Stopping the clock does not cover it either.
+ */
+test('paint does nothing while the shelf is showing', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function paint\(force = false\)[\s\S]*?\n\}/)[0];
+  assert.match(fn, /if \(state\.page !== 'bench'\) return;/);
+  // And the guard is the first thing it does, before any work.
+  const guardAt = fn.indexOf("state.page !== 'bench'");
+  const workAt = fn.indexOf('renderScene');
+  assert.ok(guardAt > 0 && guardAt < workAt, 'the guard must come before the drawing');
+});
+
+test('the gallery is a page, not an eighth step', () => {
+  const state = read('../js/state.js');
+  // `page` is its own field, and the stepper is left alone.
+  assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples'\], 'bench'\)/);
+  const stages = read('../js/stages.js');
+  assert.ok(!/id: 'examples'/.test(stages), 'the shelf must not be a stage');
+});

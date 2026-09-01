@@ -64,6 +64,19 @@ export const defaults = () => ({
    */
   exampleId: null,
 
+  /*
+   * Which page is showing: the bench, or the shelf of prepared experiments.
+   *
+   * A page and not an eighth step. The stepper means "physics steps whose
+   * features accumulate", and there is a test holding each step to being a
+   * superset of the last — a gallery has no features, no world and no arrows,
+   * so as a stage it would fail that and every `featuresAt` caller would need a
+   * guard for a stage that is not one. It is reached from the end of step
+   * seven and sits at the end of the stepper, which is where a reader expects
+   * it; only the code needs to know the difference.
+   */
+  page: 'bench',
+
   transport: {
     playing: false,
     speed: 1,
@@ -342,6 +355,7 @@ export function migrate(incoming) {
     theme: oneOf(incoming.theme, ['system', 'light', 'dark'], base.theme),
     selectedId: typeof incoming.selectedId === 'string' ? incoming.selectedId : 'main',
     exampleId: typeof incoming.exampleId === 'string' ? incoming.exampleId : null,
+    page: oneOf(incoming.page, ['bench', 'examples'], 'bench'),
 
     transport: {
       playing: bool(incoming.transport?.playing, false),
