@@ -5,7 +5,7 @@ import { EXAMPLES, exampleById, exampleState } from '../js/examples.js';
 import { STAGE_IDS, defaults } from '../js/state.js';
 import { build, applyPush, featuresAt } from '../js/stages.js';
 import { advance, inspect, totals, findBody } from '../js/world.js';
-import { slipAngle } from '../js/friction.js';
+import { slipAngle, ROLLING_DEFAULT } from '../js/friction.js';
 import { SHAPES, MATERIALS } from '../js/shapes.js';
 import { FLUIDS } from '../js/drag.js';
 
@@ -283,4 +283,69 @@ test('switching the fluid re-sorts them, and rubber is the one that changes', ()
   assert.equal(state.selectedId, 'o4');
   const rubber = build('fluid', state.bench).world.bodies.find((b) => b.id === 'o4');
   assert.equal(rubber.materialId, 'rubber');
+});
+
+/* -------------------------------------- a ball and a box on the same slope -- */
+
+/**
+ * The two objects must differ in exactly one way, or the demonstration proves
+ * nothing. Same mass, same size, same material, same surface, same slope —
+ * only the shape, and therefore only the mechanism at the contact.
+ */
+test('the ball and the box differ only in shape', () => {
+  const state = exampleState('rolling-against-sliding');
+  const world = build('fluid', state.bench).world;
+  const [ball, box] = world.bodies.filter((b) => !b.fixed);
+
+  close(ball.mass, box.mass, 1e-9);
+  assert.equal(ball.materialId, box.materialId);
+  assert.equal(state.bench.shapeId, 'sphere');
+  assert.equal(state.bench.objects[0].shapeId, 'cube');
+  // No fluid, so drag and buoyancy cannot be a second difference between them.
+  assert.equal(state.bench.fluidId, 'vacuum');
+
+  // And they meet the contact differently, which is the whole point.
+  assert.equal(ball.rolls, true);
+  assert.equal(box.rolls, false);
+});
+
+test('the slope sits between the two thresholds, so it answers both ways', () => {
+  const state = exampleState('rolling-against-sliding');
+  const tilt = state.bench.slopeDeg;
+  const boxLetsGo = slipAngle(state.bench.muS);
+  // A ball starts rolling once the slope out-pulls its rolling resistance.
+  const ballLetsGo = (Math.atan(ROLLING_DEFAULT) * 180) / Math.PI;
+
+  assert.ok(tilt > ballLetsGo, `${tilt}° should be past the ball's ${ballLetsGo.toFixed(1)}°`);
+  assert.ok(tilt < boxLetsGo, `${tilt}° should be short of the box's ${boxLetsGo.toFixed(1)}°`);
+  // And comfortably inside the gap at both ends, not scraping past either.
+  assert.ok(tilt > ballLetsGo * 4 && tilt < boxLetsGo * 0.6,
+    `${tilt}° is too near an edge of the ${ballLetsGo.toFixed(1)}–${boxLetsGo.toFixed(1)}° window`);
+});
+
+test('one rolls away and the other does not move at all', () => {
+  const { world, state } = play('rolling-against-sliding', 6);
+  const ball = findBody(world, 'main');
+  const box = findBody(world, 'o2');
+
+  /*
+   * Measured from where they were actually placed, not from the numbers in the
+   * example.
+   *
+   * On a slope `startPosition` rotates the placement, so a box asked for at
+   * x = 2 is built at 1.96 — and comparing against the 2 made a stationary box
+   * look as though it had crept four centimetres.
+   */
+  const started = build('fluid', state.bench).world;
+  const ballWent = Math.abs(ball.pos.x - findBody(started, 'main').pos.x);
+  const boxWent = Math.abs(box.pos.x - findBody(started, 'o2').pos.x);
+  assert.ok(ballWent > 10, `the ball only went ${ballWent.toFixed(2)} m`);
+  assert.ok(boxWent < 1e-3, `the box moved ${boxWent.toFixed(4)} m`);
+  assert.ok(Math.hypot(box.vel.x, box.vel.y) < 1e-3, 'the box should be still');
+
+  // The box is held by friction with room to spare; the ball is not held.
+  const held = inspect(world, 'o2');
+  assert.equal(held.contact.frictionMode, 'static');
+  close(held.net.magnitude, 0, 1e-6);
+  assert.ok(inspect(world, 'main').net.magnitude > 0.1, 'the ball should still be driven');
 });

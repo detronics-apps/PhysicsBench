@@ -198,6 +198,84 @@ export const EXAMPLES = [
         + 'of the whole object including the air inside it.',
     },
   },
+  {
+    id: 'rolling-against-sliding',
+    title: 'A ball and a box on the same slope',
+    blurb: 'Same wood, same mass, same size, same slope. One rolls away; the other does not move.',
+    watch: 'Nothing separates these two but their shape, and the result is not '
+      + 'that one is a little easier to move than the other — it is that one '
+      + 'moves and one does not. Rolling and sliding are different mechanisms, '
+      + 'and on this surface they are fifty times apart.',
+    stage: 'fluid',
+    /*
+     * Step six rather than five, because a second object is needed to put them
+     * side by side and the extra objects arrive here. The fluid is set to
+     * vacuum so drag and buoyancy stay out of it: the whole comparison is about
+     * what happens at the contact, and air would put a second difference
+     * between two objects that are meant to differ in exactly one way.
+     *
+     * Eight degrees is chosen to sit between the two thresholds. A ball on wood
+     * starts rolling past about 0.6°, a box on wood starts sliding past 26.6°,
+     * and eight is comfortably inside that gap — so the same slope gives
+     * opposite answers, which is the whole demonstration.
+     *
+     * They start apart, with the ball downhill, so it rolls away from the box
+     * rather than into it.
+     */
+    params: {
+      shapeId: 'sphere',
+      size: 0.3,
+      mass: 5,
+      materialId: 'pine',
+      x0: -1,
+      dropHeight: 0,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      slopeDeg: 8,
+      // Wood on wood, so both objects meet exactly the same surface.
+      muS: 0.5,
+      muK: 0.3,
+      fluidId: 'vacuum',
+      worldMode: 'planet',
+      objects: [
+        { id: 'o2', shapeId: 'cube', size: 0.3, materialId: 'pine', mass: 5, x: 2, y: 0, vx: 0, vy: 0 },
+      ],
+      walls: [],
+      cannons: [],
+    },
+    arrows: ['weight', 'normal', 'friction', 'rolling', 'net'],
+    teach: {
+      how: 'The box is held by dry friction, which can supply up to μs times '
+        + 'the normal force — on wood that is 0.5, and an eight-degree slope '
+        + 'only asks for 0.14 of it. The ball is not held by friction at all. '
+        + 'It rolls, and what resists rolling is the contact flexing and '
+        + 'springing back imperfectly, worth about 0.01. The slope asks for more '
+        + 'than that, so the ball goes.',
+      tryThis: [
+        'Press Play. The ball rolls away and the box does not move.',
+        'Lower the tilt a degree at a time. The ball keeps going down to about '
+        + 'half a degree — below that even rolling resistance is enough.',
+        'Now raise it past 27°. The box finally lets go, at a slope fifty times '
+        + 'steeper than the one that moved the ball.',
+        'Change the ball to a cube in the object panel. It stops dead, on the '
+        + 'same slope, with the same mass and the same wood.',
+      ],
+      watch: [
+        'The arrows are labelled differently: the box has a friction arrow, the '
+        + 'ball has a rolling resistance arrow. They are not the same force '
+        + 'under two names.',
+        'The ball\'s arrow is so short it is barely there, next to a box arrow '
+        + 'long enough to cancel the whole pull down the slope.',
+        'The box\'s net force is exactly zero while it sits. The ball\'s is not, '
+        + 'which is why it accelerates the whole way down.',
+      ],
+      learn: 'A wheel is not a slippier surface — it is a different mechanism. '
+        + 'Sliding friction tears surfaces across each other and costs μN; '
+        + 'rolling only has to flex the contact and costs a hundredth of that. '
+        + 'That gap, not lubrication, is why wheels were worth inventing.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;
