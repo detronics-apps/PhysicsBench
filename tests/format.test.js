@@ -112,6 +112,10 @@ test('lengths come out in a unit worth reading', () => {
   assert.equal(fmtLength(0.00025), '0.25 mm');
   assert.equal(fmtLength(0.000005), '5 µm');
   assert.equal(fmtLength(0), '0 m');
+  // Below a micron there is nothing being measured, so it says so rather than
+  // reporting a rounding residue as '0 µm'.
+  assert.equal(fmtLength(3e-9), '0 m');
+  assert.equal(fmtLength(-2e-10), '0 m');
 });
 
 test('a length that is not a number says so rather than printing NaN', () => {

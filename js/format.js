@@ -116,7 +116,13 @@ export function fmtLength(metres) {
   const v = Number(metres);
   if (!Number.isFinite(v)) return '—';
   const size = Math.abs(v);
-  if (size === 0) return '0 m';
+  /*
+   * Below a micron this app is not measuring anything, so say zero rather than
+   * dressing a rounding residue up as a reading. An object resting on the
+   * ground sits a few nanometres off it after the contact solver has finished,
+   * and "elevation 0 µm" in the corner is a worse answer than "0 m".
+   */
+  if (size < 1e-6) return '0 m';
   if (size >= 1000) return `${tidy(v / 1000)} km`;
   if (size >= 0.1) return `${tidy(v)} m`;
   if (size >= 0.01) return `${tidy(v * 100)} cm`;

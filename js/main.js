@@ -34,6 +34,7 @@ import { describe as describeObject } from './shapes.js';
 import { surfaceGravity } from './gravitation.js';
 import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
+import { EXAMPLES, exampleState } from './examples.js';
 import { toWorld } from './camera.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
@@ -728,6 +729,31 @@ function restorePageScroll(snap) {
   requestAnimationFrame(() => {
     if (Math.abs((window.scrollY || 0) - want) >= 1) window.scrollTo(0, want);
   });
+}
+
+/**
+ * Drop a prepared experiment onto the bench.
+ *
+ * The whole state is replaced rather than patched, because an example is a
+ * complete setup and half of one is nobody's experiment: leaving the previous
+ * run's walls or cannons in place would make it behave differently from the
+ * same example loaded on a fresh page, which is the one thing a prepared scene
+ * must not do.
+ *
+ * It arrives paused. The setup *is* the demonstration — the reader should see
+ * what was arranged before it starts moving, and press Play themselves.
+ */
+export function loadExample(id) {
+  const next = exampleState(id);
+  if (!next) return false;
+  stopGrowth();
+  Object.assign(state, next);
+  state.transport.playing = false;
+  state.transport.scrubT = null;
+  saveSoon();
+  rebuild();
+  render();
+  return true;
 }
 
 /* -------------------------------------------------------------- render -- */
@@ -1524,6 +1550,8 @@ init();
 // than looking at a screenshot.
 window.PhysicsBench = {
   state, render, update, APP_VERSION, goToStage,
+  examples: () => EXAMPLES.map(({ id, title, blurb, stage }) => ({ id, title, blurb, stage })),
+  loadExample,
   sim: () => sim,
   inspect: () => inspect(sim.world, state.selectedId),
   totals: () => totals(sim.world),
