@@ -353,3 +353,60 @@ test('a head sits at the top of the figure, with the body below it', () => {
     assert.ok(Math.min(...ysOf(head)) <= -0.5 + 1e-9, `${id} head is not at the top`);
   }
 });
+
+/**
+ * Nothing in the rover is drawn on top of anything else.
+ *
+ * The wheel used to cross the body and the panel used to cross the wheel, which
+ * puts seams through a filled silhouette and draws the same area twice. Every
+ * piece now abuts its neighbours instead: the sockets sit on the body's top
+ * edge, the wheel and caster hang under its bottom edge, and the cable's
+ * connector is clear of the chassis entirely.
+ *
+ * Bounding boxes are enough to catch it, and touching along an edge is fine —
+ * that is what abutting means.
+ */
+test('the rover is built from pieces that do not overlap', () => {
+  const closedPieces = (d) => d.split(/(?=M )/).map((s) => s.trim()).filter((s) => /z/i.test(s))
+    .map((sub) => {
+      const n = sub.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+      const xs = n.filter((_, i) => i % 2 === 0);
+      const ys = n.filter((_, i) => i % 2 === 1);
+      return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+    });
+
+  for (const topDown of [false, true]) {
+    const parts = closedPieces(outline('magbot', { topDown }));
+    assert.ok(parts.length >= 3, 'the rover should be several pieces');
+    for (let i = 0; i < parts.length; i += 1) {
+      for (let j = i + 1; j < parts.length; j += 1) {
+        const a = parts[i];
+        const b = parts[j];
+        const over = a.minX < b.maxX - 1e-9 && a.maxX > b.minX + 1e-9
+          && a.minY < b.maxY - 1e-9 && a.maxY > b.minY + 1e-9;
+        assert.ok(!over, `pieces ${i} and ${j} overlap in the ${topDown ? 'top' : 'side'} view`);
+      }
+    }
+  }
+});
+
+test('the rover keeps the proportions read off the photographs', () => {
+  const boxOf = (sub) => {
+    const n = sub.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+    const xs = n.filter((_, i) => i % 2 === 0);
+    const ys = n.filter((_, i) => i % 2 === 1);
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  };
+  const subs = (d) => d.split(/(?=M )/).map((s) => s.trim()).filter(Boolean);
+
+  const side = subs(outline('magbot'));
+  // The body is the tall piece spanning the middle; it stands taller than long.
+  const body = side.map(boxOf).find((b) => b.h > 0.6 && b.w > 0.5);
+  assert.ok(Math.abs(body.w / body.h - 0.85) < 0.06, `body is ${(body.w / body.h).toFixed(2)}:1, want 0.85`);
+
+  // The panel covers most of the side, and the module on it is taller than wide.
+  const [panel, module_] = subs(detail('magbot')).map(boxOf);
+  assert.ok(Math.abs(panel.w / body.w - 0.81) < 0.05);
+  assert.ok(Math.abs(panel.h / body.h - 0.61) < 0.05);
+  assert.ok(module_.w < module_.h, 'the module reads as a switch, not a letterbox');
+});

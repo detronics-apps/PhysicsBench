@@ -132,122 +132,124 @@ const WOMAN =
  * and a smaller one, with the connector stub at the back.
  */
 /*
- * The Magbot from the side, measured off the photographs.
+ * The Magbot from the side, laid out to the proportions in the photographs.
  *
- * Two corrections from the first attempt, both structural rather than cosmetic.
- * The wheel was three quarters of the body; it is closer to 45 per cent. And it
- * was drawn at the front — but the drive arrow on the deck points *away* from
- * the wheels, so this is a two-wheeler with a caster, wheels at the back. Local
- * +x is the direction of travel for every shape here, so the wheel belongs at
- * −x and the rover was previously driving backwards.
+ * Body 0.60 wide by 0.70 tall, so it stands a little taller than it is long,
+ * which is what the photograph shows and what the first two attempts both got
+ * backwards. The wheel is 0.40 of the body's width; the panel covers about four
+ * fifths of the side and three fifths of its height; the module in the middle
+ * of it is markedly taller than it is wide.
  *
- * The body is a squat box with connector sockets standing proud of the top
- * edge, which is what the top of the real one looks like and what stops the
- * silhouette reading as a plain brick.
+ * Every piece is disjoint. The wheel and the caster sit *below* the body and
+ * touch its underside rather than crossing it, the sockets sit on top of it,
+ * and the cable's connector is clear of everything — so the filled silhouette
+ * has no seams running through it and nothing is drawn twice.
  *
- * Cubics rather than `A` for the wheel: an arc command carries flags — `0 1 0`
- * — that are not coordinates, and both `scalePath` and the test that checks an
- * outline fills its box read every number pair as a position. An arc would have
- * them treating a large-arc flag as one.
+ * The drawn box is square because the robot is a 12 cm cube, and every outline
+ * here has to fill its box or `aspect` renders it undersized. The photograph's
+ * outer proportions include a cable hanging well past the chassis; matching
+ * those would misrepresent how big the robot is, so the *internal* proportions
+ * are what follow the picture.
+ *
+ * Cubics rather than `A` for the circles: an arc command carries flags that are
+ * not coordinates, and both `scalePath` and the box test read every number pair
+ * as a position.
  */
 const MAGBOT_SIDE =
-  // The body, corners taken off.
-  'M -0.44 -0.44 L 0.44 -0.44 Q 0.5 -0.44 0.5 -0.38 L 0.5 0.22 '
-  + 'Q 0.5 0.28 0.44 0.28 L -0.44 0.28 Q -0.5 0.28 -0.5 0.22 '
+  // Connector sockets standing proud of the top.
+  'M -0.4 -0.5 L -0.28 -0.5 L -0.28 -0.44 L -0.4 -0.44 Z '
+  + 'M -0.22 -0.5 L -0.1 -0.5 L -0.1 -0.44 L -0.22 -0.44 Z '
+  + 'M -0.04 -0.5 L 0.08 -0.5 L 0.08 -0.44 L -0.04 -0.44 Z '
+  // The body.
+  + 'M -0.44 -0.44 L 0.04 -0.44 Q 0.1 -0.44 0.1 -0.38 L 0.1 0.2 '
+  + 'Q 0.1 0.26 0.04 0.26 L -0.44 0.26 Q -0.5 0.26 -0.5 0.2 '
   + 'L -0.5 -0.38 Q -0.5 -0.44 -0.44 -0.44 Z '
-  // Connector sockets along the top.
-  + 'M -0.34 -0.5 L -0.2 -0.5 L -0.2 -0.42 L -0.34 -0.42 Z '
-  + 'M -0.07 -0.5 L 0.07 -0.5 L 0.07 -0.42 L -0.07 -0.42 Z '
-  + 'M 0.2 -0.5 L 0.34 -0.5 L 0.34 -0.42 L 0.2 -0.42 Z '
-  // The driven wheel, at the back.
-  + 'M -0.44 0.28 C -0.44 0.1585 -0.3415 0.06 -0.22 0.06 '
-  + 'C -0.0985 0.06 0 0.1585 0 0.28 '
-  + 'C 0 0.4015 -0.0985 0.5 -0.22 0.5 '
-  + 'C -0.3415 0.5 -0.44 0.4015 -0.44 0.28 Z '
-  // And the caster at the front, which is what keeps it level.
-  + 'M 0.24 0.26 L 0.42 0.26 L 0.42 0.5 L 0.24 0.5 Z';
-
-/** And from above: a square body with a wheel out either side, driving +x. */
-const MAGBOT_TOP =
-  /*
-   * The deck, driving +x, with the leading edge rounded off. It runs the full
-   * width of the box because every outline here must: `aspect` is applied on
-   * top of the path, so a shape that stops short of its own box is drawn
-   * smaller than it is, which is how the car once rendered at a sixth of its
-   * width. The wheels do the same job in the other direction.
-   *
-   * The wheels sit behind the middle, matching the side view and the deck
-   * arrow: a two-wheeler steers on its pair and rests on a caster ahead of them.
-   */
-  'M -0.44 -0.41 L 0.32 -0.41 Q 0.5 -0.41 0.5 -0.2 L 0.5 0.2 '
-  + 'Q 0.5 0.41 0.32 0.41 L -0.44 0.41 Q -0.5 0.41 -0.5 0.35 '
-  + 'L -0.5 -0.35 Q -0.5 -0.41 -0.44 -0.41 Z '
-  /*
-   * A wheel out either flank, toward the back — and slim. Measured off the
-   * photograph a tyre is about an eighth of the body across, where these were
-   * a quarter, which made the rover look like it was on tractor wheels.
-   */
-  + 'M -0.38 -0.5 L -0.08 -0.5 L -0.08 -0.39 L -0.38 -0.39 Z '
-  + 'M -0.38 0.39 L -0.08 0.39 L -0.08 0.5 L -0.38 0.5 Z';
+  // The driven wheel, at the back, resting under the body.
+  + 'M -0.36 0.38 C -0.36 0.3137 -0.3063 0.26 -0.24 0.26 '
+  + 'C -0.1737 0.26 -0.12 0.3137 -0.12 0.38 '
+  + 'C -0.12 0.4463 -0.1737 0.5 -0.24 0.5 '
+  + 'C -0.3063 0.5 -0.36 0.4463 -0.36 0.38 Z '
+  // The caster at the front, which is what keeps it level.
+  + 'M -0.02 0.26 L 0.08 0.26 L 0.08 0.5 L -0.02 0.5 Z '
+  // The power cable's connector, clear of the chassis.
+  + 'M 0.24 0.3 C 0.24 0.2282 0.2982 0.17 0.37 0.17 '
+  + 'C 0.4418 0.17 0.5 0.2282 0.5 0.3 '
+  + 'C 0.5 0.3718 0.4418 0.43 0.37 0.43 '
+  + 'C 0.2982 0.43 0.24 0.3718 0.24 0.3 Z';
 
 /*
- * What turns the rover from a box on wheels into a recognisable Magbot: the
- * front panel, the ultrasonic sensor's two eyes, the wheel hubs and the
- * connectors along the top edge.
+ * From above: the deck, driving +x, wheels at the back.
  *
- * Drawn as a stroked overlay rather than as holes in the body, because a hole
- * needs the subpath wound the other way and every one of these would have to be
- * reversed by hand — and because a stroke stays visible when the whole robot is
- * forty pixels wide, which is the size it is usually drawn at.
+ * The tyres are an eighth of the body across and a third of it long, and they
+ * reach the back edge — all three read off the photograph. They meet the body
+ * along its flanks rather than crossing it, so again nothing overlaps.
+ */
+const MAGBOT_TOP =
+  'M -0.44 -0.4 L 0.32 -0.4 Q 0.5 -0.4 0.5 -0.2 L 0.5 0.2 '
+  + 'Q 0.5 0.4 0.32 0.4 L -0.44 0.4 Q -0.5 0.4 -0.5 0.34 '
+  + 'L -0.5 -0.34 Q -0.5 -0.4 -0.44 -0.4 Z '
+  + 'M -0.46 -0.5 L -0.12 -0.5 L -0.12 -0.4 L -0.46 -0.4 Z '
+  + 'M -0.46 0.4 L -0.12 0.4 L -0.12 0.5 L -0.46 0.5 Z';
+
+/*
+ * What turns the rover from a box on a wheel into a recognisable Magbot.
  *
- * Circles are four cubics rather than arc commands: `scalePath` reads every
- * pair of numbers after a command as a coordinate, and an arc carries flags
- * that are not coordinates.
+ * Stroked, never filled, and kept inside the pieces it belongs to: the panel
+ * and its screws stay within the body, the hub within the tyre, the cable runs
+ * from the body's top corner round to its connector without crossing either.
  */
 const MAGBOT_DETAIL =
-  // The inset face panel, which is most of the side of the robot.
-  'M -0.42 -0.36 L 0.42 -0.36 L 0.42 0.18 L -0.42 0.18 Z '
-  // The module in the middle of it — the switch, the pot, whichever is fitted.
-  + 'M -0.09 -0.16 L 0.09 -0.16 L 0.09 0.04 L -0.09 0.04 Z '
+  // The inset side panel: four fifths of the side, three fifths of its height.
+  'M -0.44 -0.4 L 0.04 -0.4 L 0.04 0.02 L -0.44 0.02 Z '
+  // The module in the middle of it — taller than it is wide, as the photo has it.
+  + 'M -0.24 -0.3 L -0.15 -0.3 L -0.15 -0.17 L -0.24 -0.17 Z '
   /*
    * The four panel screws, as zero-length strokes. With a round line cap those
-   * render as dots for a fraction of the path data four small circles would
-   * cost, and they are what make the panel look bolted on rather than drawn on.
+   * render as dots for a fraction of what four small circles would cost in path
+   * data, and they are what make the panel look bolted on rather than drawn on.
    */
-  + 'M -0.37 -0.31 L -0.369 -0.31 M 0.37 -0.31 L 0.369 -0.31 '
-  + 'M 0.37 0.13 L 0.369 0.13 M -0.37 0.13 L -0.369 0.13 '
-  // The wheel: hub and rim.
-  + 'M -0.29 0.28 C -0.29 0.2414 -0.2586 0.21 -0.22 0.21 '
-  + 'C -0.1814 0.21 -0.15 0.2414 -0.15 0.28 '
-  + 'C -0.15 0.3186 -0.1814 0.35 -0.22 0.35 '
-  + 'C -0.2586 0.35 -0.29 0.3186 -0.29 0.28 Z '
-  + 'M -0.37 0.28 C -0.37 0.2 -0.3 0.13 -0.22 0.13 '
-  + 'C -0.14 0.13 -0.07 0.2 -0.07 0.28 '
-  + 'C -0.07 0.36 -0.14 0.43 -0.22 0.43 '
-  + 'C -0.3 0.43 -0.37 0.36 -0.37 0.28 Z '
-  // Ports along the bottom edge.
-  + 'M -0.3 0.28 L -0.3 0.24 M 0.12 0.28 L 0.12 0.24 M 0.24 0.28 L 0.24 0.24';
+  + 'M -0.41 -0.37 L -0.409 -0.37 M 0.01 -0.37 L 0.009 -0.37 '
+  + 'M 0.01 -0.01 L 0.009 -0.01 M -0.41 -0.01 L -0.409 -0.01 '
+  // Hub inside the tyre.
+  + 'M -0.29 0.38 C -0.29 0.3524 -0.2676 0.33 -0.24 0.33 '
+  + 'C -0.2124 0.33 -0.19 0.3524 -0.19 0.38 '
+  + 'C -0.19 0.4076 -0.2124 0.43 -0.24 0.43 '
+  + 'C -0.2676 0.43 -0.29 0.4076 -0.29 0.38 Z '
+  // Ports along the bottom edge of the body.
+  + 'M -0.42 0.26 L -0.42 0.21 M -0.06 0.26 L -0.06 0.21 '
+  /*
+   * The power cable, looping out of the top corner and down into its connector
+   * — the most recognisable thing about the robot in profile, and the reason
+   * the body stops short of the right-hand edge instead of filling it.
+   */
+  + 'M 0.06 -0.36 C 0.26 -0.4 0.42 -0.3 0.44 -0.12 '
+  + 'C 0.45 -0.02 0.42 0.08 0.37 0.17 '
+  // And the pins on the connector face.
+  + 'M 0.33 0.26 L 0.329 0.26 M 0.41 0.26 L 0.409 0.26 '
+  + 'M 0.45 0.33 L 0.449 0.33 M 0.37 0.37 L 0.369 0.37 '
+  + 'M 0.29 0.33 L 0.289 0.33';
 
-/** From above: the deck panel, the direction arrow, and tread across the tyres. */
 const MAGBOT_TOP_DETAIL =
   // The deck panel.
-  'M -0.42 -0.32 L 0.28 -0.32 L 0.28 0.32 L -0.42 0.32 Z '
+  'M -0.4 -0.32 L 0.26 -0.32 L 0.26 0.32 L -0.4 0.32 Z '
   /*
    * The button pad: a centre and four arrows around it, as squares. Anything
-   * more faithful than a plus of five pads is illegible at the size this is
-   * drawn, and a plus is instantly readable as a control.
+   * more faithful is illegible at the size this is drawn, and a plus of five
+   * pads is instantly readable as a control.
    */
-  + 'M -0.13 -0.04 L -0.05 -0.04 L -0.05 0.04 L -0.13 0.04 Z '
-  + 'M -0.13 -0.17 L -0.05 -0.17 L -0.05 -0.09 L -0.13 -0.09 Z '
-  + 'M -0.13 0.09 L -0.05 0.09 L -0.05 0.17 L -0.13 0.17 Z '
-  + 'M -0.26 -0.04 L -0.18 -0.04 L -0.18 0.04 L -0.26 0.04 Z '
-  + 'M 0 -0.04 L 0.08 -0.04 L 0.08 0.04 L 0 0.04 Z '
-  // The arrow that says which way it drives, which is the whole point of a
-  // view from above: nothing else in the outline distinguishes front from back.
-  + 'M 0.14 -0.16 L 0.4 0 L 0.14 0.16 '
+  + 'M -0.13 -0.05 L -0.05 -0.05 L -0.05 0.05 L -0.13 0.05 Z '
+  + 'M -0.13 -0.19 L -0.05 -0.19 L -0.05 -0.09 L -0.13 -0.09 Z '
+  + 'M -0.13 0.09 L -0.05 0.09 L -0.05 0.19 L -0.13 0.19 Z '
+  + 'M -0.27 -0.05 L -0.19 -0.05 L -0.19 0.05 L -0.27 0.05 Z '
+  + 'M 0.01 -0.05 L 0.09 -0.05 L 0.09 0.05 L 0.01 0.05 Z '
+  // The arrow that says which way it drives — the only thing in either outline
+  // that tells the front from the back.
+  + 'M 0.32 -0.16 L 0.46 0 L 0.32 0.16 '
   // Tread across both tyres.
-  + 'M -0.3 -0.5 L -0.3 -0.39 M -0.22 -0.5 L -0.22 -0.39 M -0.14 -0.5 L -0.14 -0.39 '
-  + 'M -0.3 0.39 L -0.3 0.5 M -0.22 0.39 L -0.22 0.5 M -0.14 0.39 L -0.14 0.5';
+  + 'M -0.38 -0.5 L -0.38 -0.4 M -0.3 -0.5 L -0.3 -0.4 M -0.22 -0.5 L -0.22 -0.4 '
+  + 'M -0.38 0.4 L -0.38 0.5 M -0.3 0.4 L -0.3 0.5 M -0.22 0.4 L -0.22 0.5 '
+  // The power cable, leaving the flank ahead of the wheel and looping forward.
+  + 'M -0.06 0.4 C 0.06 0.48 0.18 0.47 0.24 0.41';
 
 const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
   + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '
