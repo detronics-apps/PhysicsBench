@@ -46,10 +46,10 @@ export function controls(ctx) {
     f.has('planet') ? worldSection(ctx) : null,
     f.has('ground') && !ctx.space ? surfaceSection(ctx) : null,
     f.has('fluid') ? fluidSection(ctx, object) : null,
-    f.has('sandbox') ? objectsSection(ctx) : null,
-    f.has('sandbox') ? wallsSection(ctx) : null,
-    f.has('sandbox') ? cannonsSection(ctx) : null,
-    f.has('sandbox') || f.has('collide') ? collisionSection(ctx) : null,
+    f.has('objects') ? objectsSection(ctx) : null,
+    f.has('obstacles') ? wallsSection(ctx) : null,
+    f.has('obstacles') ? cannonsSection(ctx) : null,
+    f.has('objects') ? collisionSection(ctx) : null,
     f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
   ].filter(Boolean);
@@ -223,7 +223,7 @@ function bouncePairs(ctx) {
 const shapeMattersHere = (ctx) =>
   (ctx.features.has('ground') && !ctx.space)
   || (ctx.features.has('fluid') && fluidById(ctx.params.fluidId).density > 0)
-  || (ctx.features.has('sandbox') && (ctx.params.walls || []).length > 0);
+  || (ctx.features.has('obstacles') && (ctx.params.walls || []).length > 0);
 
 /** What it is doing instead, said plainly rather than left to be guessed at. */
 function shapeDoesNothingYet(ctx) {

@@ -898,3 +898,54 @@ test('a shape rests at its own height on a planet, as it does on the ground', ()
   // wrong: both used to come to rest at half the width.
   assert.ok(settle('planet', 'plate') < settle('planet', 'cube') / 5);
 });
+
+/**
+ * Step seven is "Fluids and objects", and that is the whole of what it is.
+ *
+ * Walls and cannons used to arrive here too, on one `sandbox` feature that
+ * meant three different things at once. That made the fluid step a playground
+ * with a fluid in it — a step about drag and buoyancy that opened with a ramp,
+ * a cannon and a scattering of obstacles competing for attention. Splitting the
+ * feature costs nothing and keeps each step about one thing.
+ */
+test('step seven has the objects it is named for, and no obstacles', () => {
+  const seven = featuresAt('fluid');
+  assert.ok(seven.has('objects'), 'the step called "and objects" has no objects');
+  assert.ok(seven.has('fluid'));
+  assert.ok(!seven.has('obstacles'), 'walls and cannons are back on the fluid step');
+
+  // Asked for anyway — from a share link, or by walking back from step eight —
+  // they are held in the parameters and simply not built.
+  const p = {
+    ...defaults().bench,
+    objects: [{ id: 'o2', mass: 2, size: 0.4, shapeId: 'cube', materialId: 'rubber', x: 2, y: 0, vx: 0, vy: 0 }],
+    walls: [{ x1: -2, y1: 1, x2: 2, y2: 1, bulge: 0, restitution: 0.3, mu: 0.6 }],
+    cannons: [{ id: 'cannon1', x: -4, y: 1, angleDeg: 20, speed: 8, mass: 0.4, size: 0.2, shapeId: 'sphere', materialId: 'steel', muS: 2, muK: 1.5, rolling: 0.25, everySeconds: 1 }],
+  };
+  const s = build('fluid', p);
+  assert.equal(s.world.walls.length, 0, 'a wall was built on a step that cannot draw one');
+  assert.equal(s.world.cannons.length, 0, 'a cannon was built on a step without cannons');
+  assert.equal(s.world.bodies.filter((b) => !b.fixed).length, 2, 'the extra object should still be here');
+
+  // Nothing fires, however long it runs.
+  let w = applyPush(s.world, p, s.features);
+  for (let i = 0; i < 600; i += 1) { w = applyPush(w, p, s.features); w = advance(w, 1 / 120); }
+  assert.equal(w.bodies.filter((b) => b.projectile).length, 0, 'something was fired on the fluid step');
+});
+
+test('step eight is where obstacles arrive, and it keeps everything before it', () => {
+  const seven = featuresAt('fluid');
+  const eight = featuresAt('collide');
+  assert.ok(eight.has('obstacles'));
+  // The accumulation rule: step eight adds, and takes nothing away.
+  for (const f of seven) assert.ok(eight.has(f), `step eight dropped "${f}"`);
+
+  const p = {
+    ...defaults().bench,
+    walls: [{ x1: -2, y1: 1, x2: 2, y2: 1, bulge: 0.5, restitution: 0.3, mu: 0.6 }],
+  };
+  assert.equal(build('collide', p).world.walls.length, 1);
+  // And the same parameters carried back to step seven are held, not destroyed.
+  assert.equal(build('fluid', p).world.walls.length, 0);
+  assert.equal(p.walls.length, 1, 'the wall was deleted rather than merely not drawn');
+});

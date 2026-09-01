@@ -49,7 +49,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1296,7 +1296,16 @@ function wireInput() {
       input.panning = { from: at };
       return;
     }
-    if (state.ui.tool === 'wall' || state.ui.tool === 'arc') {
+    /*
+     * Only where there is such a thing as a wall.
+     *
+     * The tool survives a change of step, so walking back from the playground
+     * to the fluid step with it still armed would otherwise let a drag lay down
+     * a wall that step cannot draw or collide with — an obstacle that exists in
+     * the state and nowhere on screen.
+     */
+    const canDraw = sim.scenario?.features?.has('obstacles');
+    if (canDraw && (state.ui.tool === 'wall' || state.ui.tool === 'arc')) {
       const at = pointerToWorld(event);
       if (!at) return;
       event.preventDefault();

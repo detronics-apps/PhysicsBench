@@ -137,7 +137,7 @@ export const STAGES = [
     id: 'fluid',
     label: 'Fluids and objects',
     short: 'Fluids',
-    features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'sandbox'],
+    features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'objects'],
     ask: 'Air, water, honey — what actually changes?',
     discover: 'Two things about a fluid matter: how much of it there is to shove '
       + 'aside, and how much it resists being sheared. In air, inertia wins and '
@@ -154,7 +154,7 @@ export const STAGES = [
     id: 'collide',
     label: 'Playground',
     short: 'Playground',
-    features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'sandbox', 'collide', 'control'],
+    features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'objects', 'obstacles', 'collide', 'control'],
     ask: 'Everything at once — what survives a collision, and what does not?',
     discover: 'Total momentum comes out exactly as it went in, every time, '
       + 'whatever the objects do to each other. Kinetic energy does not — only a '
@@ -221,7 +221,7 @@ export function objectList(p, f) {
     colour: 0,
     main: true,
   }];
-  if (f.has('sandbox') || f.has('collide')) {
+  if (f.has('objects')) {
     for (const [i, o] of (p.objects || []).slice(0, MAX_OBJECTS - 1).entries()) {
       list.push({
         id: o.id || `o${i + 2}`,
@@ -405,8 +405,8 @@ export function build(stageId, p) {
     });
   }
 
-  const walls = f.has('sandbox') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [];
-  const cannons = f.has('sandbox')
+  const walls = f.has('obstacles') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [];
+  const cannons = f.has('obstacles')
     ? (p.cannons || []).slice(0, 6).map((c) => ({
       ...c,
       // Resolved here rather than in the stepper, which has no material table.
@@ -503,13 +503,13 @@ export const collisionsForced = (f) => f.has('mutual-gravity');
  */
 export function structuralKey(stageId, p) {
   const f = featuresAt(stageId);
-  const objects = (f.has('sandbox') || f.has('collide')) ? (p.objects || []) : [];
+  const objects = f.has('objects') ? (p.objects || []) : [];
   return [
     stageId,
     p.worldMode,
     objects.length,
     objects.map((o) => o.id).join(','),
-    (f.has('sandbox') ? (p.cannons || []) : []).map((c) => c.id).join(','),
+    (f.has('obstacles') ? (p.cannons || []) : []).map((c) => c.id).join(','),
   ].join('|');
 }
 
@@ -613,12 +613,12 @@ export function applyLive(world, p, features, { stageId } = {}) {
         restitution: p.restitution,
       }
       : null,
-    walls: f.has('sandbox') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [],
+    walls: f.has('obstacles') ? (p.walls || []).filter(isRealWall).slice(0, MAX_WALLS).map(makeWall) : [],
     // Cannons keep their own firing count, which lives on the world rather than
     // in the parameters — otherwise editing a cannon's angle would make it fire
     // its whole backlog at once.
     cannons: (world.cannons || []).map((c, i) => {
-      const source = f.has('sandbox') ? (p.cannons || [])[i] : null;
+      const source = f.has('obstacles') ? (p.cannons || [])[i] : null;
       return source ? { ...c, ...source, id: c.id, fired: c.fired } : c;
     }),
     collisionRestitution: Math.max(0, Math.min(1, p.restitution)),
@@ -916,11 +916,11 @@ export function inputSummary(stageId, p) {
     ]);
   }
 
-  if (f.has('sandbox')) {
+  if (f.has('objects')) {
     add('The bench', [
       ['Other objects', String((p.objects || []).length)],
-      ['Walls drawn', String((p.walls || []).length)],
-      ['Cannons', String((p.cannons || []).length)],
+      f.has('obstacles') ? ['Walls drawn', String((p.walls || []).length)] : null,
+      f.has('obstacles') ? ['Cannons', String((p.cannons || []).length)] : null,
       ['Objects collide', collisionsOn(p, f) ? 'yes' : 'no'],
       ['Bounciness from', p.bounceMode === 'fixed'
         ? `one value, e = ${fmtFixed(p.restitution, 2)}`
@@ -1007,7 +1007,7 @@ export function vectorsFor(stageId, p = {}) {
     out.push({ id: 'weight', label: f.has('ground') ? 'Weight' : 'Gravitational pull', token: '--force-weight', kind: 'force' });
   }
   if (f.has('ground') && !space) out.push({ id: 'normal', label: 'Normal force', token: '--force-normal', kind: 'force' });
-  if (f.has('sandbox') && (p.walls || []).length) {
+  if (f.has('obstacles') && (p.walls || []).length) {
     // A wall is a surface too, so the normal force has to be offerable even in
     // space once something has been drawn to stand on.
     if (!out.some((v) => v.id === 'normal')) out.push({ id: 'normal', label: 'Normal force', token: '--force-normal', kind: 'force' });

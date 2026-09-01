@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0
+
+Step seven is about fluids and objects, and now contains only those.
+
+- **Walls and cannons have moved to the playground.** They used to appear at step seven as well,
+  which made a step about drag and buoyancy open with a ramp, a cannon and a scattering of obstacles
+  all competing for attention. Step seven keeps the extra objects it is named for, and the
+  collisions between them; everything you draw or fire arrives at step eight.
+- Walls and cannons already set are **kept, not deleted** — walk back to step seven and they are
+  simply not built; walk forward and they are exactly as you left them.
+
+Internally this was one `sandbox` flag meaning three different things at once. It is now `objects`
+and `obstacles`, which is what let the two steps differ at all.
+
 ## 1.2.0
 
 Curved obstacles, and seven fixes.
