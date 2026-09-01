@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   STAGES, stageById, stageIndex, featuresAt, build, applyPush, pushState,
   channelsFor, vectorsFor, applyLive, structuralKey, MAX_OBJECTS, inSpace,
-  collisionsOn, collisionsForced, startPosition, pushRange,
+  collisionsOn, collisionsForced, startPosition, pushRange, equationsAt,
 } from '../js/stages.js';
 import { defaults, VECTOR_IDS } from '../js/state.js';
 import { describe as describeShape } from '../js/shapes.js';
@@ -12,6 +12,7 @@ import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { CHANNELS } from '../js/recorder.js';
 import { surfaceGravity } from '../js/gravitation.js';
 import { atmosphereAt } from '../js/drag.js';
+import { EQUATIONS } from '../js/models.js';
 import { len } from '../js/vec.js';
 import { G, G_STANDARD } from '../js/constants.js';
 
@@ -1082,4 +1083,46 @@ test('a balloon stops where the air is as thin as it is', () => {
   assert.ok(Math.abs(b.vel.y) < 0.2, `still climbing at ${b.vel.y.toFixed(2)} m/s`);
   close(atmosphereAt(b.pos.y).density, own, own * 0.02);
   assert.ok(b.pos.y > 15000 && b.pos.y < 25000, `ceiling at ${Math.round(b.pos.y)} m`);
+});
+
+/**
+ * Each step lists the equations it actually uses.
+ *
+ * Driven off features rather than written out per step, so a step cannot claim
+ * an equation it does not use or quietly drop one it does — and, like the
+ * features themselves, the list only ever grows as the bench does.
+ */
+test('the equations on a step are real ones, and accumulate', () => {
+  for (const stage of STAGES) {
+    const ids = equationsAt(stage.id);
+    assert.ok(ids.length > 0, `${stage.id} lists no equations at all`);
+    assert.equal(new Set(ids).size, ids.length, `${stage.id} lists one twice`);
+    for (const id of ids) {
+      assert.ok(EQUATIONS[id], `${stage.id} names an equation that does not exist: ${id}`);
+    }
+  }
+
+  // Nothing is ever taken away, exactly as with the features.
+  for (let i = 1; i < STAGES.length; i += 1) {
+    const before = equationsAt(STAGES[i - 1].id);
+    const after = new Set(equationsAt(STAGES[i].id));
+    for (const id of before) {
+      assert.ok(after.has(id), `step ${i + 1} dropped ${id}`);
+    }
+  }
+});
+
+test('an equation only appears once the step can actually do it', () => {
+  const f = (id) => featuresAt(id);
+  for (const stage of STAGES) {
+    const ids = new Set(equationsAt(stage.id));
+    // Friction cannot be used before there is a surface to rub on.
+    if (ids.has('friction')) assert.ok(f(stage.id).has('friction'), stage.id);
+    // Nor buoyancy before there is a fluid.
+    if (ids.has('buoyancy') || ids.has('drag')) assert.ok(f(stage.id).has('fluid'), stage.id);
+    // Nor weight before there is a world to be pulled towards.
+    if (ids.has('weight')) assert.ok(f(stage.id).has('planet'), stage.id);
+    // And the first step, where nothing happens, offers only what a thing *is*.
+    if (stage.id === 'mass') assert.deepEqual(equationsAt('mass'), ['density']);
+  }
 });

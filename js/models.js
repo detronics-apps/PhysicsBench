@@ -558,8 +558,8 @@ export const EQUATIONS = {
     becomes: 'Force is more fundamentally the rate at which momentum changes. '
       + 'F = ma follows from that whenever the mass is not changing — which is '
       + 'why a rocket, which is throwing away mass, needs the fuller form.',
-    misreads: 'It does not say that a force causes motion. It says a *net* force '
-      + 'causes a *change* in motion. An object moving at a steady speed in a '
+    misreads: 'It does not say that a force causes motion. It says that a net force '
+      + 'causes a change in motion, and neither word is decoration. An object moving at a steady speed in a '
       + 'straight line has no net force on it.',
   },
   'momentum': {
@@ -665,7 +665,7 @@ export const EQUATIONS = {
     becomes: 'Real friction varies with speed, temperature, dwell time and '
       + 'contact pressure. The two-value model captures the behaviour that '
       + 'matters and misses everything else.',
-    misreads: 'Static friction is not "μs·N". It is *at most* μs·N. Push a heavy '
+    misreads: 'Static friction is not "μs·N". It is at most μs·N, and usually less. Push a heavy '
       + 'box gently and friction pushes back exactly as hard as you push, no more.',
   },
   'drag': {
@@ -690,7 +690,7 @@ export const EQUATIONS = {
     validWhen: 'Quadratic drag, constant fluid density, falling straight down.',
     general: '',
     becomes: 'Note what it depends on: mass over area. This is why a heavy object '
-      + 'really does fall faster than a light one *in air* — not because gravity '
+      + 'really does fall faster than a light one in air — not because gravity '
       + 'pulls it harder, but because it takes more drag to balance it.',
     misreads: '',
   },
@@ -760,6 +760,84 @@ export const EQUATIONS = {
       + 'A "0.8 ball" is a ball that was 0.8 in one particular test.',
     misreads: '',
   },
+  'density': {
+    id: 'density',
+    name: 'Density',
+    formula: 'ρ = m / V',
+    plain: 'Density is mass divided by volume — how much stuff is packed into '
+      + 'how much room. It is the first quantity here that is a ratio rather '
+      + 'than a reading, and almost everything later turns on it.',
+    validWhen: 'The object is uniform, or you are happy with its average.',
+    general: 'ρ(x) = dm/dV',
+    becomes: 'Real objects are not uniform. A ship is steel and air, and its '
+      + 'average density is what decides whether it floats — which is why the '
+      + 'question is never "what is it made of" but "how much room does all of '
+      + 'it take up".',
+    misreads: 'Dense does not mean heavy. A tonne of feathers and a tonne of '
+      + 'lead weigh the same; the feathers just need a much bigger room.',
+  },
+  'pressure': {
+    id: 'pressure',
+    name: 'Pressure',
+    formula: 'P = F / A',
+    plain: 'Pressure is the force pressing on a surface divided by the area it '
+      + 'is spread over. The same force through a smaller area is a larger '
+      + 'pressure — which is the whole of why a drawing pin works.',
+    validWhen: 'The force is perpendicular to the surface and spread evenly '
+      + 'over it.',
+    general: 'P = dF⊥/dA',
+    becomes: 'Where the load is not even — a wheel on soft ground, a foot on '
+      + 'sand — the pressure varies across the contact and the average hides '
+      + 'the part that matters.',
+    misreads: 'Pressure is not what decides sliding friction. Spreading the same '
+      + 'weight over twice the area halves the pressure and leaves the friction '
+      + 'exactly where it was, which is the surprising result step five is about.',
+  },
+  'buoyancy': {
+    id: 'buoyancy',
+    name: "Archimedes' principle",
+    formula: 'F_b = ρ_fluid · V · g',
+    plain: 'The upward push on something in a fluid equals the weight of the '
+      + 'fluid it has shoved out of the way. Not some of it — exactly it.',
+    validWhen: 'The fluid is at rest and its density is the same all through.',
+    general: 'F_b = ∮ P dA, the pressure on the surface added up',
+    becomes: 'It comes from pressure rising with depth: the bottom of an object '
+      + 'is pushed up harder than the top is pushed down, and the difference is '
+      + 'the weight of the fluid displaced. In an atmosphere that thins with '
+      + 'height the density is not constant and the sum has to be done properly.',
+    misreads: 'It has nothing to do with what the object is made of, only with '
+      + 'how much room it takes up and what the fluid weighs.',
+  },
+  'rolling-resistance': {
+    id: 'rolling-resistance',
+    name: 'Rolling resistance',
+    formula: 'f_rolling = C_rr · N',
+    plain: 'What resists something that rolls rather than slides. Same shape as '
+      + 'dry friction and a different mechanism — and one to three orders of '
+      + 'magnitude weaker, which is why wheels were worth inventing.',
+    validWhen: 'The wheel is rolling without slipping and is not sinking in.',
+    general: 'Set by how much the wheel and surface deform under the load.',
+    becomes: 'It comes from the contact flexing and springing back imperfectly, '
+      + 'not from surfaces being torn across each other — which is why a harder '
+      + 'tyre rolls further and a softer one grips better.',
+    misreads: 'A rolling object is not held back by μ. Sliding friction and '
+      + 'rolling resistance are different things that happen to share a form.',
+  },
+  'reynolds': {
+    id: 'reynolds',
+    name: 'Reynolds number',
+    formula: 'Re = ρ · v · D / μ',
+    plain: 'How much a flow is dominated by inertia rather than by stickiness. '
+      + 'It is a pure number, and it is what decides which drag law applies.',
+    validWhen: 'Always — it is a ratio, not a model. What it predicts about drag '
+      + 'is the approximation.',
+    general: 'Re = inertial forces / viscous forces',
+    becomes: 'Below about one, drag goes as the speed; above a few thousand it '
+      + 'goes as the speed squared. Nothing about the object changes between '
+      + 'those — the fluid does.',
+    misreads: 'A high Reynolds number does not mean fast. A bacterium in water '
+      + 'and a person in honey are both at low Re for entirely different reasons.',
+  },
   'pendulum-period': {
     id: 'pendulum-period',
     name: 'Period of a simple pendulum',
@@ -817,6 +895,113 @@ export const EQUATIONS = {
 export const equation = (id) => EQUATIONS[id] || null;
 
 /** Every equation in a list, in the order given. Throws on an unknown id. */
+/**
+ * The equations that fit in a triangle, and what the triangle is telling you.
+ *
+ * A triangle only works for a relationship of the form A = B × C — cover the
+ * one you want and the other two show you how to get it. That is most of the
+ * equations a reader meets early and none of the ones with a square in them, so
+ * this is a map rather than a field on every entry: an equation that has no
+ * triangle is not missing anything, it simply is not that shape.
+ *
+ * `top` is A; `left` and `right` are B and C, which multiply. `means` is the
+ * part worth more than the picture — what the relationship actually does when
+ * you change one of them, which is the question the triangle exists to answer
+ * and the one it cannot answer by itself.
+ */
+export const TRIANGLES = {
+  'density': {
+    top: { symbol: 'm', name: 'Mass', unit: 'kg' },
+    left: { symbol: 'ρ', name: 'Density', unit: 'kg/m³' },
+    right: { symbol: 'V', name: 'Volume', unit: 'm³' },
+    means: [
+      'Cover the one you want. Cover ρ and you are left with m over V.',
+      'For the same volume, twice the density is twice the mass.',
+      'For the same mass, twice the volume is half the density — which is what '
+      + 'makes a thing float that would otherwise sink.',
+    ],
+  },
+  'newton-2': {
+    top: { symbol: 'F', name: 'Net force', unit: 'N' },
+    left: { symbol: 'm', name: 'Mass', unit: 'kg' },
+    right: { symbol: 'a', name: 'Acceleration', unit: 'm/s²' },
+    means: [
+      'For the same force, twice the mass gets half the acceleration.',
+      'To accelerate twice the mass the same way, you need twice the force.',
+      'No net force means no acceleration — not no motion. Something already '
+      + 'moving keeps going.',
+    ],
+  },
+  'momentum': {
+    top: { symbol: 'p', name: 'Momentum', unit: 'kg·m/s' },
+    left: { symbol: 'm', name: 'Mass', unit: 'kg' },
+    right: { symbol: 'v', name: 'Velocity', unit: 'm/s' },
+    means: [
+      'Doubling either the mass or the speed doubles the momentum.',
+      'A heavy thing moving slowly can carry the same momentum as a light thing '
+      + 'moving fast — which is why both are hard to stop.',
+    ],
+  },
+  'impulse': {
+    top: { symbol: 'J', name: 'Impulse', unit: 'N·s' },
+    left: { symbol: 'F', name: 'Force', unit: 'N' },
+    right: { symbol: 't', name: 'Time', unit: 's' },
+    means: [
+      'The same change in momentum can come from a big force briefly or a small '
+      + 'force for longer.',
+      'Stopping over a longer time needs less force — which is what a crumple '
+      + 'zone, an airbag and bending your knees all do.',
+    ],
+  },
+  'weight': {
+    top: { symbol: 'W', name: 'Weight', unit: 'N' },
+    left: { symbol: 'm', name: 'Mass', unit: 'kg' },
+    right: { symbol: 'g', name: 'Field strength', unit: 'N/kg' },
+    means: [
+      'Mass does not change when you move; weight does, because g does.',
+      'On the Moon g is about a sixth of Earth\'s, so the same mass weighs a '
+      + 'sixth as much — and is exactly as hard to accelerate sideways.',
+    ],
+  },
+  'friction': {
+    top: { symbol: 'f', name: 'Friction', unit: 'N' },
+    left: { symbol: 'μ', name: 'Coefficient', unit: 'none' },
+    right: { symbol: 'N', name: 'Normal force', unit: 'N' },
+    means: [
+      'Press twice as hard and you get twice the grip.',
+      'The area of contact is not in this equation at all. A wider block does '
+      + 'not grip better, which is the result nobody believes until they see it.',
+      'For static friction this is a ceiling rather than a value: friction '
+      + 'supplies whatever is needed up to μs·N and then gives way.',
+    ],
+  },
+  'rolling-resistance': {
+    top: { symbol: 'f', name: 'Rolling drag', unit: 'N' },
+    left: { symbol: 'C', name: 'Coefficient', unit: 'none' },
+    right: { symbol: 'N', name: 'Normal force', unit: 'N' },
+    means: [
+      'Same shape as dry friction, and a hundred times smaller a coefficient.',
+      'This is why a ball crosses the bench and a box stops dead — not because '
+      + 'the ball is slippier, but because rolling is a different mechanism.',
+    ],
+  },
+  'pressure': {
+    top: { symbol: 'F', name: 'Force', unit: 'N' },
+    left: { symbol: 'P', name: 'Pressure', unit: 'Pa' },
+    right: { symbol: 'A', name: 'Area', unit: 'm²' },
+    means: [
+      'Cover P and you are left with F over A.',
+      'For a constant force, as the area increases the pressure falls — a '
+      + 'snowshoe and a drawing pin are the same force and opposite areas.',
+      'And note what it does not do: halving the pressure under a block '
+      + 'leaves its friction exactly where it was.',
+    ],
+  },
+};
+
+/** The triangle for an equation, or `null` if it is not that shape. */
+export const triangleFor = (id) => TRIANGLES[id] || null;
+
 export function equations(ids) {
   return ids.map((id) => {
     const found = EQUATIONS[id];

@@ -174,6 +174,44 @@ export const stageById = (id) => STAGES.find((s) => s.id === id) || STAGES[0];
 export const stageIndex = (id) => Math.max(0, STAGES.findIndex((s) => s.id === id));
 
 /** Is a feature switched on at this step? */
+/**
+ * The equations a step actually uses, in the order a reader meets them.
+ *
+ * Driven by features rather than listed per step, so a step cannot end up
+ * claiming an equation it does not use or quietly dropping one it does. The
+ * order is the order they are introduced, which is also roughly the order of
+ * how much they explain.
+ */
+export function equationsAt(stageId) {
+  const f = featuresAt(stageId);
+  const out = [];
+
+  // What the object is, before anything happens to it.
+  if (f.has('shape')) out.push('density');
+  /*
+   * Something pushes — and momentum belongs here rather than later.
+   *
+   * It first appeared with the second mass and then vanished again at the
+   * friction step, which broke the rule the features themselves keep: nothing
+   * a reader has met is ever taken away. Impulse is J = Δp, so momentum was
+   * already being used one line above the step that dropped it.
+   */
+  if (f.has('applied')) out.push('newton-2', 'suvat-v', 'momentum', 'impulse');
+  // Two masses pulling on each other.
+  if (f.has('mutual-gravity')) out.push('gravity-field');
+  // A world underneath, and a height to fall from.
+  if (f.has('planet')) out.push('gravity-field', 'weight');
+  if (f.has('ground')) out.push('potential-energy', 'kinetic-energy');
+  // A surface that holds on.
+  if (f.has('friction')) out.push('friction', 'rolling-resistance', 'pressure');
+  // Something to move through.
+  if (f.has('fluid')) out.push('buoyancy', 'reynolds', 'drag', 'terminal-velocity');
+  // Things that meet.
+  if (f.has('collide')) out.push('momentum-conservation', 'restitution', 'energy-conservation');
+
+  return [...new Set(out)];
+}
+
 export const has = (stageId, feature) => stageById(stageId).features.includes(feature);
 
 /** Every feature available up to and including a step. */

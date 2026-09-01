@@ -11,9 +11,9 @@ import {
   section, subsection, numberField, sliderField, selectField, toggleField, stat, banner, table,
   buttonRow, button,
 } from './widgets.js';
-import { explain, equationPanel } from './explain.js';
-import { equation } from '../models.js';
-import { stageById, featuresAt, pushState, pushRange, MAX_OBJECTS } from '../stages.js';
+import { explain, equationPanel, equationTriangle } from './explain.js';
+import { equation, EQUATIONS, triangleFor } from '../models.js';
+import { stageById, featuresAt, pushState, pushRange, equationsAt, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
 import { exampleById } from '../examples.js';
@@ -1360,6 +1360,48 @@ export function explains(ctx) {
     plain: [stage.discover, stage.watch],
     open: true,
   }));
+
+  /*
+   * Every equation this step actually uses, each with its triangle.
+   *
+   * Driven off the step's features rather than written out per step, so it
+   * cannot claim an equation the step does not use or quietly drop one it does.
+   * The triangle is only drawn for the ones shaped A = B × C, which is most of
+   * the early ones and none with a square in them — an equation without a
+   * triangle is not missing anything, it simply is not that shape.
+   *
+   * The readings under each triangle matter more than the picture. A triangle
+   * tells you how to rearrange; it does not tell you that spreading a force
+   * over twice the area halves the pressure, and that is the part a reader is
+   * actually trying to learn.
+   */
+  const used = equationsAt(ctx.state.stage).map((id) => EQUATIONS[id]).filter(Boolean);
+  if (used.length) {
+    out.push(explain({
+      title: `The equations on this step (${used.length})`,
+      plain: [
+        'Everything the simulation is doing on this step, written out. Where an '
+        + 'equation is a product of two things it is drawn as a triangle: cover '
+        + 'the quantity you want and the other two show you how to get it.',
+      ],
+      body: used.map((eq) => {
+        const tri = triangleFor(eq.id);
+        return el('div', { class: 'equation' }, [
+          el('h4', { class: 'equation__name', text: eq.name }),
+          el('p', { class: 'equation__formula', text: eq.formula }),
+          tri ? equationTriangle(tri) : null,
+          el('p', { class: 'equation__plain', text: eq.plain }),
+          tri ? el('ul', { class: 'equation__means' },
+            tri.means.map((line) => el('li', { text: line }))) : null,
+          eq.misreads
+            ? el('p', { class: 'equation__misread' }, [
+              el('strong', { text: 'Careful: ' }), eq.misreads,
+            ])
+            : null,
+        ].filter(Boolean));
+      }),
+    }));
+  }
 
   if (main) {
     const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });

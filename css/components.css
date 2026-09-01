@@ -1208,3 +1208,37 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 [data-page='examples'] #banners,
 [data-page='examples'] .viewport--more,
 [data-page='examples'] .sidebar { display: none; }
+
+/* -------------------------------------------------- equation triangles -- */
+
+.equation { padding: var(--space-3) 0; border-top: 1px solid var(--border); }
+.equation:first-child { border-top: none; padding-top: 0; }
+.equation__name { margin: 0 0 var(--space-1); font-size: 0.95rem; font-weight: 650; }
+.equation__formula {
+  margin: 0 0 var(--space-2);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+  color: var(--accent-strong);
+}
+.equation__plain { margin: var(--space-2) 0 0; line-height: 1.5; }
+.equation__means { margin: var(--space-2) 0 0; padding-left: 1.1rem; line-height: 1.5; }
+.equation__means li { margin-bottom: var(--space-1); }
+.equation__misread { margin: var(--space-2) 0 0; color: var(--text-dim); line-height: 1.5; }
+
+/*
+ * The triangle is drawn once at 340×190 and scaled here, so its geometry is
+ * arithmetic rather than guesswork at every size.
+ */
+.triangle { display: block; width: 100%; max-width: 340px; height: auto; margin: var(--space-2) 0; }
+.triangle__outline { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.triangle__divider { stroke: var(--accent); stroke-width: 1.5; }
+.triangle__leader { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 2 2; }
+.triangle__symbol {
+  fill: var(--accent-strong);
+  font-size: 26px;
+  font-weight: 700;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.triangle__times { fill: var(--text-dim); font-size: 15px; }
+.triangle__label { fill: var(--text); font-size: 12px; }
+.triangle__unit { fill: var(--text-faint); font-size: 11px; }
