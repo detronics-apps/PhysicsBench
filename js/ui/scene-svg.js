@@ -33,7 +33,7 @@ import {
 import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
-import { outline, detail } from '../shapes.js';
+import { outline, outlineParts, detail } from '../shapes.js';
 import { wallBounds, alongWall, arcOf } from '../segments.js';
 import { elevation } from '../world.js';
 import { len, scale as vscale, norm, perp } from '../vec.js';
@@ -781,6 +781,17 @@ function drawBody(cam, body, selected, topDown, labels) {
   const strokeWidth = selected ? 3 : 1.5;
 
   const path = body.shapeId ? outline(body.shapeId, { topDown }) : null;
+  /*
+   * Some shapes are a stack rather than a silhouette, and have to be painted
+   * back to front.
+   *
+   * One path means one stroke, so a wheel tucked up behind a chassis has its
+   * outline drawn straight through it and there is no telling which is in
+   * front. Painting each piece with its own fill and stroke, far ones first,
+   * lets the near piece's fill cover the far one's edge — which is the whole of
+   * what makes a drawing read as having a front and a back.
+   */
+  const parts = body.shapeId ? outlineParts(body.shapeId, { topDown }) : null;
   const markings = body.shapeId ? detail(body.shapeId, { topDown }) : null;
 
   if (path) {
@@ -801,10 +812,10 @@ function drawBody(cam, body, selected, topDown, labels) {
       transform: `translate(${r(centre.x)} ${r(centre.y)}) rotate(${r(spin)}) `
         + `scale(${mirror} 1) translate(${r(-centre.x)} ${r(-centre.y)})`,
     }, [
-      svg('path', {
-        d: `${scalePath(path, centre.x, centre.y, w, h)} Z`,
+      ...(parts || [path]).map((piece) => svg('path', {
+        d: `${scalePath(piece, centre.x, centre.y, w, h)} Z`,
         fill, stroke, 'stroke-width': strokeWidth, 'stroke-linejoin': 'round',
-      }),
+      })),
       /*
        * Markings on top of the outline — a panel, a sensor, a wheel hub.
        *

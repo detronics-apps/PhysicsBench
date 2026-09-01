@@ -132,102 +132,98 @@ const WOMAN =
  * and a smaller one, with the connector stub at the back.
  */
 /*
- * The Magbot from the side, laid out to the proportions in the photographs.
+ * The Magbot, as a stack of pieces rather than one outline.
  *
- * Body 0.60 wide by 0.70 tall, so it stands a little taller than it is long,
- * which is what the photograph shows and what the first two attempts both got
- * backwards. The wheel is 0.40 of the body's width; the panel covers about four
- * fifths of the side and three fifths of its height; the module in the middle
- * of it is markedly taller than it is wide.
+ * The wheel is *behind* the body and the body hides most of it. Drawn as a
+ * single path that is impossible to say: one path means one stroke, so the
+ * wheel's outline shows straight through the chassis and there is no telling
+ * which is in front. Ordering them back to front and giving each its own fill
+ * and stroke is what makes the near thing look near — the body's fill paints
+ * over the hidden half of the wheel's edge.
  *
- * Every piece is disjoint. The wheel and the caster sit *below* the body and
- * touch its underside rather than crossing it, the sockets sit on top of it,
- * and the cable's connector is clear of everything — so the filled silhouette
- * has no seams running through it and nothing is drawn twice.
+ * `path` below is all of them joined, which is what the box test and anything
+ * else wanting a single silhouette reads. `parts` is the same geometry in the
+ * order it has to be painted.
  *
- * The drawn box is square because the robot is a 12 cm cube, and every outline
- * here has to fill its box or `aspect` renders it undersized. The photograph's
- * outer proportions include a cable hanging well past the chassis; matching
- * those would misrepresent how big the robot is, so the *internal* proportions
- * are what follow the picture.
- *
- * Cubics rather than `A` for the circles: an arc command carries flags that are
+ * Cubics rather than `A` for the wheel: an arc command carries flags that are
  * not coordinates, and both `scalePath` and the box test read every number pair
  * as a position.
  */
-const MAGBOT_SIDE =
-  // Connector sockets standing proud of the top.
-  'M -0.4 -0.5 L -0.28 -0.5 L -0.28 -0.44 L -0.4 -0.44 Z '
-  + 'M -0.22 -0.5 L -0.1 -0.5 L -0.1 -0.44 L -0.22 -0.44 Z '
-  + 'M -0.04 -0.5 L 0.08 -0.5 L 0.08 -0.44 L -0.04 -0.44 Z '
-  // The body.
-  + 'M -0.44 -0.44 L 0.04 -0.44 Q 0.1 -0.44 0.1 -0.38 L 0.1 0.2 '
-  + 'Q 0.1 0.26 0.04 0.26 L -0.44 0.26 Q -0.5 0.26 -0.5 0.2 '
-  + 'L -0.5 -0.38 Q -0.5 -0.44 -0.44 -0.44 Z '
-  // The driven wheel, at the back, resting under the body.
-  + 'M -0.36 0.38 C -0.36 0.3137 -0.3063 0.26 -0.24 0.26 '
-  + 'C -0.1737 0.26 -0.12 0.3137 -0.12 0.38 '
-  + 'C -0.12 0.4463 -0.1737 0.5 -0.24 0.5 '
-  + 'C -0.3063 0.5 -0.36 0.4463 -0.36 0.38 Z '
-  // The caster at the front, which is what keeps it level.
-  + 'M -0.02 0.26 L 0.08 0.26 L 0.08 0.5 L -0.02 0.5 Z '
-  // The power cable's connector, clear of the chassis.
-  + 'M 0.24 0.3 C 0.24 0.2282 0.2982 0.17 0.37 0.17 '
-  + 'C 0.4418 0.17 0.5 0.2282 0.5 0.3 '
-  + 'C 0.5 0.3718 0.4418 0.43 0.37 0.43 '
-  + 'C 0.2982 0.43 0.24 0.3718 0.24 0.3 Z';
+
+/*
+ * The driven wheel, at the back.
+ *
+ * It reaches past the chassis at the rear as well as below it, so what shows is
+ * a proper crescent of tyre rather than a bump under the floor. Once the body
+ * correctly hides what is behind it, a wheel tucked entirely under the chassis
+ * stops reading as a wheel at all — the occlusion and the placement had to be
+ * fixed together.
+ */
+const MAGBOT_WHEEL = 'M -0.5 0.28 C -0.5 0.1585 -0.4015 0.06 -0.28 0.06 '
+  + 'C -0.1585 0.06 -0.06 0.1585 -0.06 0.28 '
+  + 'C -0.06 0.4015 -0.1585 0.5 -0.28 0.5 '
+  + 'C -0.4015 0.5 -0.5 0.4015 -0.5 0.28 Z';
+
+// The caster at the front, which is what keeps it level.
+const MAGBOT_CASTER = 'M 0.28 0.22 L 0.42 0.22 L 0.42 0.5 L 0.28 0.5 Z';
+
+// Connector sockets, standing proud of the top edge.
+const MAGBOT_SOCKETS = 'M -0.3 -0.5 L -0.18 -0.5 L -0.18 -0.4 L -0.3 -0.4 Z '
+  + 'M -0.02 -0.5 L 0.1 -0.5 L 0.1 -0.4 L -0.02 -0.4 Z '
+  + 'M 0.22 -0.5 L 0.34 -0.5 L 0.34 -0.4 L 0.22 -0.4 Z';
+
+/*
+ * The chassis, sitting low over the wheel — the body was riding high enough
+ * before that the rover looked jacked up on its suspension.
+ */
+const MAGBOT_BODY = 'M -0.32 -0.46 L 0.44 -0.46 Q 0.5 -0.46 0.5 -0.4 L 0.5 0.24 '
+  + 'Q 0.5 0.3 0.44 0.3 L -0.32 0.3 Q -0.38 0.3 -0.38 0.24 '
+  + 'L -0.38 -0.4 Q -0.38 -0.46 -0.32 -0.46 Z';
+
+const MAGBOT_SIDE_PARTS = [MAGBOT_WHEEL, MAGBOT_CASTER, MAGBOT_SOCKETS, MAGBOT_BODY];
+const MAGBOT_SIDE = MAGBOT_SIDE_PARTS.join(' ');
 
 /*
  * From above: the deck, driving +x, wheels at the back.
  *
- * The tyres are an eighth of the body across and a third of it long, and they
- * reach the back edge — all three read off the photograph. They meet the body
- * along its flanks rather than crossing it, so again nothing overlaps.
+ * The tyres are an eighth of the body across and a third of it long and they
+ * reach the back edge, all read off the photograph. Painted before the deck so
+ * that where they meet it, it is the deck's edge you see.
  */
-const MAGBOT_TOP =
-  'M -0.44 -0.4 L 0.32 -0.4 Q 0.5 -0.4 0.5 -0.2 L 0.5 0.2 '
+const MAGBOT_TYRES = 'M -0.46 -0.5 L -0.12 -0.5 L -0.12 -0.36 L -0.46 -0.36 Z '
+  + 'M -0.46 0.36 L -0.12 0.36 L -0.12 0.5 L -0.46 0.5 Z';
+
+const MAGBOT_DECK = 'M -0.44 -0.4 L 0.32 -0.4 Q 0.5 -0.4 0.5 -0.2 L 0.5 0.2 '
   + 'Q 0.5 0.4 0.32 0.4 L -0.44 0.4 Q -0.5 0.4 -0.5 0.34 '
-  + 'L -0.5 -0.34 Q -0.5 -0.4 -0.44 -0.4 Z '
-  + 'M -0.46 -0.5 L -0.12 -0.5 L -0.12 -0.4 L -0.46 -0.4 Z '
-  + 'M -0.46 0.4 L -0.12 0.4 L -0.12 0.5 L -0.46 0.5 Z';
+  + 'L -0.5 -0.34 Q -0.5 -0.4 -0.44 -0.4 Z';
+
+const MAGBOT_TOP_PARTS = [MAGBOT_TYRES, MAGBOT_DECK];
+const MAGBOT_TOP = MAGBOT_TOP_PARTS.join(' ');
 
 /*
  * What turns the rover from a box on a wheel into a recognisable Magbot.
  *
- * Stroked, never filled, and kept inside the pieces it belongs to: the panel
- * and its screws stay within the body, the hub within the tyre, the cable runs
- * from the body's top corner round to its connector without crossing either.
+ * Stroked, never filled, and drawn over the finished silhouette — so every
+ * marking here has to sit where its own piece is actually visible. The tread
+ * goes on the exposed lower arc of the tyre and not at its hidden centre,
+ * which is why there is no hub.
  */
 const MAGBOT_DETAIL =
   // The inset side panel: four fifths of the side, three fifths of its height.
-  'M -0.44 -0.4 L 0.04 -0.4 L 0.04 0.02 L -0.44 0.02 Z '
-  // The module in the middle of it — taller than it is wide, as the photo has it.
-  + 'M -0.24 -0.3 L -0.15 -0.3 L -0.15 -0.17 L -0.24 -0.17 Z '
+  'M -0.31 -0.43 L 0.41 -0.43 L 0.41 0.03 L -0.31 0.03 Z '
+  // The module on it — taller than it is wide, as the photograph has it.
+  + 'M 0.0 -0.3 L 0.11 -0.3 L 0.11 -0.12 L 0.0 -0.12 Z '
   /*
    * The four panel screws, as zero-length strokes. With a round line cap those
    * render as dots for a fraction of what four small circles would cost in path
    * data, and they are what make the panel look bolted on rather than drawn on.
    */
-  + 'M -0.41 -0.37 L -0.409 -0.37 M 0.01 -0.37 L 0.009 -0.37 '
-  + 'M 0.01 -0.01 L 0.009 -0.01 M -0.41 -0.01 L -0.409 -0.01 '
-  // Hub inside the tyre.
-  + 'M -0.29 0.38 C -0.29 0.3524 -0.2676 0.33 -0.24 0.33 '
-  + 'C -0.2124 0.33 -0.19 0.3524 -0.19 0.38 '
-  + 'C -0.19 0.4076 -0.2124 0.43 -0.24 0.43 '
-  + 'C -0.2676 0.43 -0.29 0.4076 -0.29 0.38 Z '
+  + 'M -0.28 -0.4 L -0.279 -0.4 M 0.38 -0.4 L 0.379 -0.4 '
+  + 'M 0.38 0 L 0.379 0 M -0.28 0 L -0.279 0 '
+  // Tread, on the crescent of tyre that is not behind the chassis.
+  + 'M -0.46 0.36 L -0.4 0.39 M -0.42 0.44 L -0.37 0.46 M -0.34 0.48 L -0.28 0.49 '
   // Ports along the bottom edge of the body.
-  + 'M -0.42 0.26 L -0.42 0.21 M -0.06 0.26 L -0.06 0.21 '
-  /*
-   * The power cable, looping out of the top corner and down into its connector
-   * — the most recognisable thing about the robot in profile, and the reason
-   * the body stops short of the right-hand edge instead of filling it.
-   */
-  + 'M 0.06 -0.36 C 0.26 -0.4 0.42 -0.3 0.44 -0.12 '
-  + 'C 0.45 -0.02 0.42 0.08 0.37 0.17 '
-  // And the pins on the connector face.
-  + 'M 0.33 0.26 L 0.329 0.26 M 0.41 0.26 L 0.409 0.26 '
-  + 'M 0.45 0.33 L 0.449 0.33 M 0.37 0.37 L 0.369 0.37 '
-  + 'M 0.29 0.33 L 0.289 0.33';
+  + 'M -0.1 0.3 L -0.1 0.24 M 0.08 0.3 L 0.08 0.24';
 
 const MAGBOT_TOP_DETAIL =
   // The deck panel.
@@ -246,10 +242,8 @@ const MAGBOT_TOP_DETAIL =
   // that tells the front from the back.
   + 'M 0.32 -0.16 L 0.46 0 L 0.32 0.16 '
   // Tread across both tyres.
-  + 'M -0.38 -0.5 L -0.38 -0.4 M -0.3 -0.5 L -0.3 -0.4 M -0.22 -0.5 L -0.22 -0.4 '
-  + 'M -0.38 0.4 L -0.38 0.5 M -0.3 0.4 L -0.3 0.5 M -0.22 0.4 L -0.22 0.5 '
-  // The power cable, leaving the flank ahead of the wheel and looping forward.
-  + 'M -0.06 0.4 C 0.06 0.48 0.18 0.47 0.24 0.41';
+  + 'M -0.38 -0.5 L -0.38 -0.36 M -0.3 -0.5 L -0.3 -0.36 M -0.22 -0.5 L -0.22 -0.36 '
+  + 'M -0.38 0.36 L -0.38 0.5 M -0.3 0.36 L -0.3 0.5 M -0.22 0.36 L -0.22 0.5';
 
 const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
   + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '
@@ -488,6 +482,10 @@ export const SHAPES = [
     align: 'travel',
     path: MAGBOT_SIDE,
     pathTop: MAGBOT_TOP,
+    // The same geometry, in the order it has to be painted so that the near
+    // pieces hide the far ones. See the note above the outlines.
+    parts: MAGBOT_SIDE_PARTS,
+    partsTop: MAGBOT_TOP_PARTS,
     detail: MAGBOT_DETAIL,
     detailTop: MAGBOT_TOP_DETAIL,
     note: 'A Detronics Magbot Rover: 12 cm, 600 g, 0.00173 m³. It runs on rubber '
@@ -600,6 +598,20 @@ export function outline(shapeId, { topDown = false } = {}) {
  * an area or where the thing rests. It exists so a Magbot looks like a Magbot
  * rather than like a box, and a shape without any is not worse off for it.
  */
+/**
+ * An outline split into the pieces it is painted from, back to front.
+ *
+ * `null` for the shapes that are a single silhouette, which is most of them —
+ * a caller that gets `null` draws `outline()` and is no worse off. It exists
+ * for the shapes where one piece is behind another and the far one's edge must
+ * not show through the near one.
+ */
+export function outlineParts(shapeId, { topDown = false } = {}) {
+  const shape = shapeById(shapeId);
+  const parts = topDown && shape.partsTop ? shape.partsTop : shape.parts;
+  return parts && parts.length ? parts : null;
+}
+
 export function detail(shapeId, { topDown = false } = {}) {
   const shape = shapeById(shapeId);
   if (!shape.detail) return null;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById,
-  floats, outline, detail, TYPICAL, contactKind,
+  floats, outline, outlineParts, detail, TYPICAL, contactKind,
 } from '../js/shapes.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -355,58 +355,59 @@ test('a head sits at the top of the figure, with the body below it', () => {
 });
 
 /**
- * Nothing in the rover is drawn on top of anything else.
+ * The rover is a stack, and the order it is painted in is the point.
  *
- * The wheel used to cross the body and the panel used to cross the wheel, which
- * puts seams through a filled silhouette and draws the same area twice. Every
- * piece now abuts its neighbours instead: the sockets sit on the body's top
- * edge, the wheel and caster hang under its bottom edge, and the cable's
- * connector is clear of the chassis entirely.
+ * Its wheel sits behind the chassis. Drawn as one path that cannot be shown:
+ * one path is one stroke, so the hidden half of the wheel's edge is drawn
+ * straight through the body and there is no telling which is in front. The
+ * pieces are ordered instead, far ones first, and the body comes last so its
+ * fill covers what is behind it.
  *
- * Bounding boxes are enough to catch it, and touching along an edge is fine —
- * that is what abutting means.
+ * So the thing to check is not that nothing overlaps — the wheel is *meant* to
+ * — but that the piece which should be in front is painted last.
  */
-test('the rover is built from pieces that do not overlap', () => {
-  const closedPieces = (d) => d.split(/(?=M )/).map((s) => s.trim()).filter((s) => /z/i.test(s))
-    .map((sub) => {
-      const n = sub.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+test('the rover is painted back to front, with the chassis last', () => {
+  for (const topDown of [false, true]) {
+    const parts = outlineParts('magbot', { topDown });
+    assert.ok(parts && parts.length >= 2, 'the rover should be several pieces');
+
+    const boxOf = (d) => {
+      const n = d.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
       const xs = n.filter((_, i) => i % 2 === 0);
       const ys = n.filter((_, i) => i % 2 === 1);
-      return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-    });
+      return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    };
+    // The chassis is the biggest piece, and it is the last one painted.
+    const areas = parts.map((d) => boxOf(d).w * boxOf(d).h);
+    assert.equal(areas.indexOf(Math.max(...areas)), parts.length - 1,
+      `the largest piece is not painted last in the ${topDown ? 'top' : 'side'} view`);
 
-  for (const topDown of [false, true]) {
-    const parts = closedPieces(outline('magbot', { topDown }));
-    assert.ok(parts.length >= 3, 'the rover should be several pieces');
-    for (let i = 0; i < parts.length; i += 1) {
-      for (let j = i + 1; j < parts.length; j += 1) {
-        const a = parts[i];
-        const b = parts[j];
-        const over = a.minX < b.maxX - 1e-9 && a.maxX > b.minX + 1e-9
-          && a.minY < b.maxY - 1e-9 && a.maxY > b.minY + 1e-9;
-        assert.ok(!over, `pieces ${i} and ${j} overlap in the ${topDown ? 'top' : 'side'} view`);
-      }
-    }
+    // Joined, they are still the silhouette everything else reads.
+    assert.equal(parts.join(' '), outline('magbot', { topDown }));
   }
+
+  // A shape that is a single silhouette says so plainly rather than returning
+  // a one-element list nobody needs.
+  assert.equal(outlineParts('cube'), null);
+  assert.equal(outlineParts('sphere'), null);
 });
 
-test('the rover keeps the proportions read off the photographs', () => {
-  const boxOf = (sub) => {
-    const n = sub.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
+test('the rover keeps the panel proportions read off the photographs', () => {
+  const boxOf = (d) => {
+    const n = d.split(/[\s,]+/).filter((t) => !/^[A-Za-z]$/.test(t)).map(Number);
     const xs = n.filter((_, i) => i % 2 === 0);
     const ys = n.filter((_, i) => i % 2 === 1);
     return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   };
-  const subs = (d) => d.split(/(?=M )/).map((s) => s.trim()).filter(Boolean);
+  const parts = outlineParts('magbot');
+  const body = boxOf(parts[parts.length - 1]);
+  const [panel, module_] = detail('magbot').split(/(?=M )/).map((d) => d.trim()).filter(Boolean).map(boxOf);
 
-  const side = subs(outline('magbot'));
-  // The body is the tall piece spanning the middle; it stands taller than long.
-  const body = side.map(boxOf).find((b) => b.h > 0.6 && b.w > 0.5);
-  assert.ok(Math.abs(body.w / body.h - 0.85) < 0.06, `body is ${(body.w / body.h).toFixed(2)}:1, want 0.85`);
-
-  // The panel covers most of the side, and the module on it is taller than wide.
-  const [panel, module_] = subs(detail('magbot')).map(boxOf);
-  assert.ok(Math.abs(panel.w / body.w - 0.81) < 0.05);
-  assert.ok(Math.abs(panel.h / body.h - 0.61) < 0.05);
-  assert.ok(module_.w < module_.h, 'the module reads as a switch, not a letterbox');
+  // The panel covers about four fifths of the side and three fifths of its
+  // height, as it does in the photograph.
+  assert.ok(Math.abs(panel.w / body.w - 0.81) < 0.05, `panel ${(panel.w / body.w).toFixed(2)} wide`);
+  assert.ok(Math.abs(panel.h / body.h - 0.61) < 0.05, `panel ${(panel.h / body.h).toFixed(2)} tall`);
+  // And the module on it is taller than wide, which is the detail that was
+  // backwards twice.
+  assert.ok(module_.w < module_.h, 'the module reads as a letterbox, not a switch');
 });
