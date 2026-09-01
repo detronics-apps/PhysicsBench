@@ -44,6 +44,17 @@ export function facing({
   surfaceNormal = null,
   velocity = null,
   hasField = true,
+  /*
+   * Which way it was already facing.
+   *
+   * Needed because a thing that has stopped has no direction of travel, and the
+   * honest answer to "which way is it pointing?" is "the way it was pointing
+   * when it stopped". Without this the mirror was recomputed from a velocity of
+   * zero every frame, so a rover that drove left and came to rest snapped round
+   * to face right the moment it settled — which is the one moment a reader is
+   * looking straight at it.
+   */
+  flip: wasFlipped = false,
 } = {}) {
   if (align === 'none') return { angle: 0, flip: false };
 
@@ -52,7 +63,9 @@ export function facing({
   // Resting on something: lie along it, whatever else is happening.
   if (surfaceNormal) {
     const angle = Math.atan2(surfaceNormal.y, surfaceNormal.x) - Math.PI / 2;
-    const flip = align === 'travel' && speed > MOVING && velocity.x < 0;
+    const flip = align === 'travel'
+      ? (speed > MOVING ? velocity.x < 0 : wasFlipped)
+      : false;
     return { angle: normalise(angle), flip };
   }
 
@@ -67,8 +80,9 @@ export function facing({
 
   // Nothing to align to and nowhere to be going. In free fall under a field it
   // keeps the attitude it had; with no field at all — deep space — level is as
-  // good an answer as any and it is at least stable.
-  return { angle: 0, flip: false, hold: hasField };
+  // good an answer as any and it is at least stable. Either way it goes on
+  // facing the way it already was.
+  return { angle: 0, flip: align === 'travel' ? wasFlipped : false, hold: hasField };
 }
 
 /** Wrap to (−π, π], so easing never takes the long way round. */

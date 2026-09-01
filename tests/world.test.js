@@ -558,3 +558,50 @@ test('above a planet, elevation is measured from its surface', () => {
   // Centres are 105 apart; take the planet's 100 and the ball's own 0.5.
   close(elevation(world), 4.5, 1e-9);
 });
+
+/**
+ * A tall body is a tall target.
+ *
+ * Body-to-body contact treated everything as a circle of half its *width*,
+ * which for a standing person — 0.45 m across and 1.76 m tall — was a 22 cm
+ * disc floating at chest height. A cannon shot rolling along the floor went
+ * straight underneath it, and on screen the two simply ignored each other.
+ *
+ * They are capsules now: axis along the longer dimension, radius half the
+ * shorter, which is exactly the old circle whenever the two are equal.
+ */
+test('something rolling along the floor hits a standing figure', () => {
+  const ground = { y: 0, slopeDeg: 0, muS: 0.5, muK: 0.3, restitution: 0.3, rolling: 0.01 };
+  const person = body({
+    id: 'main', kind: 'box', mass: 70, width: 0.45, height: 1.76,
+    radius: 0.88, support: 0.88, pos: vec(0, 0.88),
+  });
+  // A ball on the floor, a metre away, rolling at the person's shins.
+  const ball = body({ id: 'shot', kind: 'ball', mass: 0.5, radius: 0.1, pos: vec(-1, 0.1), vel: vec(6, 0) });
+
+  let w = createWorld({ g: 9.81, field: vec(0, -9.81), ground, bodyCollisions: true, bodies: [person, ball] });
+  for (let i = 0; i < 240; i += 1) w = advance(w, 1 / 240);
+
+  const hit = findBody(w, 'main');
+  assert.ok(Math.abs(hit.vel.x) > 1e-6 || Math.abs(hit.pos.x) > 1e-6,
+    'the shot passed straight through the figure');
+  // It should have been stopped or turned, not sailed on at full speed.
+  assert.ok(findBody(w, 'shot').vel.x < 6, 'the shot was not slowed by the impact');
+});
+
+test('a capsule is still exactly a circle when it is as wide as it is tall', () => {
+  const ground = { y: 0, slopeDeg: 0, muS: 0, muK: 0, restitution: 0.5, rolling: 0 };
+  // Two identical cubes meeting head on: the contact is the old circle, so the
+  // separation and the exchange of velocity are unchanged.
+  const make = (id, x, vx) => body({
+    id, kind: 'box', mass: 1, width: 0.4, height: 0.4, radius: 0.2, support: 0.2, pos: vec(x, 0.2), vel: vec(vx, 0),
+  });
+  let w = createWorld({
+    g: 0, field: vec(0, 0), ground, bodyCollisions: true, collisionRestitution: 1,
+    bodies: [make('a', -1, 4), make('b', 1, -4)],
+  });
+  for (let i = 0; i < 240; i += 1) w = advance(w, 1 / 240);
+  // A perfectly elastic head-on between equals swaps their velocities.
+  close(findBody(w, 'a').vel.x, -4, 0.2);
+  close(findBody(w, 'b').vel.x, 4, 0.2);
+});

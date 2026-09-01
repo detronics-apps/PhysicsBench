@@ -158,3 +158,36 @@ test('with the mirror unchanged it still eases', () => {
   // And a held attitude is held.
   close(settleAngle(0.4, { angle: 0, flip: false, hold: true }, false, 1), 0.4, 1e-12);
 });
+
+/**
+ * A thing that has stopped goes on pointing the way it was going.
+ *
+ * There is no direction of travel at zero speed, so the mirror was recomputed
+ * from nothing every frame and came back false — a rover that drove left and
+ * came to rest snapped round to face right the moment it settled, which is the
+ * one moment a reader is looking straight at it.
+ */
+test('a stopped object keeps the way it was facing', () => {
+  const onGround = { x: 0, y: 1 };
+
+  // Moving left: mirrored.
+  assert.equal(facing({ align: 'travel', surfaceNormal: onGround, velocity: { x: -3, y: 0 } }).flip, true);
+  // Now stopped, having been mirrored: still mirrored.
+  assert.equal(facing({
+    align: 'travel', surfaceNormal: onGround, velocity: { x: 0, y: 0 }, flip: true,
+  }).flip, true);
+  // And stopped having been the other way: still the other way.
+  assert.equal(facing({
+    align: 'travel', surfaceNormal: onGround, velocity: { x: 0, y: 0 }, flip: false,
+  }).flip, false);
+
+  // Setting off again in the other direction still turns it round.
+  assert.equal(facing({
+    align: 'travel', surfaceNormal: onGround, velocity: { x: 4, y: 0 }, flip: true,
+  }).flip, false);
+
+  // In the air with nothing to go on, the same holds.
+  assert.equal(facing({ align: 'travel', velocity: { x: 0, y: 0 }, flip: true }).flip, true);
+  // A shape that does not point anywhere is never mirrored, whatever it is told.
+  assert.equal(facing({ align: 'surface', surfaceNormal: onGround, velocity: { x: 0, y: 0 }, flip: true }).flip, false);
+});

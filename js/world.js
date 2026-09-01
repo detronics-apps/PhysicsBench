@@ -562,6 +562,8 @@ export function step(world, dt) {
       surfaceNormal: result.contact.touching ? result.contact.normal : null,
       velocity: vel,
       hasField: len(world.env.field) > 0,
+      // So a thing that has stopped keeps pointing the way it was going.
+      flip: b.flip,
     });
     const angle = settleAngle(b.angle, wanted, b.flip, dt);
     /*
@@ -875,6 +877,91 @@ function resolveBounds(bodies, index, world, ledger, events) {
  * which matters: a learner comparing the two must not find them disagreeing in
  * the third decimal place.
  */
+/**
+ * A body as a capsule: a segment with a radius round it.
+ *
+ * Body-to-body contact used to treat everything as a circle of half its
+ * *width*, which is fine for the round and the roughly square and badly wrong
+ * for anything long. A standing person is 0.45 m across and 1.76 m tall, so it
+ * became a 22 cm disc floating at chest height — and a cannon shot rolling
+ * along the floor sailed straight underneath it, which is exactly what it
+ * looked like on screen.
+ *
+ * A capsule is the smallest change that fixes it: the axis runs along whichever
+ * dimension is longer, the radius is half the shorter one, and when the two are
+ * equal the axis has no length and this *is* the circle it always was. So balls
+ * and cubes behave precisely as before, while a person is a person-shaped
+ * region and a car is a car-shaped one.
+ *
+ * Still no rotation: the axis is upright or level, never tilted, which is the
+ * same point-mass assumption the rest of the model is built on.
+ */
+function capsuleOf(b) {
+  if (b.kind === 'ball' || b.kind === 'planet') {
+    return { half: 0, along: vec(1, 0), radius: b.radius };
+  }
+  const w = Math.max(1e-9, b.width ?? (b.radius || 0) * 2);
+  const h = Math.max(1e-9, b.height ?? (b.radius || 0) * 2);
+  const long = Math.max(w, h);
+  const short = Math.min(w, h);
+  return { half: (long - short) / 2, along: w >= h ? vec(1, 0) : vec(0, 1), radius: short / 2 };
+}
+
+/**
+ * The closest pair of points on two segments — the standard clamped solve.
+ *
+ * Degenerate segments are the common case here, not the exception: every round
+ * body has a zero-length axis, so both early exits are taken constantly.
+ */
+function closestOnSegments(p1, q1, p2, q2) {
+  const d1 = sub(q1, p1);
+  const d2 = sub(q2, p2);
+  const r = sub(p1, p2);
+  const a = dot(d1, d1);
+  const e = dot(d2, d2);
+  const f = dot(d2, r);
+  const TINY = 1e-18;
+
+  if (a <= TINY && e <= TINY) return [p1, p2];
+  let s = 0;
+  let t = 0;
+  if (a <= TINY) {
+    t = clamp01(f / e);
+  } else if (e <= TINY) {
+    s = clamp01(-dot(d1, r) / a);
+  } else {
+    const c = dot(d1, r);
+    const bb = dot(d1, d2);
+    const denom = a * e - bb * bb;
+    s = denom > TINY ? clamp01((bb * f - c * e) / denom) : 0;
+    t = (bb * s + f) / e;
+    if (t < 0) {
+      t = 0;
+      s = clamp01(-c / a);
+    } else if (t > 1) {
+      t = 1;
+      s = clamp01((bb - c) / a);
+    }
+  }
+  return [add(p1, scale(d1, s)), add(p2, scale(d2, t))];
+}
+
+/** Where two bodies are nearest each other, and how far apart that is. */
+function nearestBetween(a, b) {
+  // Resting on a planet is measured centre to centre, as it always was: the
+  // surface is locally flat and what matters is the distance to the underside.
+  if (a.kind === 'planet' || b.kind === 'planet') {
+    return { from: a.pos, to: b.pos, touchAt: reachToward(a, b) + reachToward(b, a) };
+  }
+  const ca = capsuleOf(a);
+  const cb = capsuleOf(b);
+  const [from, to] = closestOnSegments(
+    sub(a.pos, scale(ca.along, ca.half)), add(a.pos, scale(ca.along, ca.half)),
+    sub(b.pos, scale(cb.along, cb.half)), add(b.pos, scale(cb.along, cb.half)),
+  );
+  return { from, to, touchAt: ca.radius + cb.radius };
+}
+
 function resolvePairs(bodies, world, ledger, events) {
   for (let i = 0; i < bodies.length; i += 1) {
     for (let j = i + 1; j < bodies.length; j += 1) {
@@ -891,9 +978,10 @@ function resolvePairs(bodies, world, ledger, events) {
        */
       if (a.projectile && b.projectile) continue;
 
-      const delta = sub(b.pos, a.pos);
+      const near = nearestBetween(a, b);
+      const delta = sub(near.to, near.from);
       const distance = len(delta);
-      const touchAt = reachToward(a, b) + reachToward(b, a);
+      const touchAt = near.touchAt;
       if (distance >= touchAt || distance < 1e-12) continue;
 
       const n = norm(delta);
