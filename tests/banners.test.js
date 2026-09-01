@@ -170,3 +170,32 @@ test('words and numbers are redrawn on a cadence, and a coarser one on a phone',
   const gateAt = paint.indexOf('const refreshNumbers');
   assert.ok(sceneAt < gateAt, 'the drawing is being throttled too');
 });
+
+/**
+ * Zooming keeps the framing you were already looking at.
+ *
+ * `takeManualView` asked `autoView`, which ignores the current view entirely
+ * and answers with the fit-everything box. From `auto` those are the same
+ * thing, so it looked right. From `follow` — where Home leaves you — they are
+ * not: zooming in threw the reader's magnification away and jumped back out to
+ * the whole scene first, so pressing Home and then zooming walked the grid back
+ * through 20 m and 5 m to reach the 3 m it was already showing.
+ */
+test('taking a manual view starts from what is on screen, in any mode', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function takeManualView\(draft\)[\s\S]*?\n\}/)[0];
+  assert.ok(!/autoView\(/.test(fn),
+    'takeManualView is back on autoView, which discards a follow zoom');
+  // sceneCamera is the one that honours all three modes, because it is the same
+  // call the renderer makes to decide what to draw.
+  assert.match(fn, /sceneCamera\(shownWorld\(\), 'main', state\.view\)/);
+});
+
+test('Home holds the zoom rather than handing the framing back', () => {
+  const main = read('../js/main.js');
+  const home = main.match(/goHome: \(\) => update[\s\S]*?\}, \{ sim: 'none' \}\),/)[0];
+  assert.match(home, /mode: 'follow'/);
+  assert.ok(!/mode: 'auto'/.test(home), 'Home is throwing the zoom away again');
+  // And there is still a way back to framing everything.
+  assert.match(main, /fitAll: \(\) => update\(\(draft\) => \{ draft\.view\.camera\.mode = 'auto'; \}/);
+});

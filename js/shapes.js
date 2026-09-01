@@ -40,6 +40,69 @@ const CAR_SIDE = 'M -0.5 0.2 L -0.46 -0.02 L -0.28 -0.06 L -0.16 -0.46 '
   + 'Q -0.22 0.5 -0.34 0.5 Q -0.46 0.5 -0.48 0.2 Z';
 
 // From above: a rounded nose, a squared-off tail.
+/*
+ * A person, standing, seen from the front. Head as its own subpath.
+ *
+ * Drawn to fill the unit box in both directions, like every other outline here
+ * — the figure comes out narrow because `aspect` makes the box narrow, not
+ * because the path is drawn small inside a square one. Getting that wrong is
+ * how the car ended up rendering at a sixth of its width.
+ */
+const MAN = 'M 0 -0.5 C 0.1 -0.5 0.15 -0.44 0.15 -0.38 C 0.15 -0.32 0.1 -0.27 0 -0.27 '
+  + 'C -0.1 -0.27 -0.15 -0.32 -0.15 -0.38 C -0.15 -0.44 -0.1 -0.5 0 -0.5 Z '
+  + 'M -0.18 -0.24 L 0.18 -0.24 L 0.36 -0.17 L 0.5 0.14 L 0.36 0.21 L 0.23 -0.06 '
+  + 'L 0.21 0.13 L 0.17 0.5 L 0.04 0.5 L 0 0.19 L -0.04 0.5 L -0.17 0.5 '
+  + 'L -0.21 0.13 L -0.23 -0.06 L -0.36 0.21 L -0.5 0.14 L -0.36 -0.17 Z';
+
+/** The same figure with narrower shoulders and a lower waist. */
+const WOMAN = 'M 0 -0.5 C 0.1 -0.5 0.145 -0.445 0.145 -0.385 C 0.145 -0.325 0.1 -0.275 0 -0.275 '
+  + 'C -0.1 -0.275 -0.145 -0.325 -0.145 -0.385 C -0.145 -0.445 -0.1 -0.5 0 -0.5 Z '
+  + 'M -0.15 -0.245 L 0.15 -0.245 L 0.33 -0.175 L 0.5 0.13 L 0.37 0.2 L 0.23 -0.05 '
+  + 'L 0.24 0.1 L 0.17 0.5 L 0.04 0.5 L 0 0.2 L -0.04 0.5 L -0.17 0.5 '
+  + 'L -0.24 0.1 L -0.23 -0.05 L -0.37 0.2 L -0.5 0.13 L -0.33 -0.175 Z';
+
+/*
+ * The Magbot Rover from the side: a boxy body carried on one big driven wheel
+ * and a smaller one, with the connector stub at the back.
+ */
+const MAGBOT_SIDE =
+  // The body: a box with the corners taken off, sitting clear of the ground.
+  'M -0.42 -0.5 L 0.42 -0.5 Q 0.5 -0.5 0.5 -0.42 L 0.5 0.1 '
+  + 'Q 0.5 0.18 0.42 0.18 L -0.42 0.18 Q -0.5 0.18 -0.5 0.1 '
+  + 'L -0.5 -0.42 Q -0.5 -0.5 -0.42 -0.5 Z '
+  /*
+   * Two wheels, as their own subpaths, so they read as wheels rather than as
+   * an arch bitten out of the bottom edge.
+   *
+   * Drawn as four cubics rather than with `A`, because an arc command carries
+   * flags — `0 1 0` — that are not coordinates, and the tests that check an
+   * outline fills its box read the numbers straight out of the path. An arc
+   * would have them measuring a large-arc flag as a position.
+   */
+  + 'M -0.48 0.28 C -0.48 0.1585 -0.3815 0.06 -0.26 0.06 '
+  + 'C -0.1385 0.06 -0.04 0.1585 -0.04 0.28 '
+  + 'C -0.04 0.4015 -0.1385 0.5 -0.26 0.5 '
+  + 'C -0.3815 0.5 -0.48 0.4015 -0.48 0.28 Z '
+  + 'M 0.04 0.28 C 0.04 0.1585 0.1385 0.06 0.26 0.06 '
+  + 'C 0.3815 0.06 0.48 0.1585 0.48 0.28 '
+  + 'C 0.48 0.4015 0.3815 0.5 0.26 0.5 '
+  + 'C 0.1385 0.5 0.04 0.4015 0.04 0.28 Z';
+
+/** And from above: a square body with a wheel out either side, driving +x. */
+const MAGBOT_TOP =
+  /*
+   * The body, driving +x, with the leading edge rounded off. It runs the full
+   * width of the box because every outline here must: `aspect` is applied on
+   * top of the path, so a shape that stops short of its own box is drawn
+   * smaller than it is, which is how the car once rendered at a sixth of its
+   * width. The wheels do the same job in the other direction.
+   */
+  'M -0.5 -0.3 L 0.3 -0.3 Q 0.5 -0.3 0.5 -0.1 L 0.5 0.1 '
+  + 'Q 0.5 0.3 0.3 0.3 L -0.5 0.3 Z '
+  // A wheel out either side, which is also what tells you which way it drives.
+  + 'M -0.16 -0.5 L 0.2 -0.5 L 0.2 -0.3 L -0.16 -0.3 Z '
+  + 'M -0.16 0.3 L 0.2 0.3 L 0.2 0.5 L -0.16 0.5 Z';
+
 const CAR_TOP = 'M -0.5 -0.38 Q -0.44 -0.5 -0.32 -0.5 L 0.28 -0.5 '
   + 'Q 0.46 -0.46 0.5 0 Q 0.46 0.46 0.28 0.5 L -0.32 0.5 '
   + 'Q -0.44 0.5 -0.5 0.38 Z';
@@ -203,6 +266,86 @@ export const SHAPES = [
       + 'dense than the fluid around it and it goes up, for exactly the reason a '
       + 'stone goes down.',
   },
+  {
+    /*
+     * A person, standing.
+     *
+     * `size` is the width across the shoulders, not the height — every shape
+     * here is measured across, and `aspect` is what makes this one nearly four
+     * times taller than it is wide. The object panel prints the height beside
+     * it, so the number a reader recognises is still on screen.
+     *
+     * The density is the interesting part: about 985 kg/m³, a whisker under
+     * water. That is why a person floats with their lungs full and sinks with
+     * them empty, and it is worth putting one in the fluid step to watch.
+     */
+    id: 'human-m',
+    label: 'Person (man)',
+    cd: 1.15,
+    // 73 kg at 985 kg/m³ is 0.074 m³, across a 0.45 m shoulder width.
+    volume: (s) => 0.813 * s ** 3,
+    // A standing adult presents roughly 0.68 m² to the wind.
+    area: (s) => 3.36 * s * s,
+    support: (s) => (s * 3.91) / 2,
+    aspect: 3.91,
+    rolls: false,
+    align: 'surface',
+    path: MAN,
+    note: 'Reference adult male: 1.76 m, 73 kg, about 0.68 m² of frontal area. '
+      + 'C_d near 1.15 standing — a person is a bluff body, which is why getting '
+      + 'low on a bicycle is worth so much. The density comes out just under '
+      + 'water at roughly 985 kg/m³, so a person floats with full lungs and '
+      + 'sinks with empty ones.',
+  },
+  {
+    id: 'human-f',
+    label: 'Person (woman)',
+    cd: 1.15,
+    // 60 kg at 985 kg/m³ is 0.061 m³, across a 0.40 m shoulder width.
+    volume: (s) => 0.952 * s ** 3,
+    area: (s) => 3.44 * s * s,
+    support: (s) => (s * 4.08) / 2,
+    aspect: 4.08,
+    rolls: false,
+    align: 'surface',
+    path: WOMAN,
+    note: 'Reference adult female: 1.63 m, 60 kg, about 0.55 m² of frontal area. '
+      + 'The same density as any other person, near 985 kg/m³ — terminal velocity '
+      + 'in air differs between the two through mass over area, not through '
+      + 'anything about the shape.',
+  },
+  {
+    /*
+     * The Magbot Rover, which Detronics sells.
+     *
+     * It has wheels and still does not roll, and that is the point worth making
+     * rather than a detail to smooth over: the N20 gearmotors driving them are
+     * heavily reduced and will not back-drive, so an unpowered Magbot does not
+     * coast. The rubber tyres grip instead, and it stops in very little
+     * distance. Marking it `wheeled` would have handed it rolling resistance —
+     * a hundred times weaker — and sent it gliding across the bench like a
+     * trolley, which is the opposite of how the real one behaves.
+     */
+    id: 'magbot',
+    label: 'Magbot Rover',
+    // A bluff box presents the same face to the air as a flat plate does.
+    cd: 1.28,
+    // 12 cm on a side is 0.00173 m³, and 600 g in it gives about 347 kg/m³.
+    volume: (s) => s ** 3,
+    area: (s) => s * s,
+    support: (s) => s / 2,
+    aspect: 1,
+    rolls: false,
+    // Drawn from the side where there is a floor to drive on, from above in space.
+    align: 'travel',
+    path: MAGBOT_SIDE,
+    pathTop: MAGBOT_TOP,
+    note: 'A Detronics Magbot Rover: 12 cm, 600 g, 0.00173 m³. It runs on rubber '
+      + 'tyres driven through N20 gearmotors, and those will not back-drive — so '
+      + 'unpowered it does not coast the way a car does. It grips and stops '
+      + 'almost at once, which is what you want from something that has to hold '
+      + 'a line across a table.',
+  },
 ];
 
 export const shapeById = (id) => SHAPES.find((s) => s.id === id) || SHAPES[0];
@@ -221,6 +364,9 @@ export const shapeById = (id) => SHAPES.find((s) => s.id === id) || SHAPES[0];
  * float in air at 1.225.
  */
 export const TYPICAL = {
+  'human-m': { size: 0.45, mass: 73, of: 'an adult man' },
+  'human-f': { size: 0.4, mass: 60, of: 'an adult woman' },
+  magbot: { size: 0.12, mass: 0.6, of: 'a Magbot Rover' },
   sphere: { size: 0.22, mass: 0.43, of: 'a football' },
   cube: { size: 0.3, mass: 12, of: 'a packed crate' },
   plate: { size: 0.3, mass: 0.6, of: 'a sheet of plywood' },

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById, floats, outline } from '../js/shapes.js';
+import {
+  SHAPES, shapeById, describe, sizeFor, dragComparison, MATERIALS, materialById,
+  floats, outline, TYPICAL, contactKind,
+} from '../js/shapes.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -197,4 +200,86 @@ test('every shape that points somewhere still fills its box after being turned',
       close(Math.max(...ys), 0.5, 1e-9);
     }
   }
+});
+
+/* ------------------------------------------------- people, and a rover -- */
+
+/**
+ * The two people are the same stuff at different scales.
+ *
+ * The number worth pinning is the density: about 985 kg/m³, a whisker under
+ * water. It is why a person floats with their lungs full and sinks with them
+ * empty, and if the volume coefficients ever drift it is the first thing that
+ * would quietly stop being true.
+ */
+test('a person comes out the density of a person', () => {
+  for (const [id, height, mass] of [['human-m', 1.76, 73], ['human-f', 1.63, 60]]) {
+    const t = TYPICAL[id];
+    const d = describe({ shapeId: id, size: t.size, mass: t.mass });
+    assert.equal(t.mass, mass);
+    close(d.height, height, 0.01);
+    // Just under water, so a person floats — barely.
+    close(d.density, 985, 6);
+    assert.ok(d.density < 1000, 'a person who sinks in fresh water is wrong');
+    // A bluff body, nothing like a teardrop.
+    assert.ok(d.cd > 1, `${id} is not a streamlined shape`);
+    assert.equal(d.rolls, false, 'people do not roll');
+  }
+  // Frontal areas: a standing adult is around half to three quarters of a m².
+  close(describe({ shapeId: 'human-m', size: TYPICAL['human-m'].size, mass: 73 }).area, 0.68, 0.02);
+  close(describe({ shapeId: 'human-f', size: TYPICAL['human-f'].size, mass: 60 }).area, 0.55, 0.02);
+});
+
+test('people are taller than they are wide, which is what aspect is for', () => {
+  for (const id of ['human-m', 'human-f']) {
+    const d = describe({ shapeId: id, size: TYPICAL[id].size, mass: TYPICAL[id].mass });
+    assert.ok(d.height > TYPICAL[id].size * 3, `${id} is drawn too squat`);
+    // The centre sits at half the drawn height, so a standing figure rests with
+    // its feet on the floor rather than sunk into it or hovering above it.
+    close(d.support, d.height / 2, 1e-9);
+  }
+});
+
+/**
+ * The Magbot Rover, to the figures on the product.
+ *
+ * 12 cm, 600 g, 0.00173 m³ — and the volume is the one that has to be exact,
+ * because it is what buoyancy reads and it was given rather than derived.
+ */
+test('the Magbot Rover matches the robot it is a model of', () => {
+  const d = describe({ shapeId: 'magbot', size: 0.12, mass: 0.6 });
+  close(d.height, 0.12, 1e-9);
+  close(d.volume, 0.00173, 1e-5);
+  close(d.density, 347, 2);
+  // A bluff box meets the air like a flat plate.
+  close(d.cd, shapeById('plate').cd, 1e-9);
+  close(d.area, 0.0144, 1e-6);
+  close(d.support, 0.06, 1e-9);
+});
+
+/**
+ * It has wheels and it still does not roll.
+ *
+ * The N20 gearmotors driving them are heavily reduced and will not back-drive,
+ * so an unpowered Magbot does not coast — it grips and stops. Marking it as
+ * wheeled would have handed it rolling resistance, one to three orders of
+ * magnitude weaker, and sent it gliding across the bench like a trolley.
+ */
+test('the Magbot grips rather than freewheeling, unlike the car', () => {
+  assert.equal(describe({ shapeId: 'magbot', size: 0.12, mass: 0.6 }).rolls, false);
+  assert.equal(contactKind('magbot').mode, 'sliding');
+  // The car, which does coast, is the contrast worth having in the same test.
+  assert.equal(contactKind('car').mode, 'rolling');
+  assert.equal(contactKind('sphere').mode, 'rolling');
+});
+
+test('the rover and the car are each drawn twice, side on and from above', () => {
+  for (const id of ['magbot', 'car']) {
+    const side = outline(id);
+    const top = outline(id, { topDown: true });
+    assert.ok(side && top, `${id} is missing an outline`);
+    assert.notEqual(side, top, `${id} draws the same picture from both directions`);
+  }
+  // A person looks the same standing whichever way you walk round them.
+  assert.equal(outline('human-m'), outline('human-m', { topDown: true }));
 });

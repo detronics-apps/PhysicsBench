@@ -39,7 +39,7 @@ import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime } from './recorder.js';
-import { renderScene, sceneLegend, sceneCamera, autoView } from './ui/scene-svg.js';
+import { renderScene, sceneLegend, sceneCamera, autoView, boxView } from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
 import { renderTransport, transportNote } from './ui/transport.js';
@@ -907,7 +907,17 @@ function paint(force = false) {
  */
 function takeManualView(draft) {
   if (draft.view.camera.mode === 'manual') return;
-  const now = autoView(shownWorld(), 'main');
+  /*
+   * Whatever is on screen right now — in whichever mode it got there.
+   *
+   * This asked `autoView` instead, which ignores the current view entirely and
+   * answers with the fit-everything box. From `auto` those are the same thing,
+   * so it looked correct. From `follow` they are not: pressing Home and then
+   * zooming threw the reader's magnification away and jumped back out to the
+   * whole scene before starting to zoom in again, which is a long way from
+   * where they were looking.
+   */
+  const now = boxView(sceneCamera(shownWorld(), 'main', state.view).world);
   draft.view.camera = { mode: 'manual', ...now };
 }
 
