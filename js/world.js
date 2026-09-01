@@ -21,7 +21,9 @@
  */
 
 import { vec, add, sub, scale, dot, len, len2, norm, perp, ZERO } from './vec.js';
-import { forcesOn, uniformField, buoyantMass, potentialEnergy, potentialShift } from './forces.js';
+import {
+  forcesOn, uniformField, buoyantMass, potentialEnergy, potentialShift, fieldAt,
+} from './forces.js';
 import { wall as makeWall, nearestContact, isRealWall } from './segments.js';
 import { facing, settleAngle, rollAngle, alongSurface } from './orient.js';
 import { attractionVector, surfaceGravity } from './gravitation.js';
@@ -186,6 +188,16 @@ export function createWorld(spec = {}) {
        * density is looked up at the body's own height instead of read here.
        */
       fluidProfile: spec.fluidProfile ?? null,
+      /*
+       * How the gravitational field behaves with height. 'inverse-square' makes
+       * it fall off as 1/r² from `surfaceRadius`, which is what gravity does;
+       * null keeps the uniform field, which is right where there is no world
+       * for it to fall off from.
+       */
+      fieldProfile: spec.fieldProfile ?? null,
+      surfaceRadius: Number.isFinite(spec.surfaceRadius) && spec.surfaceRadius > 0
+        ? spec.surfaceRadius
+        : null,
       // Where the height in that lookup is measured from. The ground sits at
       // y = 0, so sea level does too unless a scene says otherwise.
       seaLevel: Number.isFinite(spec.seaLevel) ? spec.seaLevel : 0,
@@ -1085,7 +1097,9 @@ export function inspect(world, id) {
     momentum: scale(b.vel, b.mass),
     kinetic: 0.5 * b.mass * len(b.vel) ** 2,
     potential: potentialEnergy(b, world.env, world.ground?.y ?? 0),
-    weight: b.mass * world.env.g,
+    // The weight where the body actually is, not where it started — which is
+    // the only place a reader can watch a 1/r² field do anything.
+    weight: b.mass * len(fieldAt(world.env, b.pos.y)),
     buoyantWeight: buoyantMass(b, world.env) * world.env.g,
     heightAboveGround: height,
     forces: result.forces,

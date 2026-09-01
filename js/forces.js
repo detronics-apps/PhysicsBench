@@ -160,6 +160,39 @@ export function buoyancyForce(volume, fluidDensity, field) {
  * "how dense?". For everything else the answer does not depend on the position
  * and the reading is the same one it always was.
  */
+/**
+ * The gravitational field where a body actually is.
+ *
+ * `g` was computed once at the surface and applied at every height, so a rocket
+ * at 14 km weighed exactly what it did on the pad. It does not: g goes as
+ * 1/r², and 14 km up a 6,371 km radius is 0.44 per cent less. Small, and the
+ * whole point of a step that computes g from a mass and a radius rather than
+ * looking it up — a bench that then treats it as a constant is quietly
+ * contradicting itself.
+ *
+ * `env.g` stays the *surface* value throughout, because that is the number the
+ * world is described by and what every readout means by "surface gravity".
+ */
+export function fieldAt(env = {}, y = 0) {
+  const R = env.surfaceRadius;
+  if (env.fieldProfile !== 'inverse-square' || !(R > 0)) return env.field || ZERO;
+  const r = Math.max(1, R + (y - (env.seaLevel ?? 0)));
+  return vec(0, -(env.g ?? 0) * (R / r) ** 2);
+}
+
+/**
+ * The field at the surface, for the things that are defined against it.
+ *
+ * Only differs from the local field where the field varies with height, and
+ * falls back to whatever field the caller gave — so an env built with a plain
+ * `field` and no `g`, which plenty are, behaves exactly as it always did.
+ */
+export function surfaceField(env = {}, local = ZERO) {
+  return env.fieldProfile === 'inverse-square' && Number.isFinite(env.g)
+    ? vec(0, -env.g)
+    : local;
+}
+
 export function fluidAt(env = {}, y = 0) {
   if (env.fluidProfile === 'isa') {
     const air = atmosphereAt(y - (env.seaLevel ?? 0));
@@ -191,12 +224,22 @@ export function potentialEnergy(body, env = {}, datumY = 0) {
   const y = body.pos?.y ?? 0;
   const volume = Math.max(0, body.volume ?? 0);
 
-  if (env.fluidProfile === 'isa' && volume > 0) {
-    const sea = env.seaLevel ?? 0;
-    const displaced = atmosphereColumn(y - sea) - atmosphereColumn(datumY - sea);
-    return body.mass * g * (y - datumY) - g * volume * displaced;
-  }
-  return buoyantMass(body, env) * g * (y - datumY);
+  const sea = env.seaLevel ?? 0;
+  /*
+   * Lifting something against a field that weakens as you climb costs less than
+   * m·g·h. The exact form is m·g₀·R²·(1/r₀ − 1/r₁), which collapses to m·g·h
+   * for anything near the ground and stays honest for a rocket.
+   */
+  const R = env.surfaceRadius;
+  const gravity = env.fieldProfile === 'inverse-square' && R > 0
+    ? body.mass * g * R * R * (1 / (R + datumY - sea) - 1 / (R + y - sea))
+    : body.mass * g * (y - datumY);
+
+  if (volume <= 0) return gravity;
+  const displaced = env.fluidProfile === 'isa'
+    ? atmosphereColumn(y - sea) - atmosphereColumn(datumY - sea)
+    : fluidAt(env, y).density * (y - datumY);
+  return gravity - g * volume * displaced;
 }
 
 /**
@@ -208,18 +251,25 @@ export function potentialEnergy(body, env = {}, datumY = 0) {
  * the only part that has to know about height.
  */
 export function potentialShift(body, env = {}, fromPos, toPos) {
-  const gravity = -body.mass * dot(env.field ?? ZERO, sub(toPos, fromPos));
+  const sea = env.seaLevel ?? 0;
+  const R = env.surfaceRadius;
+  /*
+   * Against a 1/r² field the work depends on where you started, not just how
+   * far you moved — so this is a difference of two potentials rather than a
+   * force times a displacement. Sideways movement costs nothing either way.
+   */
+  const gravity = env.fieldProfile === 'inverse-square' && R > 0
+    ? body.mass * (env.g ?? 0) * R * R
+      * (1 / (R + fromPos.y - sea) - 1 / (R + toPos.y - sea))
+    : -body.mass * dot(env.field ?? ZERO, sub(toPos, fromPos));
+
   const volume = Math.max(0, body.volume ?? 0);
   if (volume <= 0) return gravity;
 
-  if (env.fluidProfile === 'isa') {
-    const sea = env.seaLevel ?? 0;
-    const displaced = atmosphereColumn(toPos.y - sea) - atmosphereColumn(fromPos.y - sea);
-    return gravity - (env.g ?? 0) * volume * displaced;
-  }
-  // Uniform: the same thing, with the density outside the integral.
-  const density = fluidAt(env, fromPos.y).density;
-  return gravity + density * volume * dot(env.field ?? ZERO, sub(toPos, fromPos));
+  const displaced = env.fluidProfile === 'isa'
+    ? atmosphereColumn(toPos.y - sea) - atmosphereColumn(fromPos.y - sea)
+    : fluidAt(env, fromPos.y).density * (toPos.y - fromPos.y);
+  return gravity - (env.g ?? 0) * volume * displaced;
 }
 
 /** Terminal speed, re-exported: the search lives with the drag model. */
@@ -245,7 +295,7 @@ export const springForce = (extension, k) => force('spring', scale(extension, -k
 export function forcesOn(body, env = {}, contact = null) {
   const mass = Number(body.mass) || 0;
   const velocity = body.vel || ZERO;
-  const field = env.field || ZERO;
+  const field = fieldAt(env, body.pos?.y ?? 0);
 
   /* Step one: everything that does not depend on the surface. */
   const applied = body.applied && len(body.applied) > 0 ? force('applied', body.applied) : null;
@@ -263,8 +313,18 @@ export function forcesOn(body, env = {}, contact = null) {
   const extra = (body.extraForces || []).map((f) => force(f.id || 'applied', f.vec, f.note || ''));
   // Buoyancy needs the volume, not the frontal area — a car and a cube of the
   // same width displace very different amounts of fluid.
+  /*
+   * Buoyancy is worked out at surface gravity even where weight is not.
+   *
+   * Not an oversight: the standard atmosphere's density profile is *derived*
+   * assuming a constant g0, so the fluid this pushes with was defined under
+   * that assumption and using a height-varying g here would be mixing two
+   * models. The difference is four parts in a thousand on a term that is
+   * already small, and keeping it consistent is what lets the energy ledger
+   * close exactly rather than nearly.
+   */
   const buoyancy = local.density > 0 && body.volume > 0
-    ? buoyancyForce(body.volume, local.density, field)
+    ? buoyancyForce(body.volume, local.density, surfaceField(env, field))
     : null;
   // The control force is whatever the pointer or the keyboard is asking for. It
   // is an ordinary force in the ordinary sum — that is the whole reason driving

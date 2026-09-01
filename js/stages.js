@@ -463,6 +463,14 @@ export function build(stageId, p) {
     g,
     field: gravityMode === 'uniform' ? vec(0, -g) : vec(0, 0),
     mutualGravity: gravityMode === 'mutual',
+    /*
+     * On a world, the field weakens with height as gravity actually does. The
+     * step that computes g from a mass and a radius would be contradicting
+     * itself to then hold it constant — and it is what lets a rocket climbing
+     * to 14 km show its weight falling, by 0.44 per cent, on the readout.
+     */
+    fieldProfile: gravityMode === 'uniform' ? 'inverse-square' : null,
+    surfaceRadius: gravityMode === 'uniform' ? p.planetRadius : null,
     fluidDensity: fluid.density,
     viscosity: fluid.viscosity,
     // Only the atmosphere carries one; everything else is uniform.

@@ -172,8 +172,19 @@ test('a tilted surface splits the weight, and the two parts add back up', () => 
     const { world } = run('friction', { mass: 4, slopeDeg, shapeId: 'cube', size: 0.4, pushForce: 0, pushSeconds: 0, muS: 0, muK: 0 });
     const main = inspect(world, 'main');
     const rad = (slopeDeg * Math.PI) / 180;
-    close(main.forces.find((f) => f.id === 'normal').magnitude, 4 * g * Math.cos(rad), 1e-6);
-    close(main.net.magnitude, 4 * g * Math.sin(rad), 1e-6);
+    /*
+     * Against the weight *there*, not against surface gravity.
+     *
+     * The field falls off as 1/r² now, so a cube resting a quarter of a metre
+     * up weighs a hair less than one on the ground — eight significant figures
+     * in, which is exactly where this used to fail. The split into a part
+     * pressing in and a part left over is what this test is about, and it holds
+     * whatever the weight happens to be.
+     */
+    close(main.forces.find((f) => f.id === 'normal').magnitude, main.weight * Math.cos(rad), 1e-9);
+    close(main.net.magnitude, main.weight * Math.sin(rad), 1e-9);
+    // And that weight really is within a whisker of the surface figure.
+    assert.ok(Math.abs(main.weight / (4 * g) - 1) < 1e-6);
   }
 });
 
@@ -194,7 +205,8 @@ test('step 6: friction holds up to μs·N, then drops to μk·N', () => {
 
   const broken = inspect(run('friction', { ...base, pushForce: 30 }).world, 'main');
   assert.equal(broken.contact.frictionMode, 'breaking-away');
-  close(broken.forces.find((f) => f.id === 'friction').magnitude, 0.35 * 4 * g, 1e-6);
+  // μk times the weight where it is, for the same reason as above.
+  close(broken.forces.find((f) => f.id === 'friction').magnitude, 0.35 * broken.weight, 1e-9);
 });
 
 test('step 7: the fluid decides the regime, not the object', () => {

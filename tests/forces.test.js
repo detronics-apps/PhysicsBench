@@ -5,6 +5,8 @@ import { vec, len, fromPolarDeg, perp, dot, ZERO } from '../js/vec.js';
 import {
   FORCE_STYLE, forcesOn, weightForce, dragForce, springForce, buoyancyForce, buoyantMass,
   inEquilibrium, accelerationFrom, forceFor, uniformField,
+  fieldAt,
+  potentialEnergy,
 } from '../js/forces.js';
 import { G_STANDARD } from '../js/constants.js';
 import { terminalSpeed } from '../js/drag.js';
@@ -334,4 +336,62 @@ test('a contact reports which way its surface faces, whatever surface it is', ()
   // No contact means no normal at all, rather than a plausible-looking default
   // the stepper could pick up and use.
   assert.equal(forcesOn({ mass: 1, vel: ZERO, pos: vec(0, 0) }, {}, null).contact.normal, null);
+});
+
+/**
+ * Gravity is an equation, not a number.
+ *
+ * `g` was worked out once at the surface and applied at every height, so a
+ * rocket at 14 km weighed exactly what it did on the pad. A step that computes
+ * g from a mass and a radius and then treats it as a constant is contradicting
+ * itself, and the whole point of climbing is that the number should move.
+ */
+test('the field falls off as one over r squared', () => {
+  const R = 6.371e6;
+  const env = { g: 9.8203, field: vec(0, -9.8203), fieldProfile: 'inverse-square', surfaceRadius: R };
+
+  close(len(fieldAt(env, 0)), 9.8203, 1e-9);
+  // Against the closed form, at heights worth caring about.
+  for (const h of [1000, 14000, 100000, 400000]) {
+    close(len(fieldAt(env, h)), 9.8203 * (R / (R + h)) ** 2, 1e-9);
+  }
+  // 14 km up a 6,371 km radius is a shade under half a percent.
+  const drop = 1 - len(fieldAt(env, 14000)) / len(fieldAt(env, 0));
+  assert.ok(drop > 0.004 && drop < 0.005, `${(drop * 100).toFixed(3)}% at 14 km`);
+  // It weakens, and never strengthens, going up.
+  assert.ok(len(fieldAt(env, 1000)) < len(fieldAt(env, 0)));
+  assert.ok(len(fieldAt(env, 100000)) < len(fieldAt(env, 1000)));
+});
+
+test('a world without a radius keeps the field it was given', () => {
+  // Deep space, and every env built before this existed.
+  const plain = { field: vec(0, -9.81) };
+  close(len(fieldAt(plain, 0)), 9.81, 1e-12);
+  close(len(fieldAt(plain, 500000)), 9.81, 1e-12);
+  assert.deepEqual(fieldAt({ field: ZERO }, 1000), ZERO);
+});
+
+/**
+ * And the energy has to follow the force.
+ *
+ * Lifting against a field that weakens costs less than m·g·h. Keep using m·g·h
+ * and every frame books a little energy that was never there — the same trap
+ * the atmosphere set, arriving through a different door.
+ */
+test('potential against a falling-off field is not m·g·h', () => {
+  const R = 6.371e6;
+  const g = 9.8203;
+  const env = { g, field: vec(0, -g), fieldProfile: 'inverse-square', surfaceRadius: R, seaLevel: 0 };
+  const at = (y) => potentialEnergy({ mass: 1000, pos: vec(0, y), volume: 0 }, env, 0);
+
+  assert.equal(at(0), 0);
+  // Near the ground the two agree to a couple of parts per million — which is
+  // why nobody needed this until something climbed.
+  assert.ok(Math.abs(at(10) / (1000 * g * 10) - 1) < 1e-5);
+  // High up they do not: the exact form is the cheaper one.
+  const naive = 1000 * g * 100000;
+  assert.ok(at(100000) < naive, 'lifting should cost less against a weaker field');
+  assert.ok(Math.abs(at(100000) / naive - 1) > 0.01, 'and noticeably less by 100 km');
+  // Against the closed form m·g·R²·(1/R − 1/(R+h)).
+  close(at(100000), 1000 * g * R * R * (1 / R - 1 / (R + 100000)), 1e-3);
 });
