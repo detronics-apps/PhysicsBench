@@ -8,6 +8,7 @@ import { advance, inspect, totals, findBody } from '../js/world.js';
 import { slipAngle, ROLLING_DEFAULT } from '../js/friction.js';
 import { SHAPES, MATERIALS } from '../js/shapes.js';
 import { FLUIDS } from '../js/drag.js';
+import { controlForce } from '../js/control.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -69,6 +70,15 @@ test('an example survives the trip through migrate intact', () => {
         assert.equal(state.bench[key].length, value.length, `${e.id}: ${key} length`);
       } else if (typeof value === 'number') {
         close(state.bench[key], value, Math.max(1e-9, Math.abs(value) * 1e-9));
+      } else if (value && typeof value === 'object') {
+        // A grouped setting such as `control`. Checked field by field rather
+        // than as a whole, because migrate is entitled to fill in keys the
+        // patch left out and that is not the patch being lost.
+        for (const [k, v] of Object.entries(value)) {
+          const got = state.bench[key]?.[k];
+          if (typeof v === 'number') close(got, v, Math.max(1e-9, Math.abs(v) * 1e-9));
+          else assert.equal(got, v, `${e.id}: ${key}.${k}`);
+        }
       } else {
         assert.equal(state.bench[key], value, `${e.id}: ${key}`);
       }
@@ -407,4 +417,91 @@ test('the shot arrives and stays arrived', () => {
     wasFalling = shot.vel.y < -0.5;
   }
   assert.equal(bounces, 0, 'the default shot should fly a clean arc into its target');
+});
+
+/* ------------------------------------------------------- the rover track -- */
+
+/**
+ * The rover can be driven a lap without leaving the track.
+ *
+ * The point of the example is that the walls and the water are the only things
+ * acting, so both have to actually work. This drives the real control force —
+ * not a velocity written onto the body — through a lap, and asserts the rover
+ * stays in the lane the whole way, chicanes included.
+ */
+test('the rover drives a lap of its track and the walls hold it', () => {
+  const state = exampleState('rover-on-a-track');
+  const scenario = build(state.stage, state.bench);
+  assert.ok(scenario.features.has('control'), 'the step should offer control');
+
+  // No ground and no field is exactly the test the renderer makes for a plan
+  // view, so this is also what pins the example to being seen from above.
+  assert.ok(!scenario.world.ground, 'deep space should have no ground');
+  close(scenario.world.env?.field?.y ?? 0, 0, 1e-9);
+
+  const plan = [['ArrowUp', 1.2], ['ArrowLeft', 3.4], ['ArrowDown', 1.6],
+    ['ArrowRight', 3.6], ['ArrowUp', 1.2]];
+  let world = scenario.world;
+  const seen = new Set();
+  for (const [key, secs] of plan) {
+    const keys = new Set([key]);
+    for (let i = 0; i < Math.round(secs * 240); i++) {
+      const b = findBody(world, 'main');
+      const f = controlForce({ mode: 'keyboard', body: b, keys,
+        strength: state.bench.control.strength });
+      world = { ...world,
+        bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: f } : x)) };
+      world = advance(world, 1 / 240);
+
+      const c = findBody(world, 'main');
+      // Outside the outer wall, which reaches x = ±2.4 and y = ±1.65.
+      assert.ok(Math.abs(c.pos.x) < 2.5 && Math.abs(c.pos.y) < 1.75,
+        `left the track at (${c.pos.x.toFixed(2)}, ${c.pos.y.toFixed(2)})`);
+      // A box wholly inside the island: the rover has no business in there.
+      assert.ok(!(Math.abs(c.pos.x) < 1.4 && Math.abs(c.pos.y) < 0.45),
+        `went through the island at (${c.pos.x.toFixed(2)}, ${c.pos.y.toFixed(2)})`);
+      seen.add(`${c.pos.x >= 0 ? 'e' : 'w'}${c.pos.y >= 0 ? 'n' : 's'}`);
+    }
+  }
+  // A lap, not a wiggle: every quarter of the circuit was visited.
+  assert.equal(seen.size, 4, `only reached ${[...seen].join(', ')}`);
+});
+
+/**
+ * The water is what gives the rover a top speed, and it obeys the square root.
+ *
+ * This is the whole teaching claim of the example and it is stated in the text
+ * as a number, so it is worth holding: drag grows with the square of the speed,
+ * so the speed where it balances a steady thrust grows with the square root of
+ * that thrust. Nine times the engine is three times the speed, not nine.
+ */
+test('in water the rover settles at a top speed that goes as the root of thrust', () => {
+  const state = exampleState('rover-on-a-track');
+  const settle = (strength) => {
+    // Open water, so the answer is about the fluid and not about a wall.
+    const p = { ...state.bench, walls: [], x0: 0, dropHeight: 0 };
+    let world = build(state.stage, p).world;
+    const keys = new Set(['ArrowRight']);
+    for (let i = 0; i < 240 * 6; i++) {
+      const b = findBody(world, 'main');
+      const f = controlForce({ mode: 'keyboard', body: b, keys, strength });
+      world = { ...world,
+        bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: f } : x)) };
+      world = advance(world, 1 / 240);
+    }
+    const b = findBody(world, 'main');
+    return Math.hypot(b.vel.x, b.vel.y);
+  };
+
+  const base = settle(10);
+  assert.ok(base > 0.5 && base < 1.2, `unexpected settled speed ${base}`);
+  // Within 1%: nine times the thrust is three times the speed.
+  for (const factor of [4, 9]) {
+    const got = settle(10 * factor) / base;
+    close(got, Math.sqrt(factor), 0.01 * Math.sqrt(factor));
+  }
+
+  // And the example ships a strength that actually settles somewhere sensible.
+  const shipped = settle(state.bench.control.strength);
+  assert.ok(shipped > 1 && shipped < 2, `shipped top speed ${shipped} m/s`);
 });

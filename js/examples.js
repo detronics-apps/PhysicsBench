@@ -387,6 +387,132 @@ export const EXAMPLES = [
         + 'travelling faster along the ground.',
     },
   },
+  {
+    id: 'rover-on-a-track',
+    title: 'Drive the rover round a flooded track',
+    blurb: 'Arrow keys or WASD. The water is both the brake and the speed limit.',
+    watch: 'Hold a key and the rover does not keep gaining speed — it settles at '
+      + 'one. Let go and it stops in about a third of a metre. Both of those are '
+      + 'the water, and between them they are what makes it driveable at all.',
+    stage: 'collide',
+    /*
+     * Water is the point of this one, not the track.
+     *
+     * The keys apply a force, so in an empty world the rover would accelerate
+     * for as long as a key was held and never stop once released — true, and
+     * unusable as a driving example. Filling the track with water puts a drag
+     * force on the other side of the sum, and because drag grows with the
+     * square of the speed it settles the rover at the speed where the two
+     * cancel. That gives brakes and a top speed out of one mechanism.
+     *
+     * Deep space is how the view gets to be from above: `topDown` is chosen
+     * when there is no ground and no field, so a plan view and a floor are the
+     * same switch. There being no gravity also means buoyancy is exactly zero
+     * here — ρVg with g at nothing — so the water only ever resists motion,
+     * which is the one thing this example wants from it.
+     *
+     * The chicane on each long side is there because a constant-radius oval
+     * only ever asks one question. A corner that reverses makes the momentum
+     * you built up on the straight into a problem to solve.
+     */
+    params: {
+      shapeId: 'magbot',
+      size: 0.12,
+      mass: 0.6,
+      // On the right-hand straight, halfway along it.
+      x0: 1.95,
+      dropHeight: 0,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      worldMode: 'space',
+      fluidId: 'water',
+      collisions: true,
+      // 30 m/s² of engine settles at about 1.39 m/s in water, which is a lap of
+      // this track in roughly eight seconds.
+      control: { mode: 'keyboard', targetId: 'main', strength: 30 },
+      objects: [],
+      cannons: [],
+      /*
+       * Both walls are offsets of one centreline, 0.45 m either side, so the
+       * lane is 0.9 m wide the whole way round including through the chicanes.
+       * Drawing the two walls independently does not hold the width: it pinches
+       * wherever the curvature changes. The centreline is a path — straight,
+       * turn, straight — which is what keeps every join tangent-continuous;
+       * a kink in it opens a gap in both walls.
+       *
+       * Each chicane turns one way, twice back, then out again, so it nets to
+       * no change in heading and no change in offset, and the loop still closes.
+       */
+      walls: [
+        { x1: 2.4, y1: 0, x2: 2.4, y2: 0.5, bulge: 0, restitution: 0.3, mu: 0.5 },
+        { x1: 2.4, y1: 0.5, x2: 1.25, y2: 1.65, bulge: -0.3368, restitution: 0.3, mu: 0.5 },
+        { x1: 1.25, y1: 1.65, x2: 0.3638, y2: 1.3664, bulge: -0.0726, restitution: 0.3, mu: 0.5 },
+        { x1: 0.3638, y1: 1.3664, x2: -0.3638, y2: 1.3664, bulge: 0.1164, restitution: 0.3, mu: 0.5 },
+        { x1: -0.3638, y1: 1.3664, x2: -1.25, y2: 1.65, bulge: -0.0726, restitution: 0.3, mu: 0.5 },
+        { x1: -1.25, y1: 1.65, x2: -2.4, y2: 0.5, bulge: -0.3368, restitution: 0.3, mu: 0.5 },
+        { x1: -2.4, y1: 0.5, x2: -2.4, y2: -0.5, bulge: 0, restitution: 0.3, mu: 0.5 },
+        { x1: -2.4, y1: -0.5, x2: -1.25, y2: -1.65, bulge: -0.3368, restitution: 0.3, mu: 0.5 },
+        { x1: -1.25, y1: -1.65, x2: -0.3638, y2: -1.3664, bulge: -0.0726, restitution: 0.3, mu: 0.5 },
+        { x1: -0.3638, y1: -1.3664, x2: 0.3638, y2: -1.3664, bulge: 0.1164, restitution: 0.3, mu: 0.5 },
+        { x1: 0.3638, y1: -1.3664, x2: 1.25, y2: -1.65, bulge: -0.0726, restitution: 0.3, mu: 0.5 },
+        { x1: 1.25, y1: -1.65, x2: 2.4, y2: -0.5, bulge: -0.3368, restitution: 0.3, mu: 0.5 },
+        { x1: 2.4, y1: -0.5, x2: 2.4, y2: 0, bulge: 0, restitution: 0.3, mu: 0.5 },
+        { x1: 1.5, y1: 0, x2: 1.5, y2: 0.5, bulge: 0, restitution: 0.3, mu: 0.5 },
+        { x1: 1.5, y1: 0.5, x2: 1.25, y2: 0.75, bulge: -0.0732, restitution: 0.3, mu: 0.5 },
+        { x1: 1.25, y1: 0.75, x2: 0.8862, y2: 0.6336, bulge: -0.0298, restitution: 0.3, mu: 0.5 },
+        { x1: 0.8862, y1: 0.6336, x2: -0.8862, y2: 0.6336, bulge: 0.2836, restitution: 0.3, mu: 0.5 },
+        { x1: -0.8862, y1: 0.6336, x2: -1.25, y2: 0.75, bulge: -0.0298, restitution: 0.3, mu: 0.5 },
+        { x1: -1.25, y1: 0.75, x2: -1.5, y2: 0.5, bulge: -0.0732, restitution: 0.3, mu: 0.5 },
+        { x1: -1.5, y1: 0.5, x2: -1.5, y2: -0.5, bulge: 0, restitution: 0.3, mu: 0.5 },
+        { x1: -1.5, y1: -0.5, x2: -1.25, y2: -0.75, bulge: -0.0732, restitution: 0.3, mu: 0.5 },
+        { x1: -1.25, y1: -0.75, x2: -0.8862, y2: -0.6336, bulge: -0.0298, restitution: 0.3, mu: 0.5 },
+        { x1: -0.8862, y1: -0.6336, x2: 0.8862, y2: -0.6336, bulge: 0.2836, restitution: 0.3, mu: 0.5 },
+        { x1: 0.8862, y1: -0.6336, x2: 1.25, y2: -0.75, bulge: -0.0298, restitution: 0.3, mu: 0.5 },
+        { x1: 1.25, y1: -0.75, x2: 1.5, y2: -0.5, bulge: -0.0732, restitution: 0.3, mu: 0.5 },
+        { x1: 1.5, y1: -0.5, x2: 1.5, y2: 0, bulge: 0, restitution: 0.3, mu: 0.5 },
+      ],
+    },
+    arrows: ['velocity', 'control', 'drag', 'net'],
+    teach: {
+      how: 'Holding a key applies a steady force and F = ma turns it into an '
+        + 'acceleration. The water pushes back with a drag force that grows '
+        + 'with the square of the speed, so the faster the rover goes the '
+        + 'harder the water resists. It stops speeding up at the point where '
+        + 'drag has grown to match the thrust: the net force is then zero and '
+        + 'the speed holds steady. Let go and the thrust vanishes while the '
+        + 'drag does not, which is what stops it.',
+      tryThis: [
+        'Drive a lap. Notice the rover reaches a speed and stays there rather '
+        + 'than getting faster and faster.',
+        'Let go on a straight and watch how far it drifts. It is about a third '
+        + 'of a metre, and it is under 0.05 m/s within a second and a bit.',
+        'Turn the engine strength up from 30 to 90 — three times the thrust. '
+        + 'The top speed does not treble, it goes from about 1.4 to about 2.4 '
+        + 'm/s. Nine times the thrust would be needed to treble it.',
+        'Take a chicane at full speed, then take it braking first. The rover '
+        + 'that arrives slower gets through without touching a wall.',
+        'Switch the fluid to air and try the same lap. The brakes are gone.',
+      ],
+      watch: [
+        'The control arrow is a fixed length while a key is held — the engine '
+        + 'does not know or care how fast the rover is going.',
+        'The drag arrow starts at nothing and grows as the rover speeds up. '
+        + 'Watch it until it is exactly as long as the control arrow.',
+        'At that moment the net force arrow disappears. That is what a top '
+        + 'speed is: not the engine running out, but the resistance catching up.',
+        'Let go and the control arrow vanishes while the drag arrow does not — '
+        + 'so the net force now points backwards, and that is the brake.',
+      ],
+      learn: 'Anything moving through a fluid has a top speed, and it is set by '
+        + 'where drag catches thrust rather than by the engine. Because drag '
+        + 'goes with the square of the speed, the arithmetic is unkind: four '
+        + 'times the push buys twice the speed, and nine times buys three. That '
+        + 'is the same sum that decides a terminal velocity for a falling '
+        + 'skydiver, the top speed of a ship, and why the last few miles per '
+        + 'hour of a car cost more engine than all the rest put together.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;
