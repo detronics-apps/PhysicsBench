@@ -299,7 +299,43 @@ export const defaults = () => ({
   // `tool` is what the drawing surface currently does when you drag on it.
   // It lives here rather than in the module because arming it has to survive a
   // re-render, and nowhere else does.
-  ui: { sections: {}, tool: 'none' },
+  ui: {
+    sections: {},
+    tool: 'none',
+
+    /*
+     * How the run is recorded, and what that costs.
+     *
+     * Every number here is a real trade rather than a preference, which is why
+     * the settings panel prints the measured error beside each rate instead of
+     * asking anyone to guess. Sampling finer catches sharper peaks; the only
+     * quantities that move are the fast-reversing ones, and a fixed frame budget
+     * means catching them costs simulated seconds of history.
+     */
+    recording: {
+      // Frames held. 18,000 is five minutes at 1x, and measures 56 MB with five
+      // objects on the bench, 88 MB with ten - against 105 MB for the 4,000
+      // frames and 67 seconds this replaces.
+      budget: 18000,
+      // Simulated seconds kept at the full rate before history is thinned.
+      window: 60,
+      halveHistory: true,
+      // Never thin history below this, however coarse the live rate gets:
+      // halving 20/s would leave 10/s, where a peak reads a third low.
+      floor: 30,
+      /*
+       * Playback speed to samples per simulated second.
+       *
+       * Slower means you are inspecting, so it buys resolution - 0.1x records
+       * every physics step. Faster means you are skimming, so it spends
+       * resolution on reach. The product is close to flat, so recording never
+       * costs more per wall-clock second just because the clock is turned up.
+       */
+      rates: {
+        '0.1': 240, '0.25': 120, '1': 60, '2': 30, '4': 20,
+      },
+    },
+  },
 });
 
 export const state = defaults();
@@ -312,6 +348,28 @@ const bool = (value, fallback) => (typeof value === 'boolean' ? value : fallback
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 /** Positive masses only. A zero mass divides by zero in F = ma. */
 const mass = (value, fallback) => clamp(value, 1e-6, 1e32, fallback);
+
+/**
+ * Recording settings, coerced.
+ *
+ * A share link is a string a stranger can edit, so a rate of zero or a budget
+ * of a billion has to come out of here as something the recorder can live
+ * with. Rates are clamped to the range the physics can actually offer: 240 is
+ * every step, and below 10 a peak reads more than a third low.
+ */
+function recordingFrom(incoming, d) {
+  const rates = {};
+  for (const [speed, fallback] of Object.entries(d.rates)) {
+    rates[speed] = clamp(incoming?.rates?.[speed], 5, 240, fallback);
+  }
+  return {
+    budget: Math.round(clamp(incoming?.budget, 1000, 60000, d.budget)),
+    window: clamp(incoming?.window, 0, 300, d.window),
+    halveHistory: typeof incoming?.halveHistory === 'boolean' ? incoming.halveHistory : d.halveHistory,
+    floor: clamp(incoming?.floor, 5, 240, d.floor),
+    rates,
+  };
+}
 
 /**
  * A push, as a size and a direction — never a negative size.
@@ -454,6 +512,7 @@ export function migrate(incoming) {
     ui: {
       sections: sectionFlags(incoming.ui?.sections),
       tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
+      recording: recordingFrom(incoming.ui?.recording, base.ui.recording),
     },
   };
 }

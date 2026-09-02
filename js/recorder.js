@@ -57,27 +57,147 @@ export const CHANNELS = [
 
 export const channelById = (id) => CHANNELS.find((c) => c.id === id) || null;
 
+/** The rates the speed selector maps onto, and what each one costs in fidelity.
+ *
+ * Measured against the 240/s physics step across every prepared example: the
+ * worst any channel's peak is understated by, when sampled at that rate. Only
+ * fast-reversing quantities move — a velocity component through a bounce.
+ * Height, position and energy stay under 0.6% at every rate here.
+ */
+export const RATE_ERROR = [
+  { rate: 240, error: 0 },
+  { rate: 120, error: 0.85 },
+  { rate: 60, error: 3.1 },
+  { rate: 30, error: 9.3 },
+  { rate: 20, error: 15.5 },
+  { rate: 15, error: 21.69 },
+  { rate: 10, error: 34.07 },
+];
+
+/** The measured cost of sampling at a rate, for the settings panel. */
+export const errorAt = (rate) => {
+  const exact = RATE_ERROR.find((r) => r.rate === rate);
+  if (exact) return exact.error;
+  // Between two measured rates, straight-line it rather than invent precision.
+  const above = [...RATE_ERROR].reverse().find((r) => r.rate >= rate);
+  const below = RATE_ERROR.find((r) => r.rate <= rate);
+  if (!above || !below || above.rate === below.rate) return (above || below || { error: 0 }).error;
+  const f = (rate - below.rate) / (above.rate - below.rate);
+  return below.error + (above.error - below.error) * f;
+};
+
+/**
+ * How many frames a run of `seconds` needs under a given policy, and how much
+ * of a run a budget buys. Both are wanted by the settings panel before
+ * anything has been recorded, so they are arithmetic rather than measurement.
+ */
+export const framesFor = (seconds, { rate, historyRate, window }) =>
+  (seconds <= window ? rate * seconds : rate * window + historyRate * (seconds - window));
+
+export const secondsFor = (budget, { rate, historyRate, window }) => {
+  const inWindow = rate * window;
+  if (budget <= inWindow) return budget / rate;
+  return window + (budget - inWindow) / historyRate;
+};
+
 /**
  * @param {object} options
- * @param {number} options.capacity   frames kept; the oldest are dropped
- * @param {number} options.interval   minimum simulated seconds between frames
+ * @param {number} options.capacity     frames kept; the oldest are dropped
+ * @param {number} options.rate         samples per simulated second, live end
+ * @param {number} options.historyRate  samples per second once past the window
+ * @param {number} options.window       simulated seconds kept at the full rate
  */
-export function createRecorder({ capacity = 3000, interval = 1 / 120 } = {}) {
-  return { frames: [], capacity, interval, lastT: -Infinity, events: [] };
+export function createRecorder({
+  capacity = 18000, rate = null, historyRate = null, window = 60, interval = null,
+} = {}) {
+  // `interval` was the original way to ask for a rate and still reads more
+  // naturally at a call site that thinks in seconds, so both are accepted.
+  const perSecond = rate && rate > 0 ? rate : (interval && interval > 0 ? 1 / interval : 60);
+  const history = historyRate && historyRate > 0 ? Math.min(historyRate, perSecond) : perSecond;
+  return {
+    frames: [],
+    capacity,
+    rate: perSecond,
+    historyRate: history,
+    window,
+    // Kept so nothing outside has to know the rate is now the primary setting.
+    interval: 1 / perSecond,
+    lastT: -Infinity,
+    lastDemoted: -Infinity,
+    flags: { relativistic: false, diverged: false, collision: false },
+    cannonFull: null,
+  };
+}
+
+/**
+ * Fold a world's events into the handful of answers anything actually asks.
+ *
+ * The events used to be kept as a list, which sounds harmless and was not: a
+ * run of the target-shooting example reaches 46,000 of them, and `record` was
+ * copying the whole array on every frame that had one — O(n) per frame and
+ * O(n^2) over a run, measured at 758 microseconds a frame after two minutes.
+ * Nothing ever read the list. Four places ask whether a kind of event has
+ * happened at all, and one wants the cannon-full event itself, so that is what
+ * is kept.
+ */
+function foldEvents(recorder, events) {
+  if (!events || !events.length) return recorder;
+  let { relativistic, diverged, collision } = recorder.flags;
+  let cannonFull = recorder.cannonFull;
+  let changed = false;
+  for (const e of events) {
+    if (e.type === 'relativistic' && !relativistic) { relativistic = true; changed = true; }
+    else if (e.type === 'diverged' && !diverged) { diverged = true; changed = true; }
+    else if (e.type === 'collision' && !collision) { collision = true; changed = true; }
+    else if (e.type === 'cannon-full' && !cannonFull) { cannonFull = e; changed = true; }
+  }
+  if (!changed) return recorder;
+  return { ...recorder, flags: { relativistic, diverged, collision }, cannonFull };
+}
+
+/**
+ * Demote everything that has just aged out of the window.
+ *
+ * Each frame is thinned exactly once, as it crosses the boundary, so history
+ * settles at a true `historyRate` and stays there however long the run goes.
+ * Thinning repeatedly instead would drive the oldest data toward nothing: the
+ * same buffer measured 0.7 samples a second at the far end after three
+ * minutes, and the peaks in it went with it.
+ *
+ * `lastDemoted` is the boundary already dealt with, so a step only ever looks
+ * at the sliver of frames that crossed since the last one.
+ */
+function demote(recorder, now) {
+  const edge = now - recorder.window;
+  if (recorder.historyRate >= recorder.rate || edge <= recorder.lastDemoted) return recorder;
+
+  const gap = 1 / recorder.historyRate;
+  const kept = [];
+  let lastKept = -Infinity;
+  let dropped = false;
+  for (const f of recorder.frames) {
+    if (f.t >= edge) { kept.push(f); continue; }
+    // Already demoted on an earlier pass: leave it exactly as it is.
+    if (f.t < recorder.lastDemoted) { kept.push(f); lastKept = f.t; continue; }
+    if (f.t - lastKept >= gap - 1e-9) { kept.push(f); lastKept = f.t; }
+    else dropped = true;
+  }
+  if (!dropped) return { ...recorder, lastDemoted: edge };
+  return { ...recorder, frames: kept, lastDemoted: edge };
 }
 
 /**
  * Record the current state, if enough simulated time has passed.
  *
- * Returns a new recorder. Frames carry both the numbers for the graph and a
- * full body snapshot, so scrubbing backwards restores the drawing exactly
- * rather than re-simulating and hoping for the same answer.
+ * Returns a new recorder. A frame carries the numbers for the graph and where
+ * every body was, which is enough to redraw the scene when scrubbing. What it
+ * deliberately does not carry is each body's trail: that was 97% of a frame
+ * and 720 MB at ten objects, and it is already implied by the positions in the
+ * frames before it — `trailAt` reads it back out.
  */
 export function record(recorder, world, { bodyId = null, force = false } = {}) {
   if (!force && world.t - recorder.lastT < recorder.interval - 1e-12) {
-    return recorder.events.length === world.events.length
-      ? recorder
-      : { ...recorder, events: [...recorder.events, ...world.events] };
+    return foldEvents(recorder, world.events);
   }
 
   const t = totals(world);
@@ -94,21 +214,50 @@ export function record(recorder, world, { bodyId = null, force = false } = {}) {
     bodies: world.bodies.map((b) => ({
       id: b.id, pos: { ...b.pos }, vel: { ...b.vel }, mass: b.mass,
       radius: b.radius, width: b.width, height: b.height, kind: b.kind,
-      colour: b.colour, label: b.label, fixed: b.fixed, trail: [...b.trail],
+      colour: b.colour, label: b.label, fixed: b.fixed,
     })),
     ledger: { ...world.ledger },
   };
 
-  const frames = [...recorder.frames, frame];
-  return {
-    ...recorder,
-    lastT: world.t,
-    frames: frames.length > recorder.capacity ? frames.slice(frames.length - recorder.capacity) : frames,
-    events: world.events.length ? [...recorder.events, ...world.events] : recorder.events,
-  };
+  let next = foldEvents({ ...recorder, lastT: world.t, frames: [...recorder.frames, frame] },
+    world.events);
+  next = demote(next, world.t);
+  if (next.frames.length > next.capacity) {
+    next = { ...next, frames: next.frames.slice(next.frames.length - next.capacity) };
+  }
+  return next;
 }
 
-export const clear = (recorder) => ({ ...recorder, frames: [], events: [], lastT: -Infinity });
+/**
+ * A body's trail at a moment, read back out of the frames.
+ *
+ * The live world keeps a trail as it goes; a scrubbed frame has to have one
+ * rebuilt, and every position it needs is already sitting in the frames before
+ * it. Reading it back costs nothing to store and is exact wherever the path is
+ * smooth — the worst it drifts from the true 240/s path across the prepared
+ * examples is 26 mm, on the corner of a bounce, which is 9% of the ball
+ * drawing it.
+ */
+export function trailAt(recorder, bodyId, t, seconds = 3) {
+  const { frames } = recorder;
+  const out = [];
+  for (const f of frames) {
+    if (f.t > t + 1e-9) break;
+    if (f.t < t - seconds) continue;
+    const b = f.bodies.find((x) => x.id === bodyId);
+    if (b) out.push({ x: b.pos.x, y: b.pos.y });
+  }
+  return out;
+}
+
+export const clear = (recorder) => ({
+  ...recorder,
+  frames: [],
+  lastT: -Infinity,
+  lastDemoted: -Infinity,
+  flags: { relativistic: false, diverged: false, collision: false },
+  cannonFull: null,
+});
 
 export const duration = (recorder) =>
   (recorder.frames.length ? recorder.frames[recorder.frames.length - 1].t - recorder.frames[0].t : 0);

@@ -7,6 +7,7 @@ import { createWorld, advance } from '../js/world.js';
 import {
   CHANNELS, channelById, createRecorder, record, clear, duration, startTime, endTime,
   frameAt, indexAt, series, multiSeries, valueAt, extremes, firstCrossing,
+  trailAt, errorAt, secondsFor, framesFor, RATE_ERROR,
 } from '../js/recorder.js';
 
 const close = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -148,4 +149,176 @@ test('clear empties the recording without losing its settings', () => {
   assert.equal(empty.interval, rec.interval);
   assert.equal(empty.capacity, rec.capacity);
   assert.equal(duration(empty), 0);
+});
+
+/* ------------------------------------------------- rates and the history -- */
+
+/** A ball bouncing along, recorded under a given policy. */
+function bouncing({ rate = 60, historyRate = null, window = 60, capacity = 18000, seconds = 6 } = {}) {
+  let world = createWorld({
+    gravity: vec(0, -g),
+    bodies: [{
+      id: 'a', mass: 2, radius: 0.2, pos: vec(0, 4), vel: vec(1.5, 0),
+      cd: 0, area: 0, restitution: 0.7,
+    }],
+    ground: { y: 0 },
+  });
+  let rec = createRecorder({ rate, historyRate, window, capacity });
+  rec = record(rec, world, { bodyId: 'a', force: true });
+  for (let i = 0; i < seconds * 240; i += 1) {
+    world = advance(world, 1 / 240);
+    rec = record(rec, world, { bodyId: 'a' });
+  }
+  return rec;
+}
+
+/** Gaps between consecutive frames within a stretch of the recording. */
+const gaps = (rec, from, to) => {
+  const out = [];
+  for (let i = 1; i < rec.frames.length; i += 1) {
+    const t = rec.frames[i].t;
+    if (t < from || t > to) continue;
+    out.push(rec.frames[i].t - rec.frames[i - 1].t);
+  }
+  return out;
+};
+
+/**
+ * History is thinned once as it ages, and then left alone.
+ *
+ * Thinning it again on every overflow is the trap: it looks identical for the
+ * first minute and then quietly drives the far end of the buffer toward
+ * nothing - a measured 0.7 samples a second after three minutes, taking every
+ * early peak with it. Demoting each frame exactly as it crosses the window
+ * keeps history at a true rate however long the run goes.
+ */
+test('history is thinned once as it ages, and then holds its rate', () => {
+  const rec = bouncing({ rate: 60, historyRate: 30, window: 2, seconds: 8 });
+  const old = gaps(rec, 0.2, 5);
+  const recent = gaps(rec, 6.4, 7.9);
+  assert.ok(old.length > 20, `only ${old.length} old gaps`);
+  assert.ok(recent.length > 20, `only ${recent.length} recent gaps`);
+  for (const dt of old) close(dt, 1 / 30, 1 / 240 + 1e-9);
+  for (const dt of recent) close(dt, 1 / 60, 1 / 240 + 1e-9);
+});
+
+test('an unthinned recorder keeps every frame at the one rate', () => {
+  const rec = bouncing({ rate: 60, historyRate: 60, window: 1, seconds: 5 });
+  for (const dt of gaps(rec, 0.2, 5)) close(dt, 1 / 60, 1 / 240 + 1e-9);
+});
+
+test('the budget is a ceiling, and the newest frames are the ones kept', () => {
+  const rec = bouncing({ rate: 120, historyRate: 120, window: 0.5, capacity: 200, seconds: 5 });
+  assert.ok(rec.frames.length <= 200, `${rec.frames.length} frames`);
+  // The last frame is the live end: dropping it would strand the playhead.
+  assert.ok(rec.frames[rec.frames.length - 1].t > 4.5, 'the newest frame was dropped');
+});
+
+test('frameAt still finds the nearest frame across a change of rate', () => {
+  const rec = bouncing({ rate: 60, historyRate: 30, window: 2, seconds: 8 });
+  for (const t of [0.5, 3, 5.9, 6.5, 7.9]) {
+    const f = frameAt(rec, t);
+    assert.ok(f, `nothing at ${t}`);
+    for (const other of rec.frames) {
+      assert.ok(Math.abs(other.t - t) >= Math.abs(f.t - t) - 1e-9,
+        `${other.t} is nearer ${t} than ${f.t}`);
+    }
+  }
+});
+
+/* ------------------------------------------------------------- the trail -- */
+
+/**
+ * The trail is read back out of the frames rather than stored in each one.
+ *
+ * A copy per frame was 97% of a frame and 720 MB at ten objects, and every
+ * position it needs was already sitting in the frames. This checks the rebuilt
+ * trail really does retrace where the body went, and ends where the body is.
+ */
+test('a trail read back from the frames follows the path the body took', () => {
+  const rec = bouncing({ rate: 120, historyRate: 120, window: 60, seconds: 4 });
+  const at = 3;
+  const trail = trailAt(rec, 'a', at, 1);
+  assert.ok(trail.length > 50, `only ${trail.length} points`);
+
+  const inWindow = rec.frames.filter((f) => f.t <= at + 1e-9 && f.t >= at - 1);
+  assert.equal(trail.length, inWindow.length);
+  trail.forEach((point, i) => {
+    const b = inWindow[i].bodies.find((x) => x.id === 'a');
+    close(point.x, b.pos.x, 1e-12);
+    close(point.y, b.pos.y, 1e-12);
+  });
+
+  const now = frameAt(rec, at).bodies.find((x) => x.id === 'a');
+  close(trail[trail.length - 1].x, now.pos.x, 1e-12);
+});
+
+test('a trail asked for before anything is recorded is empty, not broken', () => {
+  const rec = createRecorder({ rate: 60 });
+  assert.deepEqual(trailAt(rec, 'a', 0, 3), []);
+});
+
+/* ------------------------------------------------------------ the events -- */
+
+/**
+ * The event list became four answers.
+ *
+ * Nothing ever read the list: four places ask whether a kind of event has
+ * happened at all, and one wants the cannon-full event itself. Keeping the
+ * list cost 9.2 MB on a three-minute run and made `record` O(n) per frame.
+ */
+test('events are folded into the answers anything actually asks for', () => {
+  let world = createWorld({
+    gravity: vec(0, -g),
+    bodies: [{
+      id: 'a', mass: 2, radius: 0.2, pos: vec(0, 1), cd: 0, area: 0, restitution: 0.5,
+    }],
+    ground: { y: 0 },
+  });
+  let rec = createRecorder({ rate: 60 });
+  assert.equal(rec.flags.collision, false);
+  assert.equal(rec.cannonFull, null);
+
+  for (let i = 0; i < 240 * 3; i += 1) {
+    world = advance(world, 1 / 240);
+    rec = record(rec, world, { bodyId: 'a' });
+  }
+  assert.equal(typeof rec.flags.collision, 'boolean');
+  assert.equal(rec.flags.relativistic, false);
+  assert.equal(rec.flags.diverged, false);
+  // And no list is being carried around any more.
+  assert.equal(rec.events, undefined);
+});
+
+test('clearing resets the flags as well as the frames', () => {
+  const full = {
+    ...bouncing({ seconds: 2 }),
+    flags: { relativistic: true, diverged: true, collision: true },
+    cannonFull: { type: 'cannon-full' },
+  };
+  const rec = clear(full);
+  assert.equal(rec.frames.length, 0);
+  assert.equal(rec.flags.collision, false);
+  assert.equal(rec.cannonFull, null);
+});
+
+/* ----------------------------------------------------- sizing the buffer -- */
+
+test('the rate ladder is ordered, and the cost of a rate reads off it', () => {
+  for (let i = 1; i < RATE_ERROR.length; i += 1) {
+    assert.ok(RATE_ERROR[i].rate < RATE_ERROR[i - 1].rate, 'rates descend');
+    assert.ok(RATE_ERROR[i].error > RATE_ERROR[i - 1].error, 'coarser costs more');
+  }
+  close(errorAt(60), 3.1, 1e-9);
+  close(errorAt(240), 0, 1e-9);
+  const mid = errorAt(45);
+  assert.ok(mid > 3.1 && mid < 9.3, `${mid} is not between 60/s and 30/s`);
+});
+
+test('frames and seconds are two views of the same budget', () => {
+  const policy = { rate: 60, historyRate: 30, window: 60 };
+  close(framesFor(60, policy), 3600, 1e-9);
+  close(framesFor(180, policy), 3600 + 30 * 120, 1e-9);
+  close(secondsFor(framesFor(180, policy), policy), 180, 1e-9);
+  close(secondsFor(1800, policy), 30, 1e-9);
 });

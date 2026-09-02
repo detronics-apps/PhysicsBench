@@ -119,6 +119,45 @@ function showTooltip(anchor, text) {
 }
 
 /** An inline info icon whose tooltip appears on hover and on keyboard focus. */
+/**
+ * A gear, drawn rather than fetched.
+ *
+ * There is no icon font here and there is not going to be one - the whole app
+ * is meant to run from a folder with nothing to install - so the one glyph
+ * that needs to look like a control is eight teeth and two circles of SVG.
+ * Sized in `em` so it rides whatever text it sits beside.
+ */
+export function gearIcon() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'gear');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const teeth = document.createElementNS(NS, 'path');
+  // Eight teeth on a 24-square, drawn as one star-shaped outline.
+  const pts = [];
+  for (let i = 0; i < 8; i += 1) {
+    const a0 = (i * Math.PI) / 4;
+    const a1 = a0 + Math.PI / 8;
+    const a2 = a0 + Math.PI / 4;
+    pts.push([12 + 10 * Math.cos(a0), 12 + 10 * Math.sin(a0)]);
+    pts.push([12 + 10 * Math.cos(a1), 12 + 10 * Math.sin(a1)]);
+    pts.push([12 + 7 * Math.cos(a1), 12 + 7 * Math.sin(a1)]);
+    pts.push([12 + 7 * Math.cos(a2), 12 + 7 * Math.sin(a2)]);
+  }
+  teeth.setAttribute('d', 'M ' + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(' L ') + ' Z');
+  teeth.setAttribute('fill', 'currentColor');
+  const hole = document.createElementNS(NS, 'circle');
+  hole.setAttribute('cx', '12');
+  hole.setAttribute('cy', '12');
+  hole.setAttribute('r', '3.6');
+  hole.setAttribute('fill', 'var(--surface-2, #fff)');
+  svg.appendChild(teeth);
+  svg.appendChild(hole);
+  return svg;
+}
+
 export function infoIcon(text) {
   const icon = el('button', {
     class: 'info',

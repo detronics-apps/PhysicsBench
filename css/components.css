@@ -305,6 +305,20 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 .info:hover { border-color: var(--accent-strong); color: var(--accent-strong); }
 
+/*
+ * The gear beside a section title.
+ *
+ * An SVG with a viewBox and no size fills whatever holds it, which is how this
+ * first appeared: one 700-pixel cog above the settings it belonged to. Sized
+ * in em so it tracks the title it sits next to.
+ */
+.gear {
+  flex: 0 0 auto;
+  width: 1.05em; height: 1.05em;
+  color: var(--text-faint);
+}
+summary:hover .gear { color: var(--accent-strong); }
+
 /* --- banners ----------------------------------------------------------- */
 
 .banners { display: flex; flex-direction: column; gap: var(--space-2); }

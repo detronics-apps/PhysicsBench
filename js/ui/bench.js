@@ -6,7 +6,7 @@
  * under it — and the mass slider is still exactly where it was.
  */
 
-import { el } from './dom.js';
+import { el, gearIcon } from './dom.js';
 import {
   section, subsection, numberField, sliderField, selectField, toggleField, stat, banner, table,
   buttonRow, button,
@@ -17,6 +17,7 @@ import { stageById, featuresAt, pushState, pushRange, equationsAt, MAX_OBJECTS }
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
 import { exampleById } from '../examples.js';
+import { RATE_ERROR, errorAt, secondsFor, duration } from '../recorder.js';
 import {
   SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
 } from '../friction.js';
@@ -54,6 +55,7 @@ export function controls(ctx) {
     f.has('objects') ? collisionSection(ctx) : null,
     f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
+    recordingSection(ctx),
   ].filter(Boolean);
 }
 
@@ -1253,8 +1255,8 @@ export function banners(ctx) {
    * If the simulation has hit the edge of what it can honestly describe, that
    * is the first thing to say — before any reading from it is quoted.
    */
-  const relativistic = ctx.recorder.events.some((e) => e.type === 'relativistic');
-  const diverged = ctx.recorder.events.some((e) => e.type === 'diverged');
+  const relativistic = ctx.recorder.flags.relativistic;
+  const diverged = ctx.recorder.flags.diverged;
   if (relativistic || diverged) {
     out.push(banner('danger',
       'The object has been accelerated past a tenth of the speed of light, where '
@@ -1296,7 +1298,7 @@ export function banners(ctx) {
       + 'exist.'));
   }
 
-  const bump = ctx.recorder.events.find((e) => e.type === 'cannon-full');
+  const bump = ctx.recorder.cannonFull;
   if (bump) {
     out.push(banner('warn', `The bench is full at ${bump.limit} objects, so the cannons `
       + 'have stopped firing. Remove something, or clear the objects, to make room.'));
@@ -1372,7 +1374,7 @@ export function banners(ctx) {
   }
 
   if (f.has('collide')) {
-    const hit = ctx.recorder.events.some((e) => e.type === 'collision');
+    const hit = ctx.recorder.flags.collision;
     if (hit) {
       const sums = totals(ctx.world);
       out.push(banner('ok', `They have collided. Total momentum is ${fmtFixed(sums.momentumX, 3)} kg·m/s, `
@@ -1715,3 +1717,113 @@ export function explains(ctx) {
 
 /** The stage the second-mass panel jumps to, exposed for the shell to wire up. */
 export { stageById };
+
+/* ------------------------------------------------------ what is recorded -- */
+
+/**
+ * What the run is recorded at, and what that costs.
+ *
+ * Settings rather than physics, and shown rather than buried because the trade
+ * is real and nobody can guess it: sampling finer catches sharper peaks and
+ * buys fewer seconds of history for the same memory; sampling coarser does the
+ * reverse. The figure beside each rate is measured - how far the worst peak in
+ * the prepared examples is understated when sampled that often - so the panel
+ * argues from evidence rather than asking to be trusted.
+ *
+ * The default ties the rate to the speed being watched at, which is the one
+ * signal about intent the app already has: slowing down is asking to see
+ * detail, speeding up is asking to cover ground.
+ */
+function recordingSection(ctx) {
+  const r = ctx.state.ui.recording;
+  const setR = (key, value) => ctx.setRecording({ [key]: value });
+  const live = ctx.recorder;
+  const speeds = Object.keys(r.rates).sort((a, b) => Number(a) - Number(b));
+
+  const historyOf = (rate) => (r.halveHistory ? Math.min(rate, Math.max(r.floor, rate / 2)) : rate);
+  const reach = (rate) => secondsFor(r.budget,
+    { rate, historyRate: historyOf(rate), window: r.window });
+
+  const rows = speeds.map((k) => {
+    const rate = r.rates[k];
+    const h = historyOf(rate);
+    return {
+      speed: k + '×',
+      rate: rate + '/s',
+      err: errorAt(rate).toFixed(2) + '%',
+      hist: h === rate ? 'same' : h + '/s',
+      histErr: errorAt(h).toFixed(2) + '%',
+      covers: Math.round(reach(rate)) + ' s',
+    };
+  });
+
+  // `table` wants column descriptors and rows keyed by them.
+  const columns = [
+    { key: 'speed', label: 'Speed' },
+    { key: 'rate', label: 'Records' },
+    { key: 'err', label: 'Error', num: true },
+    { key: 'hist', label: 'History' },
+    { key: 'histErr', label: 'Error', num: true },
+    { key: 'covers', label: 'Covers', num: true },
+  ];
+
+  return section('What gets recorded', [
+    el('div', {
+      class: 'field__hint',
+      text: 'The bench always computes 240 steps a second. This only sets how '
+        + 'many of them are kept for the graphs and the scrubber - nothing here '
+        + 'changes the simulation.',
+    }),
+
+    table(columns, rows),
+
+    el('div', {
+      class: 'field__hint',
+      text: 'Error is how far the sharpest peak is understated at that rate, '
+        + 'measured against every step. Only fast-reversing values move - a '
+        + 'velocity through a bounce. Height, position and energy stay under '
+        + '0.6% at every rate listed.',
+    }),
+
+    subsection('Change it', [
+      sliderField('Frames kept', r.budget, (v) => setR('budget', Math.round(v)), {
+        min: 2000, max: 40000, step: 500, key: 'rec-budget',
+        format: (v) => Math.round(v).toLocaleString(),
+        info: 'The whole memory budget. Each frame costs roughly five kilobytes '
+          + 'with ten objects on the bench.',
+        hint: `About ${Math.round(reach(r.rates['1'] ?? 60))} s of a run at 1x, `
+          + `and near ${Math.round(r.budget * 0.005)} MB with ten objects.`,
+      }),
+      sliderField('Full rate for the last', r.window, (v) => setR('window', v), {
+        min: 0, max: 180, step: 5, key: 'rec-window',
+        format: (v) => `${v} s`,
+        info: 'Recent seconds are kept at the full rate, so pausing and looking '
+          + 'closely at what just happened always works. Anything older is '
+          + 'thinned once as it ages past this.',
+      }),
+      toggleField('Thin the history', r.halveHistory, (v) => setR('halveHistory', v), {
+        key: 'rec-halve',
+        info: 'Halve the rate of anything older than the window. Roughly doubles '
+          + 'how much of a run fits in the same memory.',
+        hint: r.halveHistory
+          ? `Never below ${r.floor}/s, where a peak already reads `
+            + `${errorAt(r.floor).toFixed(1)}% low.`
+          : 'History stays at whatever it was recorded at.',
+      }),
+      ...speeds.map((k) => selectField(`At ${k}x record`,
+        RATE_ERROR.map((x) => ({ value: String(x.rate), label: `${x.rate}/s, ${x.error.toFixed(2)}% error` })),
+        String(r.rates[k]),
+        (v) => ctx.setRecording({ rates: { ...r.rates, [k]: Number(v) } }),
+        { key: `rec-rate-${k}` })),
+    ], { key: 'recording-edit' }),
+
+    el('div', { class: 'dims' }, [
+      el('dt', { text: 'Recording now at' }),
+      el('dd', { text: `${live.rate}/s, history ${live.historyRate}/s` }),
+      el('dt', { text: 'Frames held' }),
+      el('dd', { text: `${live.frames.length.toLocaleString()} of ${r.budget.toLocaleString()}` }),
+      el('dt', { text: 'Run kept' }),
+      el('dd', { text: `${duration(live).toFixed(1)} s` }),
+    ]),
+  ], { key: 'recording', actions: gearIcon() });
+}

@@ -40,7 +40,8 @@ import { toWorld } from './camera.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
-import { createRecorder, record, frameAt, endTime } from './recorder.js';
+import { createRecorder, record, frameAt, endTime, trailAt } from './recorder.js';
+
 import { renderScene, sceneLegend, sceneCamera, autoView, boxView } from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
@@ -365,8 +366,59 @@ function biggestExtent(world) {
   return biggest;
 }
 
+/**
+ * What to sample at, for the speed the run is being watched at.
+ *
+ * Slowing down is how you ask to see detail, so it buys a finer record; the
+ * physics steps 240 times a second and 0.1x captures every one of them. Going
+ * faster is how you ask to skim, and a coarser record is what makes minutes of
+ * simulation fit in the same memory. The product of the two barely moves — 1x
+ * and 2x both cost 60 frames a wall-clock second — so the recording never gets
+ * more expensive just because the clock is turned up.
+ *
+ * The cost of each rate is measured, not guessed: `RATE_ERROR` in the recorder
+ * is how far a peak is understated at each one, and the settings panel shows
+ * that ladder rather than asking anyone to take it on trust.
+ */
+function ratesForSpeed(speed) {
+  const setting = state.ui.recording;
+  const table = setting.rates;
+  const keys = Object.keys(table).map(Number).sort((a, b) => a - b);
+  // The nearest speed at or below this one, so an unlisted speed still has a rate.
+  const key = keys.filter((k) => k <= speed + 1e-9).pop() ?? keys[0];
+  const rate = table[String(key)] ?? 60;
+  const halved = setting.halveHistory ? Math.max(setting.floor, rate / 2) : rate;
+  return { rate, historyRate: Math.min(rate, halved), window: setting.window };
+}
+
+/**
+ * Point the recorder at the current settings, keeping what it already holds.
+ *
+ * Frames already taken keep the rate they were taken at. That is deliberate:
+ * the record ends up dense where the run was watched slowly and sparse where
+ * it was skimmed, which is exactly where the detail is wanted. Only the budget
+ * can drop anything, and only from the oldest end.
+ */
+function reRate() {
+  const { rate, historyRate, window } = ratesForSpeed(state.transport.speed);
+  const { budget } = state.ui.recording;
+  const frames = sim.recorder.frames.length > budget
+    ? sim.recorder.frames.slice(sim.recorder.frames.length - budget)
+    : sim.recorder.frames;
+  sim.recorder = {
+    ...sim.recorder, rate, historyRate, window, interval: 1 / rate, capacity: budget, frames,
+  };
+}
+
+function newRecorder() {
+  const { rate, historyRate, window } = ratesForSpeed(state.transport.speed);
+  return createRecorder({
+    rate, historyRate, window, capacity: state.ui.recording.budget,
+  });
+}
+
 function rebuild() {
-  sim.recorder = createRecorder({ interval: 1 / 60, capacity: 4000 });
+  sim.recorder = newRecorder();
   state.transport.scrubT = null;
   sim.key = structuralKey(state.stage, state.bench);
   sim.scenario = build(state.stage, state.bench);
@@ -627,7 +679,22 @@ function shownWorld() {
   if (growth) return growth.frame.world;
   if (state.transport.scrubT === null) return sim.world;
   const frame = frameAt(sim.recorder, state.transport.scrubT);
-  return frame ? { ...sim.world, t: frame.t, bodies: frame.bodies, ledger: frame.ledger } : sim.world;
+  if (!frame) return sim.world;
+  /*
+   * The trail is read back out of the frames rather than stored in each one.
+   * Storing it was 97% of a frame and 720 MB at ten objects, and every
+   * position it needs is already here.
+   *
+   * `trailLimit` still decides whether there is a trail at all, and how long:
+   * deriving one on a step that does not draw them put a ribbon behind a
+   * scrubbed object that the live view never showed.
+   */
+  const limit = sim.world.trailLimit || 0;
+  const seconds = limit / 240;
+  const bodies = frame.bodies.map((b) => ({
+    ...b, trail: limit > 0 ? trailAt(sim.recorder, b.id, frame.t, seconds) : [],
+  }));
+  return { ...sim.world, t: frame.t, bodies, ledger: frame.ledger };
 }
 
 /* -------------------------------------------------------- state changes -- */
@@ -1106,6 +1173,20 @@ function context() {
     setMany: (patch) => update((draft) => { Object.assign(draft.bench, patch); }),
     setView: (key, value) => update((draft) => { draft.view[key] = value; }, { sim: 'none' }),
 
+    /*
+     * Change what is being recorded, without throwing away what already is.
+     *
+     * Re-rating rather than rebuilding is the whole point: frames already held
+     * keep the rate they were taken at, so turning the dial up to look closely
+     * at what is happening now does not erase the last two minutes. Only the
+     * budget can lose frames, and only the oldest.
+     */
+    setRecording: (patch) => {
+      update((draft) => { Object.assign(draft.ui.recording, patch); }, { sim: 'none' });
+      reRate();
+      render();
+    },
+
     selectBody: (id) => update((draft) => { draft.selectedId = id; }, { sim: 'none' }),
 
     /* ------------------------------------------------------- objects -- */
@@ -1258,6 +1339,14 @@ const actions = {
   },
   setSpeed(value) {
     state.transport.speed = value;
+    /*
+     * Re-rate without clearing. Frames already held keep the rate they were
+     * taken at, which is the point: the record is dense where you slowed down
+     * to look and sparse where you skimmed. Everything downstream reads
+     * `frame.t`, so a buffer holding several rates at once is no harder to
+     * plot, scrub or export than one holding a single rate.
+     */
+    reRate();
     saveSoon();
     renderTransportBar();
   },
