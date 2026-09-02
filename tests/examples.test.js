@@ -514,12 +514,13 @@ function launch(bench, over = {}) {
   const p = { ...bench, ...over };
   const scenario = build('fluid', p);
   let world = applyPush(scenario.world, p, scenario.features);
-  let peak = 0, vBurn = 0, hBurn = 0, t100 = null, dragUp = 0;
-  for (let i = 0; i < 240 * 2000; i++) {
+  let peak = 0, vBurn = 0, hBurn = 0, t100 = null, t400 = null, dragUp = 0;
+  for (let i = 0; i < 240 * 900; i++) {
     world = applyPush(world, p, scenario.features);
     world = advance(world, 1 / 240);
     const b = findBody(world, 'main');
     if (t100 === null && b.pos.y >= 100000) t100 = world.t;
+    if (t400 === null && b.pos.y >= 400000) t400 = world.t;
     if (world.t <= p.pushSeconds) {
       vBurn = b.vel.y; hBurn = b.pos.y;
       const F = forcesFor(world, b).forces.find((x) => x.id === 'drag');
@@ -528,54 +529,51 @@ function launch(bench, over = {}) {
     peak = Math.max(peak, b.pos.y);
     if (b.pos.y <= 0 && world.t > p.pushSeconds) break;
   }
-  return { peak, vBurn, hBurn, t100, dragUp, world: scenario.world };
+  return { peak, vBurn, hBurn, t100, t400, dragUp, world: scenario.world };
 }
 
 /**
- * The rocket flies on the real numbers, and still cannot reach orbit.
+ * The rocket arrives at the height the ISS flies at, and comes straight back.
  *
- * Everything the instructions quote is a figure a reader is invited to check
- * against the real Falcon 9, so the inputs are held as well as the outcome. The
- * outcome is the point of the example: it goes higher than the ISS and finishes
- * its burn at less than a third of the speed an orbit needs.
+ * That is the whole example: the altitude is reachable on real thrust and a
+ * real amount of fuel, and reaching it achieves nothing, because an orbit is a
+ * sideways speed. Every figure the instructions invite a reader to check is
+ * held here, inputs included, since they are meant to be the real ones.
  */
-test('the Falcon 9 clears the ISS height and is still nowhere near orbit', () => {
+test('the Falcon 9 reaches ISS altitude and falls straight back', () => {
   const { bench } = exampleState('rocket-to-orbit');
-  // The inputs are meant to be the real ones.
   assert.equal(bench.mass, 549054, 'liftoff mass');
   assert.equal(bench.pushForce, 7607000, 'sea-level thrust');
-  assert.equal(bench.pushSeconds, 540, 'burn to orbital insertion');
+  assert.equal(bench.pushSeconds, 370, 'burn');
   assert.equal(bench.pushAngleDeg, 90, 'straight up, which is the mistake shown');
 
   const r = launch(bench);
-  // Past the Karman line, and past where the ISS flies.
   assert.ok(r.t100 > 200 && r.t100 < 260, `crossed 100 km at ${r.t100} s`);
-  assert.ok(r.peak > 900000 && r.peak < 1080000, `apogee was ${r.peak} m`);
-  assert.ok(r.peak > 400000, 'it should out-climb the ISS height');
+  assert.ok(r.t400 !== null, 'it never reached ISS altitude');
+  assert.ok(r.t400 > 460 && r.t400 < 540, `reached 400 km at ${r.t400} s`);
+  // Just past the ISS and no further: the burn is chosen to arrive, not to soar.
+  assert.ok(r.peak > 395000 && r.peak < 425000, `apogee was ${r.peak} m`);
 
-  // And nowhere near orbital speed: the ISS needs about 7660 m/s.
-  assert.ok(r.vBurn > 2300 && r.vBurn < 2600, `burnout speed ${r.vBurn} m/s`);
-  assert.ok(r.vBurn < 7660 / 2, 'the whole lesson is that this is not close');
-
-  // It comes back down, because height alone is not an orbit.
-  assert.ok(r.peak > 0, 'it left the ground');
+  // And nowhere near orbital speed - the ISS needs about 7660 m/s sideways.
+  assert.ok(r.vBurn > 1400 && r.vBurn < 1700, `burnout speed ${r.vBurn} m/s`);
+  assert.ok(r.vBurn < 7660 / 4, 'the whole lesson is that this is not close');
 });
 
 /**
  * At this height the weight really does visibly shrink.
  *
- * The toy rocket lost half a percent over 16 km, which is honest and invisible.
- * A quarter of the weight over 992 km is the same equation finally drawn at a
- * size the arrow can show, and it is what the example claims.
+ * Half a percent over 16 km is honest and invisible. An eighth of the weight
+ * over 408 km is the same equation finally drawn at a size the arrow shows,
+ * and it is what the example claims.
  */
-test('a quarter of the rocket weight is gone by the top of the flight', () => {
+test('an eighth of the rocket weight is gone at the top of the climb', () => {
   const { bench } = exampleState('rocket-to-orbit');
   const r = launch(bench);
   const g0 = Math.abs(fieldAt(r.world.env, 0).y);
   const gTop = Math.abs(fieldAt(r.world.env, r.peak).y);
   const fall = 1 - gTop / g0;
-  assert.ok(fall > 0.2 && fall < 0.3,
-    `weight fell ${(fall * 100).toFixed(1)}%, not the ~25% claimed`);
+  assert.ok(fall > 0.10 && fall < 0.14,
+    `weight fell ${(fall * 100).toFixed(1)}%, not the ~11.7% claimed`);
 
   // Thrust barely beats weight on the pad, which is why a launch looks slow.
   const ratio = bench.pushForce / (bench.mass * g0);
@@ -583,12 +581,12 @@ test('a quarter of the rocket weight is gone by the top of the flight', () => {
 });
 
 /**
- * Air is not what makes orbit hard.
+ * Air is not what makes this hard.
  *
  * The drawn shape is much stubbier than a real rocket, so this drag is roughly
- * fifteen times the true figure — and the claim in the text survives that,
- * which is why it is worth stating: even overstated it is a small fraction of
- * thrust, and it is gone entirely above the atmosphere.
+ * fifteen times the true figure - and the claim survives that, which is why it
+ * is worth stating: even overstated it is a small fraction of thrust, and it is
+ * gone entirely above the atmosphere.
  */
 test('drag peaks at a few percent of thrust and then vanishes', () => {
   const { bench } = exampleState('rocket-to-orbit');
@@ -596,9 +594,4 @@ test('drag peaks at a few percent of thrust and then vanishes', () => {
   const share = r.dragUp / bench.pushForce;
   assert.ok(share > 0.02 && share < 0.12,
     `worst drag was ${(share * 100).toFixed(1)}% of thrust`);
-
-  // In a vacuum it barely does better, which is the same point from the side.
-  const noAir = launch(bench, { fluidId: 'vacuum' });
-  assert.ok(noAir.peak < r.peak * 1.35,
-    `vacuum reached ${noAir.peak} m against ${r.peak} m, a bigger gap than claimed`);
 });

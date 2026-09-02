@@ -515,40 +515,44 @@ export const EXAMPLES = [
   },
   {
     id: 'rocket-to-orbit',
-    title: 'A Falcon 9, straight up',
-    blurb: 'Real mass, real thrust, and the nine minutes a launch really burns '
-      + 'for. It sails past the height of the ISS and still gets nowhere near '
-      + 'orbit.',
-    watch: 'It reaches 992 km, more than twice the height the ISS flies at, and '
-      + 'it is still not in orbit and never will be. Orbit is not a height you '
-      + 'climb to. It is a sideways speed, and this rocket has none.',
+    title: 'A Falcon 9, straight up to the ISS',
+    blurb: 'Real mass, real thrust. It reaches the height the ISS flies at, '
+      + 'and falls straight back down again.',
+    watch: 'It gets to 408 km, which is where the ISS is. It is still not in '
+      + 'orbit and never will be, because an orbit is a sideways speed and this '
+      + 'rocket has none. Height was the easy part.',
     stage: 'fluid',
     /*
-     * Every input here is the real figure for a Falcon 9 Block 5: 549,054 kg on
-     * the pad, 7.607 MN of sea-level thrust from the nine Merlins, and a
-     * 540-second burn, which is about what a launch to the ISS takes from
-     * liftoff to orbital insertion.
+     * Every input is the real figure for a Falcon 9 Block 5: 549,054 kg on the
+     * pad and 7.607 MN of sea-level thrust from the nine Merlins. The burn is
+     * the one number chosen rather than looked up, and it barely is: 370
+     * seconds of that thrust, pointed straight up, tops out at 408 km, and the
+     * ISS orbits at about 400. The real rocket does the same job in about the
+     * same time by tipping over and spending it on speed instead.
      *
-     * Real numbers were worth the trouble because they change the answer to the
-     * question that started this. On the toy rocket the weight fell half a
-     * percent and you had to read the number to see it; a Falcon 9 flown this
-     * way tops out at 992 km, where the weight has dropped from 5.39 MN to 4.04
-     * MN — a quarter of it, gone, and plainly visible on the arrow.
+     * Aiming at the height rather than at orbit is what makes the example
+     * honest. Reaching orbit needs 7,660 m/s sideways; burning straight up for
+     * the full nine minutes gets nowhere near it, and calling that "trying to
+     * reach orbit" would have taught that the attempt was close. It was not.
+     * Getting to the altitude and falling straight back is the whole lesson.
      *
-     * Three things this cannot model, all worth knowing, and none of which
-     * spoil the lesson:
+     * It also puts the weight arrow somewhere useful. Over 16 km it lost half a
+     * percent and you had to read the number; over 408 km it loses 11.7% -
+     * 5.39 MN on the pad against 4.76 at the top - which is visible on the
+     * arrow while you watch.
      *
-     * - Constant mass. Ninety percent of a real Falcon 9 is propellant, so the
-     *   real one gets lighter as it burns and ends up pulling around 3.5 g.
-     *   Ours never lightens, so it is a sluggish, pessimistic rocket.
+     * Three things this cannot model, none of which spoil the lesson:
+     *
+     * - Constant mass. Nine tenths of a real Falcon 9 is propellant, so the
+     *   real one lightens as it burns and ends up pulling around 3.5 g. Ours
+     *   never lightens, which makes it a sluggish, pessimistic rocket.
      * - Straight up. A real launch pitches over within seconds, because the
-     *   point is sideways speed. Going straight up is the mistake this example
-     *   exists to show.
+     *   point is sideways speed. Going straight up is the mistake on show.
      * - The drawn shape is far stubbier than a real rocket, so its frontal area
-     *   comes out around 294 m² against a true 10.8, and the drag reads about
-     *   fifteen times high. Even so it peaks at 541 kN — seven percent of
-     *   thrust — which is the honest headline either way: air is not what makes
-     *   orbit hard.
+     *   comes out near 294 m2 against a true 10.8 and the drag reads about
+     *   fifteen times high. Even overstated it peaks at 541 kN, 7% of thrust,
+     *   which is the honest headline either way: air is not what makes this
+     *   hard.
      */
     params: {
       shapeId: 'spaceship',
@@ -563,8 +567,8 @@ export const EXAMPLES = [
       // Nine Merlin 1D engines at sea level.
       pushForce: 7607000,
       pushAngleDeg: 90,
-      // Liftoff to orbital insertion on an ISS run, near enough.
-      pushSeconds: 540,
+      // Long enough to arrive at the height the ISS flies at, and no longer.
+      pushSeconds: 370,
       slopeDeg: 0,
       fluidId: 'atmosphere',
       worldMode: 'planet',
@@ -576,44 +580,45 @@ export const EXAMPLES = [
     teach: {
       how: 'Thrust up, weight down, drag against the motion. A Falcon 9 leaves '
         + 'the pad with 7.61 MN of thrust against 5.39 MN of weight, so only '
-        + '2.2 MN is left over to accelerate 549 tonnes — about 4 m/s², less '
-        + 'than half a g. It is barely winning at the start, which is why a '
-        + 'launch looks so slow for the first few seconds. As it climbs, '
-        + 'gravity itself weakens, so the same thrust buys more and more.',
+        + '2.2 MN is left to accelerate 549 tonnes - about 4 m/s2, less than '
+        + 'half a g. It is barely winning at the start, which is why a launch '
+        + 'looks so slow for the first few seconds. As it climbs, gravity '
+        + 'itself weakens and the same thrust buys more.',
       tryThis: [
-        'Press Play and watch the elevation. It crosses 100 km — the Karman '
-        + 'line, the usual edge of space — after about 228 seconds.',
-        'Keep watching past the ISS height of 400 km. It reaches 992 km and '
-        + 'then falls all the way back, because up is not the same as in orbit.',
-        'Read the weight at the top: 4.04 MN against 5.39 MN on the pad. That '
-        + 'is a quarter of its weight gone, and it is the same rocket.',
-        'Point the push sideways instead — set the angle to 0°. It stays low '
-        + 'and goes fast, which is much closer to what a real launch does after '
-        + 'the first minute.',
-        'For scale, try 35 MN, the thrust of a Saturn V, for the same 540 s.',
+        'Press Play and watch the elevation. It crosses 100 km - the Karman '
+        + 'line, the usual edge of space - after about 228 seconds.',
+        'Keep watching. It reaches 400 km, the height the ISS flies at, around '
+        + '503 seconds, tops out at 408 km, and then comes all the way back.',
+        'Read the weight at the top: 4.76 MN against 5.39 MN on the pad. An '
+        + 'eighth of its weight, gone, on the same rocket.',
+        'Now set the angle to 0 and fire it sideways instead. It stays low and '
+        + 'goes fast, which is much closer to what a real launch does after the '
+        + 'first minute.',
+        'Watch it at 2x. The recorder keeps the whole climb at that speed, so '
+        + 'you can scrub back to the launch after it has landed.',
       ],
       watch: [
         'At liftoff the thrust arrow is barely longer than the weight arrow. '
         + 'The whole launch runs on the difference between two nearly equal '
         + 'numbers.',
-        'The weight arrow visibly shrinks as it climbs. Over 992 km it loses a '
-        + 'quarter of its length — this is the same g = G*M/r^2 that was '
-        + 'invisible on a 16 km flight.',
+        'The weight arrow visibly shrinks as it climbs, losing an eighth of its '
+        + 'length by the top. This is the same g = G*M/r^2 that was invisible '
+        + 'on a 16 km flight.',
         'The drag arrow is a spike near 8 km and then simply gone. Above 100 km '
-        + 'the air is about a ten-millionth of what it is at sea level.',
-        'When the motor cuts at 540 s the rocket is 609 km up and still climbing '
-        + 'at 2436 m/s. It coasts for another five minutes before it starts to '
-        + 'come down.',
+        + 'there is nothing left to push out of the way.',
+        'When the motor cuts at 370 s the rocket is 273 km up and still climbing '
+        + 'at 1547 m/s. It coasts for another three minutes before it turns '
+        + 'round.',
       ],
       learn: 'Getting to space is easy; staying there is the hard part. This '
-        + 'rocket reaches 992 km on real thrust and real fuel time, and falls '
-        + 'straight back, because an orbit is not an altitude — it is going '
-        + 'sideways fast enough that the ground curves away as quickly as you '
-        + 'fall towards it. The ISS does that at about 7660 m/s. Our rocket, '
-        + 'pointed the wrong way, finishes its burn at 2436 m/s. That gap, and '
-        + 'not the height, is what a launch is really spending its fuel on — '
-        + 'which is why real rockets tip over almost as soon as they clear the '
-        + 'tower.',
+        + 'rocket reaches the exact height the ISS flies at, on real thrust and '
+        + 'a real amount of fuel, and falls straight back - because an orbit is '
+        + 'not an altitude. It is going sideways fast enough that the ground '
+        + 'curves away as quickly as you fall towards it. The ISS does that at '
+        + 'about 7660 m/s. Ours arrives at the same height doing nothing '
+        + 'sideways at all, which is why it comes home. That gap, not the '
+        + 'height, is what a launch really spends its fuel on, and why real '
+        + 'rockets tip over almost as soon as they clear the tower.',
     },
   },
 ];

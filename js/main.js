@@ -1348,7 +1348,13 @@ const actions = {
      */
     reRate();
     saveSoon();
-    renderTransportBar();
+    /*
+     * The sidebar, not just the transport bar: the speed decides what is being
+     * recorded, and the settings panel says so out loud. Redrawing only the
+     * transport left "recording now at" showing the rate for the speed before
+     * last, which is worse than not showing it.
+     */
+    render();
   },
   scrub(time) {
     state.transport.scrubT = time;
