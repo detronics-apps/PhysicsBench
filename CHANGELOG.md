@@ -1,5 +1,87 @@
 # Changelog
 
+## 1.5.0
+
+Eleven prepared experiments, a page to reach them from, and a recorder that keeps minutes
+instead of seconds.
+
+### Prepared experiments
+
+A new page at the end of step seven holds eleven scenes that are already set up, each with
+the arrows that matter already chosen and a note on how it works, what to try, what to watch
+and what it is for. Nothing is locked: once one is on the bench it is an ordinary experiment
+and every control still works.
+
+- **A crate on a slope** — friction takes exactly the value needed to hold it, until it cannot.
+- **Five densities, one fluid** — the same five balls sort themselves differently in air, in
+  water and in honey.
+- **A ball and a box on the same slope** — same wood, same mass, same size. One rolls away and
+  the other does not move; rolling and sliding are fifty times apart.
+- **Three targets, one cannon** — one shot lands, and the other two need a different angle or a
+  different speed. There is a limit to how far a thing can be thrown, and the angle that reaches
+  highest is not the angle that reaches furthest.
+- **Drive the rover round a flooded track** — arrow keys, chicanes, and water as both the brake
+  and the speed limit. Four times the push buys twice the speed.
+- **A Falcon 9, straight up to the ISS** — real mass, real thrust, and 370 seconds of burn. It
+  arrives at the height the station flies at and falls straight back, because an orbit is a
+  sideways speed and not an altitude.
+- **Two masses going round each other** — nothing holding it up, nothing pushing it along. It is
+  falling, and missing.
+- **Four dropped at once** — two share a mass and two share a shape. In air all four land at
+  different times; in a vacuum they land together, to twenty milliseconds.
+- **A fifty-metre marble run** — thirty-six pieces of chute, jump, valley and deflector. Three
+  identical marbles finish thirteen metres apart.
+- **Drive the rover over the canyon** — sixty-five metres of platforms and six gaps, and a jump
+  that is decided the moment the wheels leave the ramp.
+- **Fly the slalom** — an engine that never switches off and no brakes, so every gate costs two
+  presses rather than one.
+
+### The physics
+
+- **Gravity is an equation, not a constant.** g = G·M/r² is worked out at the object's own
+  height, so a rocket at 400 km weighs an eighth less than it did on the pad — visible on the
+  arrow rather than only in the readout.
+- **Drag now vanishes with the air.** Stokes drag genuinely does not depend on density, and gas
+  viscosity does not either, so the two together had a rocket at 4,600 km still feeling 6.23 N
+  of air — the same figure it felt at 200 km — before the force went infinite and the flight
+  broke. Both halves were real physics applied where the continuum they assume had stopped
+  existing. The Knudsen number and the Cunningham slip correction are what was missing; drag now
+  falls to nothing in a vacuum, as it must.
+- **An object under an impossible load bursts** instead of being drawn doing something
+  impossible. A helium sphere in honey displaces forty-seven kilograms and carries 467 N of
+  buoyancy on a weight of 0.055 N — about 8,500 g, held from the first instant. It used to reach
+  seven million metres a second and sit there. It now bursts, and says what the force was.
+- **Buoyancy in deep space is nothing**, as ρVg with no g must be. The panel used to print a
+  confident 16.9 N beside a rover that was not moving.
+
+### Recording
+
+The recorder kept 4,000 frames at 60 a second, which is 67 seconds — so anything longer lost
+its beginning from the graphs, the scrubber, the CSV and the readouts.
+
+- **Trails are derived rather than stored.** A copy in every frame was 97% of a frame and 720 MB
+  at ten objects. Five bodies over three minutes now hold 77 MB where 67 seconds used to cost 105.
+- **The sample rate follows the speed you watch at.** Slowing down is how you ask for detail, so
+  0.1× records every one of the 240 physics steps a second and misses nothing; 4× records twenty,
+  which is how minutes of simulation fit in the same memory.
+- **A settings panel behind a gear** prints the whole ladder — each rate against how far it
+  understates the sharpest peak, measured rather than asserted — and lets you set the frame
+  budget, the full-rate window and the rate for each speed yourself.
+
+### Fixes
+
+- **A slider no longer rounds off the value it was handed.** With the push slider reaching
+  110 MN its step is 1 MN, so a Falcon 9 set to 7,607,000 N sat at 8,000,000 — and touching the
+  control without moving it committed that loss.
+- **The ground no longer takes half the window.** A ball resting on flat ground filled 45% of the
+  drawing with dirt; the view now grows upward when the ground is the floor.
+- **Section headings look like headings**, on a band with a rule under them, instead of being the
+  quietest thing in the panel.
+- **In deep space the object goes where you put it.** The placement control read "drop it from",
+  which is floored at zero, so the whole lower half of the plane was unreachable.
+- **The push ceiling is sized by what a rocket needs** — 370 s to reach ISS altitude, and up to
+  660 with the thrust turned down — rather than by a number picked out of the air.
+
 ## 1.4.0
 
 Three new shapes, an atmosphere that thins with height, and seven steps instead of eight.
