@@ -126,6 +126,7 @@ export function createRecorder({
     lastDemoted: -Infinity,
     flags: { relativistic: false, diverged: false, collision: false },
     cannonFull: null,
+    burst: null,
   };
 }
 
@@ -144,15 +145,18 @@ function foldEvents(recorder, events) {
   if (!events || !events.length) return recorder;
   let { relativistic, diverged, collision } = recorder.flags;
   let cannonFull = recorder.cannonFull;
+  let burst = recorder.burst;
   let changed = false;
   for (const e of events) {
     if (e.type === 'relativistic' && !relativistic) { relativistic = true; changed = true; }
     else if (e.type === 'diverged' && !diverged) { diverged = true; changed = true; }
     else if (e.type === 'collision' && !collision) { collision = true; changed = true; }
     else if (e.type === 'cannon-full' && !cannonFull) { cannonFull = e; changed = true; }
+    // The burst is kept whole, not as a flag: the banner quotes its numbers.
+    else if (e.type === 'burst' && !burst) { burst = e; changed = true; }
   }
   if (!changed) return recorder;
-  return { ...recorder, flags: { relativistic, diverged, collision }, cannonFull };
+  return { ...recorder, flags: { relativistic, diverged, collision }, cannonFull, burst };
 }
 
 /**
@@ -257,6 +261,7 @@ export const clear = (recorder) => ({
   lastDemoted: -Infinity,
   flags: { relativistic: false, diverged: false, collision: false },
   cannonFull: null,
+  burst: null,
 });
 
 export const duration = (recorder) =>

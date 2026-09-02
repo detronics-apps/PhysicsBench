@@ -6,6 +6,10 @@ import {
   MODES, modeById, classify, collide1D, maxEnergyTransfer, restitutionFrom,
   bounce, bounceHeightRatio, collide2D, expectation,
 } from '../js/collide.js';
+import { build, applyPush } from '../js/stages.js';
+import { advance, totals } from '../js/world.js';
+import { defaults } from '../js/state.js';
+import { MATERIALS, describe as describeShape } from '../js/shapes.js';
 
 const close = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -166,4 +170,95 @@ test('the expectation text matches the situation, and never asserts a cause', ()
   assert.match(expectation(100, 1, 1), /twice/);
   assert.match(expectation(3, 2, 0), /centre of mass/);
   assert.match(expectation(3, 2, 0.5), /Momentum will balance/);
+});
+
+/* ------------------------------------------------------------ bursting -- */
+
+/** A sphere of one material dropped into a fluid, run for a while. */
+function inFluid(materialId, fluidId, { size = 0.4, seconds = 6 } = {}) {
+  const material = MATERIALS.find((m) => m.id === materialId);
+  const object = describeShape({ shapeId: 'sphere', size, density: material.density });
+  const p = {
+    ...defaults().bench,
+    shapeId: 'sphere', size, mass: object.mass, materialId,
+    x0: 0, dropHeight: 2, v0: 0, slopeDeg: 0, pushForce: 0,
+    fluidId, worldMode: 'planet', objects: [], cannons: [], walls: [],
+  };
+  const scenario = build('fluid', p);
+  let world = applyPush(scenario.world, p, scenario.features);
+  const before = totals(world).mechanical;
+  let burst = null;
+  for (let i = 0; i < 240 * seconds; i += 1) {
+    world = applyPush(world, p, scenario.features);
+    world = advance(world, 1 / 240);
+    const hit = world.events.find((e) => e.type === 'burst');
+    if (hit && !burst) burst = hit;
+  }
+  return { world, burst, before };
+}
+
+/**
+ * An object under an impossible sustained load bursts instead of being drawn.
+ *
+ * A 0.4 m helium sphere weighs 5.6 grams and shoves 47 kilograms of honey out
+ * of the way, so the buoyancy on it is 467 N - about 8,500 g, held, from the
+ * first instant. No integrator makes that sensible: before this, the ball
+ * reached 7,343,385 m/s within two steps and sat there. Bursting says the true
+ * thing instead, which is that the object is absurd.
+ */
+test('an object under thousands of g bursts rather than being simulated', () => {
+  const { world, burst } = inFluid('helium', 'honey');
+  assert.ok(burst, 'a helium ball in honey should burst');
+  // Before the clock has moved: the load is there from the start.
+  assert.ok(burst.t < 0.01, `burst at t = ${burst.t}`);
+  assert.ok(burst.g > 5000, `only ${burst.g} g`);
+  close(burst.force, 467, 5);
+  assert.equal(world.bodies.length, 0, 'the burst body should leave the scene');
+});
+
+test('a burst takes its energy off the books, so the totals still add up', () => {
+  const { world, before } = inFluid('helium', 'honey');
+  const after = totals(world).mechanical + world.ledger.removed;
+  close(after, before, 1e-6);
+});
+
+/**
+ * Nothing that is merely dramatic bursts.
+ *
+ * A hard landing is a large acceleration for one step - a steel ball dropped a
+ * hundred metres pulls 1,719 g as it arrives - and it is perfectly real. Only
+ * the forces that keep acting are counted, so a collision is never mistaken for
+ * an impossible load.
+ */
+test('hard landings and honest buoyancy do not burst', () => {
+  for (const [material, fluid] of [
+    ['polystyrene', 'honey'], ['balsa', 'honey'], ['helium', 'air'], ['steel', 'air'],
+  ]) {
+    const { world, burst } = inFluid(material, fluid);
+    assert.equal(burst, null, `${material} in ${fluid} should not burst`);
+    assert.equal(world.bodies.length, 1, `${material} in ${fluid} lost its body`);
+  }
+
+  const p = {
+    ...defaults().bench,
+    shapeId: 'sphere', size: 0.3, mass: 20, materialId: 'steel',
+    x0: 0, dropHeight: 100, v0: 0, slopeDeg: 0, pushForce: 0,
+    fluidId: 'air', worldMode: 'planet', objects: [], cannons: [], walls: [],
+  };
+  const scenario = build('collide', p);
+  let world = applyPush(scenario.world, p, scenario.features);
+  for (let i = 0; i < 240 * 10; i += 1) {
+    world = applyPush(world, p, scenario.features);
+    world = advance(world, 1 / 240);
+    assert.ok(!world.events.some((e) => e.type === 'burst'), 'a landing burst the ball');
+  }
+  assert.equal(world.bodies.length, 1);
+});
+
+/** A helium balloon in air is the whole point of helium, and still works. */
+test('helium still rises in air', () => {
+  const { world } = inFluid('helium', 'air');
+  const b = world.bodies[0];
+  assert.ok(b.vel.y > 1, `it should be going up, not ${b.vel.y} m/s`);
+  assert.ok(b.vel.y < 10, `${b.vel.y} m/s is not a terminal speed`);
 });

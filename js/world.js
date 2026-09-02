@@ -59,6 +59,34 @@ const FADE_SECONDS = 3;
  */
 const CLASSICAL_LIMIT = C_LIGHT / 10;
 
+/*
+ * Forces that go on acting, as against a contact that is over in a step.
+ *
+ * A collision is a large acceleration for one or two steps and is perfectly
+ * real - a steel ball dropped a hundred metres pulls 1,719 g as it lands. A
+ * buoyancy that outweighs an object eight thousand times is a different thing:
+ * it never stops, and no object survives it. Only the continuous forces are
+ * measured, so a hard landing is never mistaken for one.
+ */
+const CONTACT_FORCES = new Set(['normal', 'friction', 'rolling']);
+
+/*
+ * Where an object stops being an object.
+ *
+ * A thousand g, sustained. Nothing on this bench comes near it honestly: the
+ * heaviest sustained load across every prepared example is 33 g, on a light
+ * ball rising through honey. A helium sphere in honey starts at 8,554 g,
+ * because 5.6 grams of helium displaces 47 kilograms of honey and the buoyancy
+ * is 467 N on a ball that weighs 0.055 N.
+ *
+ * That is not a simulation problem to be worked around - it is an absurd
+ * object, and saying so is more use than drawing it. A person blacks out near
+ * 10 g and an airframe comes apart near 20; a thousand, held steady, destroys
+ * anything. It also catches the case at t = 0, before the integrator takes the
+ * step that used to send the ball to seven million metres a second.
+ */
+const BURST_G = 1000;
+
 export const KINDS = ['ball', 'box', 'cart', 'planet'];
 
 /** One body, with every field defaulted so a scenario can name only what matters. */
@@ -444,6 +472,18 @@ export function advance(world, dt, maxStep = 0.002) {
   return plan.count ? { ...next, events } : world;
 }
 
+/** The part of the load that is not a contact, and so does not let up. */
+function sustainedForce(result) {
+  let x = 0;
+  let y = 0;
+  for (const f of result.forces) {
+    if (CONTACT_FORCES.has(f.id)) continue;
+    x += f.vec.x;
+    y += f.vec.y;
+  }
+  return vec(x, y);
+}
+
 /** One step. Returns a new world; the one passed in is untouched. */
 export function step(world, dt) {
   const events = [];
@@ -453,6 +493,18 @@ export function step(world, dt) {
     if (b.fixed) return { ...b, trail: b.trail };
 
     const result = forcesFor(world, b);
+
+    /*
+     * Anything under an impossible sustained load bursts rather than being
+     * drawn doing something impossible.
+     */
+    const held = sustainedForce(result);
+    const heldG = len(held) / Math.max(b.mass, 1e-12) / G_STANDARD;
+    if (heldG > BURST_G) {
+      events.push({ type: 'burst', id: b.id, g: heldG, force: len(held), t: world.t });
+      return { ...b, burst: true, vel: ZERO };
+    }
+
     // Semi-implicit: velocity first, then position from the new velocity.
     let vel = add(b.vel, scale(result.acceleration, dt));
 
@@ -619,7 +671,7 @@ export function step(world, dt) {
 
   const t = world.t + dt;
 
-  const surviving = retireSpentShots(bodies, dt, world, ledger, events);
+  const surviving = clearBurst(retireSpentShots(bodies, dt, world, ledger, events), world, ledger);
 
   // Cannons fire inside the step, so a shot is recorded on the timeline like
   // everything else, and scrubbing back to before it was fired shows a scene
@@ -653,6 +705,24 @@ export function step(world, dt) {
  * some — so that is moved onto the ledger on the way out rather than silently
  * leaving the books.
  */
+/**
+ * Clear away anything that burst, and take its energy off the books with it.
+ *
+ * Separate from retiring spent shots because that only runs where there are
+ * shots to retire, and an object can burst on a bench with nothing else on it
+ * at all - a helium sphere in honey does it before the clock has ticked once.
+ */
+function clearBurst(bodies, world, ledger) {
+  if (!bodies.some((b) => b.burst)) return bodies;
+  const out = [];
+  for (const b of bodies) {
+    if (!b.burst) { out.push(b); continue; }
+    const potential = potentialEnergy(b, world.env, world.ground?.y ?? 0);
+    ledger.removed += 0.5 * b.mass * len2(b.vel) + potential;
+  }
+  return out;
+}
+
 function retireSpentShots(bodies, dt, world, ledger, events) {
   if (!bodies.some((b) => b.projectile)) return bodies;
   const out = [];

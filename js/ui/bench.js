@@ -1248,6 +1248,27 @@ export function banners(ctx) {
   const f = ctx.features;
   const p = ctx.params;
   const out = [];
+  /*
+   * A burst is reported before anything else, and before the guard below.
+   *
+   * Everything after this point describes the object on the bench, so it stops
+   * when there is no object. A burst is the one case where the object is gone
+   * *and* there is something to say about it - putting this after the guard
+   * meant the object vanished with no explanation at all, which is the worst
+   * possible answer.
+   */
+  const burst = ctx.recorder.burst;
+  if (burst) {
+    out.push(banner('danger',
+      `That object burst. It was under ${fmtFixed(burst.force, 0)} N of steady `
+      + `force, which on its mass is about ${fmtFixed(burst.g, 0)} g — held, not `
+      + 'a bump. A person blacks out near 10 g and an airframe comes apart near '
+      + '20, so nothing survives this. The usual cause is something very light '
+      + 'in something very dense, where the fluid it shoves aside weighs '
+      + 'thousands of times what the object does. Try a heavier material, a '
+      + 'thinner fluid, or a smaller object.'));
+  }
+
   const main = inspect(ctx.world, 'main');
   if (!main) return out;
 
