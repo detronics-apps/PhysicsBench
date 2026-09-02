@@ -811,48 +811,46 @@ export const EXAMPLES = [
   },
   {
     id: 'marble-run',
-    title: 'A marble run',
-    blurb: 'Three glass balls, four ramps and thirty-four pieces of track. '
-      + 'Everything they do on the way down came out of the height they '
-      + 'started at.',
-    watch: 'Each ramp ends faster than it began and each drop costs some of it '
-      + 'back. Nothing pushes them at any point - the whole run is spending '
-      + 'sixteen metres of height, and when it is gone they stop.',
+    title: 'A fifty-metre marble run',
+    blurb: 'Chutes, jumps, a splitter and a dozen plates to bounce off. Three '
+      + 'identical marbles, and they do not arrive together.',
+    watch: 'Nothing on the track pushes. Every jump, every bounce and all of '
+      + 'the speed came out of fifty metres of height, and when it is spent the '
+      + 'marbles stop.',
     stage: 'collide',
     /*
-     * The track is generated, not typed. Each ramp is walked as a path - go
-     * this far, bend by this much - so its pieces join exactly rather than
-     * leaving hairline gaps for a marble to drop through.
+     * Thirty-six pieces across fifty metres: steep chutes anchored to the side
+     * walls, gaps to fly, curved catches, a splitter, and plates hung in open
+     * air with nothing attached to them.
      *
-     * Four things had to be got right, and each was found by running it:
+     * The plates are what make it unpredictable. A marble arriving a hand's
+     * width further left clips a different one and leaves on a different
+     * heading, so three balls released a second apart do not follow each other:
+     * they finish spread across thirteen metres of floor, having peaked at
+     * 14.9, 16.2 and 20.6 m/s by three different routes.
      *
-     * - Ramps, not a continuous wall. The first attempt switched back on itself
-     *   as one path, and after every turn the next level ran uphill; every
-     *   marble stalled and rolled off the side. Real runs are a stack of ramps
-     *   with the fall between them part of the ride.
-     * - Side walls. A marble finishing a twenty-metre ramp is doing over two
-     *   metres a second sideways and lands a good two metres past the end, so
-     *   sizing each ramp to catch the one above is a losing game - a faster
-     *   marble simply flies further. A wall down each side turns the overshoot
-     *   into a bounce.
-     * - Bends gentler than the slope. A nine-degree curve on an eight-degree
-     *   ramp makes part of it climb, and every marble stopped there.
-     * - Clearance. Levels 3.4 m apart left none where they overlap, and the
-     *   marbles wedged between the end of one ramp and the surface of the next.
+     * Four things had to be right, and each was found by running it:
      *
-     * The floor stops are two short walls rather than a bowl, because a bowl
-     * has to rise to catch anything and rising is what puts it in the way of
-     * the ramp above - the first one reached up into level four and stopped
-     * every marble halfway along it.
+     * - Every ramp is anchored to a side wall at its high end. One that stops
+     *   short leaves a V, and a marble landing in it sits there for ever -
+     *   pinched between a vertical face and a shallow floor with nothing to
+     *   roll down. Two of three marbles were lost that way.
+     * - Exit headings have to stay downhill. Four features turned so far that
+     *   the heading wrapped past 180 degrees and the last section climbed;
+     *   every marble ran up and stopped.
+     * - Bowls have to be shallow enough to pass a marble on. Deep ones caught
+     *   them and rattled them instead.
+     * - Nothing may end hard against a wall at a shallow angle. The final curl
+     *   did, and wedged a marble at four metres up.
      */
     params: {
       shapeId: 'sphere',
-      size: 0.3,
-      // Glass, at its own density: 2500 kg/m3 through 0.0141 m3.
-      mass: 35.34,
+      size: 0.34,
+      // Glass at its own density: 2500 kg/m3 through 0.0206 m3.
+      mass: 51.4,
       materialId: 'glass',
-      x0: -11,
-      dropHeight: 16.2,
+      x0: -12.2,
+      dropHeight: 50.6,
       v0: 0,
       pushForce: 0,
       pushSeconds: 0,
@@ -861,89 +859,94 @@ export const EXAMPLES = [
       worldMode: 'planet',
       collisions: true,
       objects: [
-        // Stacked above the first, so they set off one after another.
-        { id: 'o2', shapeId: 'sphere', size: 0.3, materialId: 'glass', mass: 35.34, x: -11.3, y: 17, vx: 0, vy: 0 },
-        { id: 'o3', shapeId: 'sphere', size: 0.3, materialId: 'glass', mass: 35.34, x: -11.6, y: 17.8, vx: 0, vy: 0 },
+        // Stacked above the first, so they set off a moment apart - which is
+        // all it takes for them to end up somewhere else.
+        { id: 'o2', shapeId: 'sphere', size: 0.34, materialId: 'glass', mass: 51.4, x: -12.5, y: 51.8, vx: 0, vy: 0 },
+        { id: 'o3', shapeId: 'sphere', size: 0.34, materialId: 'glass', mass: 51.4, x: -12.8, y: 53, vx: 0, vy: 0 },
       ],
       cannons: [],
       walls: [
-        { x1: -11.5, y1: 16, x2: -10.8418, y2: 15.7988, bulge: -0.0271, restitution: 0.2, mu: 0.08 },
-        { x1: -10.8418, y1: 15.7988, x2: -4.1872, y2: 14.8635, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -4.1872, y1: 14.8635, x2: -3.5685, y2: 14.7544, bulge: 0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: -3.5685, y1: 14.7544, x2: 1.7722, y2: 13.6192, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 1.7722, y1: 13.6192, x2: 2.3908, y2: 13.5101, bulge: -0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: 2.3908, y1: 13.5101, x2: 9.0454, y2: 12.5749, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 9.0454, y1: 12.5749, x2: 9.5506, y2: 12.401, bulge: 0.0257, restitution: 0.2, mu: 0.08 },
-        { x1: 11.5, y1: 11.7, x2: 10.8418, y2: 11.4988, bulge: 0.0271, restitution: 0.2, mu: 0.08 },
-        { x1: 10.8418, y1: 11.4988, x2: 4.1872, y2: 10.5635, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 4.1872, y1: 10.5635, x2: 3.5685, y2: 10.4544, bulge: -0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: 3.5685, y1: 10.4544, x2: -1.7722, y2: 9.3192, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -1.7722, y1: 9.3192, x2: -2.3908, y2: 9.2101, bulge: 0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: -2.3908, y1: 9.2101, x2: -9.0454, y2: 8.2749, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -9.0454, y1: 8.2749, x2: -9.5506, y2: 8.101, bulge: -0.0257, restitution: 0.2, mu: 0.08 },
-        { x1: -11.5, y1: 7.4, x2: -10.8418, y2: 7.1988, bulge: -0.0271, restitution: 0.2, mu: 0.08 },
-        { x1: -10.8418, y1: 7.1988, x2: -4.1872, y2: 6.2635, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -4.1872, y1: 6.2635, x2: -3.5685, y2: 6.1544, bulge: 0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: -3.5685, y1: 6.1544, x2: 1.7722, y2: 5.0192, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 1.7722, y1: 5.0192, x2: 2.3908, y2: 4.9101, bulge: -0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: 2.3908, y1: 4.9101, x2: 9.0454, y2: 3.9749, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 9.0454, y1: 3.9749, x2: 9.5506, y2: 3.801, bulge: 0.0257, restitution: 0.2, mu: 0.08 },
-        { x1: 11.5, y1: 3.6, x2: 10.8418, y2: 3.3988, bulge: 0.0271, restitution: 0.2, mu: 0.08 },
-        { x1: 10.8418, y1: 3.3988, x2: 4.1872, y2: 2.4635, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 4.1872, y1: 2.4635, x2: 3.5685, y2: 2.3544, bulge: -0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: 3.5685, y1: 2.3544, x2: -1.7722, y2: 1.2192, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -1.7722, y1: 1.2192, x2: -2.3908, y2: 1.1101, bulge: 0.0055, restitution: 0.2, mu: 0.08 },
-        { x1: -2.3908, y1: 1.1101, x2: -9.0454, y2: 0.1749, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -9.0454, y1: 0.1749, x2: -9.5506, y2: 0.001, bulge: -0.0257, restitution: 0.2, mu: 0.08 },
-        { x1: -11.7, y1: 16.6, x2: -11.7, y2: 8.2, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -11.7, y1: 8.2, x2: -11.7, y2: -0.2, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 11.7, y1: 12.3, x2: 11.7, y2: 6.1, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 11.7, y1: 6.1, x2: 11.7, y2: -0.1, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: -11.2, y1: 0, x2: -11.2, y2: 1.1, bulge: 0, restitution: 0.2, mu: 0.08 },
-        { x1: 11.2, y1: 0, x2: 11.2, y2: 1.1, bulge: 0, restitution: 0.2, mu: 0.08 },
+        { x1: -13, y1: 49.5, x2: -10.391, y2: 46.7983, bulge: -0.4682, restitution: 0.4, mu: 0.05 },
+        { x1: -10.391, y1: 46.7983, x2: -6.1113, y2: 45.4077, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 42.5, x2: 9.9634, y2: 40.041, bulge: 0.3975, restitution: 0.4, mu: 0.05 },
+        { x1: 9.9634, y1: 40.041, x2: 6.599, y2: 39.0763, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 5.5, y1: 38, x2: -4.5, y2: 35.5, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -13, y1: 33, x2: -11.0863, y2: 31.3364, bulge: -0.2811, restitution: 0.4, mu: 0.05 },
+        { x1: -11.0863, y1: 31.3364, x2: -7.7219, y2: 30.3717, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 27.5, x2: 9.8517, y2: 25.1276, bulge: 0.3653, restitution: 0.4, mu: 0.05 },
+        { x1: 9.8517, y1: 25.1276, x2: 6.4873, y2: 24.1629, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -5, y1: 20.5, x2: 0, y2: 22.5, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 0, y1: 22.5, x2: 5, y2: 20.5, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -13, y1: 18, x2: -9.9634, y2: 15.541, bulge: -0.3975, restitution: 0.4, mu: 0.05 },
+        { x1: -9.9634, y1: 15.541, x2: -6.599, y2: 14.5763, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 16.5, x2: 10.1303, y2: 14.0921, bulge: 0.3641, restitution: 0.4, mu: 0.05 },
+        { x1: 10.1303, y1: 14.0921, x2: 6.8016, y2: 13.0105, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -9.5, y1: 11, x2: -6.5791, y2: 9.8788, bulge: -0.1231, restitution: 0.4, mu: 0.05 },
+        { x1: -6.5791, y1: 9.8788, x2: -1.6884, y2: 8.8392, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 6.5, y1: 5.5, x2: 8.5095, y2: 4.2926, bulge: -0.2385, restitution: 0.4, mu: 0.05 },
+        { x1: 8.5095, y1: 4.2926, x2: 10.9852, y2: 3.9446, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -2, y1: 30.5, x2: 0.9282, y2: 27.8635, bulge: -0.6784, restitution: 0.4, mu: 0.05 },
+        { x1: -12.6, y1: 8, x2: -9.7852, y2: 6.6874, bulge: -0.2044, restitution: 0.4, mu: 0.05 },
+        { x1: -9.7852, y1: 6.6874, x2: -7.8574, y2: 5.9086, bulge: 0.1093, restitution: 0.4, mu: 0.05 },
+        { x1: -8.5, y1: 45.5, x2: -2.5, y2: 44, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 8, y1: 32.5, x2: 2.5, y2: 31, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -7, y1: 25.5, x2: -2, y2: 26.8, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 3, y1: 13.5, x2: 8.5, y2: 12.2, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -4.5, y1: 6.5, x2: 0.5, y2: 5.2, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -2, y1: 2.2, x2: 2, y2: 3.2, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -13, y1: 51, x2: -13, y2: 34, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -13, y1: 34, x2: -13, y2: 17, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -13, y1: 17, x2: -13, y2: 0, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 51, x2: 13, y2: 34, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 34, x2: 13, y2: 17, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 13, y1: 17, x2: 13, y2: 0, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: -12.6, y1: 0, x2: -12.6, y2: 1.3, bulge: 0, restitution: 0.4, mu: 0.05 },
+        { x1: 12.6, y1: 0, x2: 12.6, y2: 1.3, bulge: 0, restitution: 0.4, mu: 0.05 },
       ],
     },
     arrows: ['velocity', 'weight', 'normal', 'net'],
     teach: {
       how: 'A marble at the top has energy because of where it is, and that is '
-        + 'the only supply the run has. Rolling down a ramp turns height into '
-        + 'speed; every metre it drops is worth the same amount of speed '
-        + 'whatever route it takes to get there. The drops between ramps and '
-        + 'the knocks against the walls turn some of it into heat and sound '
-        + 'instead, which is why each ramp starts a little slower than the last '
-        + 'one finished, and why the run has to keep descending to keep going.',
+        + 'the only supply the run has. Every metre it drops buys the same '
+        + 'amount of speed whatever route it takes to get there - which is why '
+        + 'a long shallow chute and a short steep one arrive at the same height '
+        + 'doing the same speed. What the run does with that is take some back '
+        + 'at every bounce, as heat and sound, and once it has all gone the '
+        + 'marble stops wherever it happens to be.',
       tryThis: [
-        'Press Play and follow one marble. It reaches about 8 m/s at the end of '
-        + 'each ramp and arrives at the bottom after roughly twenty seconds.',
-        'Watch what happens at a wall. The speed drops sharply, and the marble '
-        + 'never gets that back - it sets off down the next ramp slower than it '
-        + 'arrived.',
-        'Set the fluid to vacuum and run it again. Slightly faster, but only '
-        + 'slightly: at these speeds the air is a small part of what it loses.',
-        'Make the walls bouncier in the obstacles panel. The marbles keep more '
-        + 'speed at each drop and the run gets quicker and wilder.',
-        'Change the marbles to expanded polystyrene and watch how much air '
-        + 'resistance matters when there is much less weight behind it.',
+        'Press Play and follow one marble. It peaks somewhere near 17 m/s and '
+        + 'takes a bit over a minute to come to rest.',
+        'Watch all three. They start a second apart from almost the same place '
+        + 'and finish metres apart, because a plate hit slightly differently '
+        + 'sends a marble somewhere else entirely.',
+        'Change the fluid to water. The marbles slow to a crawl and the whole '
+        + 'run becomes gentle - drag rises with the square of the speed, so it '
+        + 'bites hardest exactly where the run is fastest.',
+        'Make the walls bouncier in the obstacles panel and run it again. More '
+        + 'of the speed survives each hit and the marbles go further off track.',
+        'Set the drop height lower and see how far down the run a marble gets. '
+        + 'It can only ever spend the height it started with.',
       ],
       watch: [
-        'The velocity arrow grows the whole way down a ramp and never quite '
-        + 'points along it - gravity pulls straight down, and the ramp only '
-        + 'lets it move along the slope.',
-        'The normal force arrow leans as the ramp does, always at right angles '
-        + 'to the surface. On the curved sections you can see it swing.',
-        'At the top of each drop the marble is briefly in free fall: the normal '
-        + 'force goes to nothing and the net force is just weight.',
-        'By the end the marbles are rolling back and forth between the stops, '
-        + 'losing a little each time, until they settle. There was never '
-        + 'anywhere else for the height to go.',
+        'On a chute the velocity arrow grows steadily and never points along '
+        + 'the slope - gravity pulls straight down and the ramp only permits '
+        + 'the part along itself.',
+        'In the air between features there is no normal force at all. The net '
+        + 'force arrow is exactly the weight, and the path is the same parabola '
+        + 'a thrown ball makes.',
+        'At every bounce the velocity arrow shortens. Nothing gives it back.',
+        'The three marbles separate within the first few seconds and never '
+        + 'come back together, on a track with nothing random in it at all.',
       ],
       learn: 'A marble run is a machine for spending height, and it can only '
-        + 'ever spend it once. Nothing on this track pushes: every bit of speed '
-        + 'anywhere on it was bought with a metre of descent somewhere earlier, '
-        + 'which is why the ramps must keep going down and why the run has an '
-        + 'end. Add up the height dropped and you have accounted for everything '
-        + 'that happens - including the part that goes to heat, which is the '
-        + 'part you never get back.',
+        + 'spend it once. Every bit of speed anywhere on this track was bought '
+        + 'with a metre of descent earlier, which is why the features must keep '
+        + 'going down and why the run has an end. The three marbles also show '
+        + 'something else: the same track, the same balls and a start a second '
+        + 'apart is enough to finish metres away from each other. Nothing here '
+        + 'is random - it is just that a bounce multiplies small differences, '
+        + 'which is why predicting weather is hard and predicting an eclipse is '
+        + 'not.',
     },
   },
 ];
