@@ -421,7 +421,7 @@ export const EXAMPLES = [
       mass: 0.6,
       // On the right-hand straight, halfway along it.
       x0: 1.95,
-      dropHeight: 0,
+      y0: 0,
       v0: 0,
       pushForce: 0,
       pushSeconds: 0,

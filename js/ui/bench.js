@@ -364,8 +364,41 @@ function worldSection(ctx) {
           + 'and the same objects are drawn from above.',
     }) : null;
 
+  /*
+   * Where the object starts, which is two different questions.
+   *
+   * On a world it is a height above the surface and cannot sensibly be
+   * negative: below the floor is inside it. In deep space there is no surface
+   * to be above, so the same control is a plain coordinate and the negative
+   * half is as usable as the positive one. One slider bound to two fields keeps
+   * the panel honest — whichever is on screen is the one the scenario reads, so
+   * it can never appear to do nothing.
+   *
+   * It has to be built before the space branch returns, or the only placement
+   * control in the app is in the half of the function deep space never reaches.
+   */
+  const placement = ctx.space
+    ? sliderField('Where it starts', p.y0, (v) => set('y0', v), {
+      min: -20, max: 20, step: 0.1, key: 'y0',
+      format: (v) => `${fmtFixed(v, 1)} m ${v < 0 ? 'down' : 'up'}`,
+      info: 'Where it sits to begin with, measured from the middle of the view. '
+        + 'There is no floor out here, so down is as good as up and it will not '
+        + 'fall towards either.',
+      hint: 'It only moves the object while the clock is at zero. Once it is '
+        + 'under way, where it started is no longer where it is.',
+    })
+    : sliderField('Drop it from', p.dropHeight, (v) => set('dropHeight', v), {
+      min: 0, max: 20, step: 0.1, key: 'dropHeight',
+      format: (v) => `${fmtFixed(v, 1)} m up`,
+      info: 'How far above the surface it is released. It only moves the object '
+        + 'while the clock is at zero — once it is falling, where it started is '
+        + 'no longer a description of where it is.',
+      hint: 'Whatever you set here, it accelerates at the same rate: its own '
+        + 'mass is not in g = G*M/r^2. Higher only means longer to watch.',
+    });
+
   if (ctx.space) {
-    return section('The world it is on', [where], { key: 'world' });
+    return section('The world it is on', [where, placement], { key: 'world' });
   }
 
   return section('The world it is on', [
@@ -428,14 +461,8 @@ function worldSection(ctx) {
       el('dd', { text: `${fmtFixed(Math.abs(p.mass * world.g * Math.sin((p.slopeDeg * Math.PI) / 180)), 2)} N` }),
     ]) : null,
 
-    sliderField('Drop it from', p.dropHeight, (v) => set('dropHeight', v), {
-      min: 0, max: 20, step: 0.1, key: 'dropHeight', format: (v) => `${fmtFixed(v, 1)} m up`,
-      info: 'How far above the surface it is released. It only moves the object '
-        + 'while the clock is at zero — once it is falling, where it started is '
-        + 'no longer a description of where it is.',
-      hint: 'Whatever you set here, it accelerates at the same rate: the object\'s '
-        + 'own mass is not in g = G·M/r². Higher only means longer to watch.',
-    }),
+    placement,
+
   ].filter(Boolean), { key: 'world' });
 }
 
@@ -524,13 +551,24 @@ function fluidSection(ctx, object) {
    * speed at all — it goes up. Using mg here would print a confident number for
    * how fast a balloon sinks.
    */
+  /*
+   * Buoyancy and terminal speed are gravity doing the work, so in deep space
+   * they are both nothing.
+   *
+   * These read the world's surface gravity whatever the bench was set to, which
+   * printed "16.919 N up" and a steady rising speed for a rover sitting
+   * motionless in a place with no field at all — a confident number for a force
+   * the simulation was correctly not applying. F_b is rho*V*g, and with g at
+   * zero so is it; what is left of the fluid out here is drag alone.
+   */
+  const gHere = ctx.space ? 0 : world.g;
   const effectiveMass = p.mass - fluid.density * object.volume;
-  const vt = effectiveMass > 0 ? terminalSpeed({
-    mass: effectiveMass, g: world.g, density: fluid.density, viscosity: fluid.viscosity,
+  const vt = effectiveMass > 0 && gHere > 0 ? terminalSpeed({
+    mass: effectiveMass, g: gHere, density: fluid.density, viscosity: fluid.viscosity,
     diameter: p.size, area: object.area, cdShape: object.cd,
   }) : NaN;
-  const rise = effectiveMass < 0 ? terminalSpeed({
-    mass: -effectiveMass, g: world.g, density: fluid.density, viscosity: fluid.viscosity,
+  const rise = effectiveMass < 0 && gHere > 0 ? terminalSpeed({
+    mass: -effectiveMass, g: gHere, density: fluid.density, viscosity: fluid.viscosity,
     diameter: p.size, area: object.area, cdShape: object.cd,
   }) : NaN;
 
@@ -552,15 +590,20 @@ function fluidSection(ctx, object) {
       el('dt', { text: here ? 'Viscosity here' : 'Viscosity' }),
       el('dd', { text: `${here ? here.viscosity.toExponential(3) : fluid.viscosity} Pa·s` }),
       el('dt', { text: 'Buoyant force' }),
-      el('dd', { text: `${fmtFixed(fluid.density * object.volume * world.g, 3)} N up` }),
+      el('dd', {
+        text: gHere > 0
+          ? `${fmtFixed(fluid.density * object.volume * gHere, 3)} N up`
+          : 'none — no gravity to push it up',
+      }),
       el('dt', { text: Number.isFinite(rise) ? 'Steady rising speed' : 'Terminal speed' }),
       el('dd', {
         text: Number.isFinite(rise) ? `${fmtFixed(rise, 2)} m/s upward`
           : (Number.isFinite(vt) ? `${fmtFixed(vt, 2)} m/s` : 'none'),
       }),
     ]),
-    fluid.density > 0 ? el('div', { class: 'field__hint', text: floats(object.density, fluid.density).text }) : null,
-    fluid.density > 0 ? el('div', {
+    fluid.density > 0 && gHere > 0
+      ? el('div', { class: 'field__hint', text: floats(object.density, fluid.density).text }) : null,
+    fluid.density > 0 && gHere > 0 ? el('div', {
       class: 'field__hint',
       text: `The fluid holds up ${fmtFixed(fluid.density * object.volume, 3)} kg of the `
         + `${fmtFixed(p.mass, 3)} kg — that is why the same stone is easier to lift underwater, `

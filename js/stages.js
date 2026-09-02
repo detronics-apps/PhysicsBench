@@ -237,6 +237,17 @@ export const inSpace = (stageId, p) =>
  * the ramp is tilted or not.
  */
 export function objectList(p, f) {
+  /*
+   * Deep space has no surface, so "drop it from" has nothing to measure from
+   * and the plain y is the placement instead.
+   *
+   * `hasGround` already drew this distinction where the world is built and this
+   * did not, so in space the main object was pinned to `dropHeight` — which is
+   * floored at zero, putting the whole lower half of the plane out of reach.
+   * The control that writes it changes with the same test, so the slider on
+   * screen is always the one being read here.
+   */
+  const onGround = f.has('ground') && !(f.has('space') && p.worldMode === 'space');
   const list = [{
     id: 'main',
     mass: p.mass,
@@ -254,7 +265,7 @@ export function objectList(p, f) {
      * nothing at all from step five on. `startPosition` was already willing to
      * lift the object — it was handed a zero and had nothing to lift.
      */
-    y: f.has('ground') ? Math.max(0, p.dropHeight ?? 0) : (p.y0 ?? 0),
+    y: onGround ? Math.max(0, p.dropHeight ?? 0) : (p.y0 ?? 0),
     vx: p.v0 ?? 0,
     vy: 0,
     colour: 0,

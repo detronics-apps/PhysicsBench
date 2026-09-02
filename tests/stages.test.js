@@ -1126,3 +1126,52 @@ test('an equation only appears once the step can actually do it', () => {
     if (stage.id === 'mass') assert.deepEqual(equationsAt('mass'), ['density']);
   }
 });
+
+/**
+ * Where the main object starts, on a world and off one.
+ *
+ * These are two different questions sharing one slider, and the scenario has to
+ * read whichever one the panel is showing. It did not: `objectList` asked only
+ * whether the step had the ground feature, which step seven does even when the
+ * bench is set to space, so `dropHeight` won the placement everywhere. Because
+ * it is floored at zero, the whole lower half of the plane was unreachable.
+ */
+test('in deep space the object starts at y0, above or below the origin', () => {
+  for (const y0 of [-4.5, 0, 3.25]) {
+    const p = { ...defaults().bench, worldMode: 'space', fluidId: 'vacuum',
+      x0: 0.5, y0, dropHeight: 3, objects: [], cannons: [], walls: [] };
+    const main = findBody(build('collide', p).world, 'main');
+    assert.ok(Math.abs(main.pos.x - 0.5) < 1e-9, `x was ${main.pos.x}`);
+    assert.ok(Math.abs(main.pos.y - y0) < 1e-9, `y0 ${y0} was not used, got ${main.pos.y}`);
+  }
+});
+
+test('on a world the object still starts at the drop height', () => {
+  const p = { ...defaults().bench, worldMode: 'planet', slopeDeg: 0,
+    x0: 0, y0: -5, dropHeight: 2, objects: [], cannons: [], walls: [] };
+  const main = findBody(build('collide', p).world, 'main');
+  // Cleared by the drop height plus whatever the shape needs to rest on.
+  assert.ok(main.pos.y > 2, `drop height ignored: y = ${main.pos.y}`);
+});
+
+/**
+ * In deep space a fluid resists motion and nothing else.
+ *
+ * Buoyancy is rho*V*g, so with no field there is none of it however dense the
+ * fluid — a rover sitting in water out here should sit exactly where it was
+ * put. The simulation already had this right while the fluid panel was printing
+ * a confident "16.919 N up" beside it, which is the sort of disagreement that
+ * teaches the wrong thing to whoever reads the panel.
+ */
+test('deep space gives no buoyancy, however dense the fluid', () => {
+  for (const fluidId of ['water', 'honey']) {
+    const p = { ...defaults().bench, worldMode: 'space', fluidId,
+      shapeId: 'sphere', size: 0.2, mass: 0.5, x0: 0, y0: 0, v0: 0,
+      pushForce: 0, objects: [], cannons: [], walls: [] };
+    let world = build('collide', p).world;
+    for (let i = 0; i < 240 * 5; i++) world = advance(world, 1 / 240);
+    const b = findBody(world, 'main');
+    assert.ok(Math.abs(b.pos.y) < 1e-9, `${fluidId}: drifted to y = ${b.pos.y}`);
+    assert.ok(Math.abs(b.vel.y) < 1e-9, `${fluidId}: picked up vy = ${b.vel.y}`);
+  }
+});
