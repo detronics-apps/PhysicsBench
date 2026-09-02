@@ -9,6 +9,7 @@ import { slipAngle, ROLLING_DEFAULT } from '../js/friction.js';
 import { SHAPES, MATERIALS } from '../js/shapes.js';
 import { FLUIDS } from '../js/drag.js';
 import { controlForce } from '../js/control.js';
+import { fieldAt } from '../js/forces.js';
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -504,4 +505,81 @@ test('in water the rover settles at a top speed that goes as the root of thrust'
   // And the example ships a strength that actually settles somewhere sensible.
   const shipped = settle(state.bench.control.strength);
   assert.ok(shipped > 1 && shipped < 2, `shipped top speed ${shipped} m/s`);
+});
+
+/* ---------------------------------------------------------- the rocket -- */
+
+/** Fly the rocket with one setting changed, and report how high it got. */
+function apogee(bench, { pushForce, pushSeconds, fluidId }) {
+  const p = { ...bench,
+    pushForce: pushForce ?? bench.pushForce,
+    pushSeconds: pushSeconds ?? bench.pushSeconds,
+    fluidId: fluidId ?? bench.fluidId };
+  const scenario = build('fluid', p);
+  let world = applyPush(scenario.world, p, scenario.features);
+  let peak = 0;
+  for (let i = 0; i < 240 * 900; i++) {
+    world = applyPush(world, p, scenario.features);
+    world = advance(world, 1 / 240);
+    const b = findBody(world, 'main');
+    peak = Math.max(peak, b.pos.y);
+    if (world.t > p.pushSeconds && b.vel.y < 0 && b.pos.y < 1) break;
+  }
+  return peak;
+}
+
+/**
+ * The rocket misses its target, and the fix in the instructions is the one
+ * that works.
+ *
+ * The whole example turns on a claim that sounds wrong: the same fuel burned
+ * gentler goes higher. It is written down as three numbers a reader is invited
+ * to reproduce, so all three are held here — including the failure at the far
+ * end, because "too gentle is also bad" is what makes it an optimum rather
+ * than a rule that less is always more.
+ */
+test('the rocket misses 17 km, and the same fuel spent slower clears it', () => {
+  const { bench } = exampleState('rocket-to-the-stratosphere');
+  const impulse = bench.pushForce * bench.pushSeconds;
+  assert.equal(impulse, 60000, 'the fuel budget the instructions quote');
+
+  const shipped = apogee(bench, {});
+  assert.ok(shipped > 16000 && shipped < 16500, `shipped reached ${shipped} m`);
+  assert.ok(shipped < 17000, 'the shipped setting must miss the target');
+
+  // Same impulse, gentler and longer: this is the answer the text gives.
+  const better = apogee(bench, { pushForce: 1500, pushSeconds: 40 });
+  assert.equal(1500 * 40, impulse, 'the fix must cost the same fuel');
+  assert.ok(better > 17000, `the fix only reached ${better} m`);
+  assert.ok(better > shipped, 'the fix must actually be an improvement');
+
+  // And too gentle is bad again: a rocket barely beating its own weight
+  // spends its fuel hanging in the air.
+  const tooSlow = apogee(bench, { pushForce: 600, pushSeconds: 100 });
+  assert.equal(600 * 100, impulse, 'the far end must cost the same fuel too');
+  assert.ok(tooSlow < 9500 && tooSlow < better,
+    `too-gentle reached ${tooSlow} m, which does not read as a failure`);
+});
+
+/**
+ * What the air costs, and what height does to weight.
+ *
+ * The point of the example is that these two are wildly different sizes, so
+ * both are pinned: the air takes about three quarters of the altitude, and the
+ * weight barely moves at all.
+ */
+test('the air costs most of the altitude while gravity hardly changes', () => {
+  const { bench } = exampleState('rocket-to-the-stratosphere');
+  const inAir = apogee(bench, {});
+  const inVacuum = apogee(bench, { fluidId: 'vacuum' });
+  assert.ok(inVacuum > 3 * inAir,
+    `vacuum ${inVacuum} m against air ${inAir} m is not the stated gulf`);
+
+  // Weight at the top against weight on the pad: a fraction of a percent.
+  const world = build('fluid', bench).world;
+  const g0 = Math.abs(fieldAt(world.env, 0).y);
+  const gTop = Math.abs(fieldAt(world.env, inAir).y);
+  const fall = 1 - gTop / g0;
+  assert.ok(fall > 0.004 && fall < 0.007,
+    `weight fell by ${(fall * 100).toFixed(2)}%, not the ~0.5% the text claims`);
 });

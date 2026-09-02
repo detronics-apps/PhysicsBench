@@ -513,6 +513,110 @@ export const EXAMPLES = [
         + 'hour of a car cost more engine than all the rest put together.',
     },
   },
+  {
+    id: 'rocket-to-the-stratosphere',
+    title: 'A rocket, and a fixed tank of fuel',
+    blurb: 'It burns for twenty seconds and reaches 16.2 km. The target is 17, '
+      + 'and there is no more fuel — only a different way to spend it.',
+    watch: 'Almost everyone reaches for more thrust, and more thrust makes it '
+      + 'worse. The same fuel burned gentler and longer goes higher, because '
+      + 'the enemy near the ground is not gravity, it is the air.',
+    stage: 'fluid',
+    /*
+     * The rocket answers the question that started this: climbing high does
+     * make the weight arrow shrink, and it shrinks so little you would never
+     * notice. At apogee the rocket weighs 488.5 N against 491.0 N on the pad —
+     * half a percent, after 16 km. What actually changes over that climb is the
+     * air, which drops to a tenth, and the drag with it: 1646 N at 6 km and
+     * effectively nothing at the top. So the honest lesson is the opposite of
+     * the one people expect, and worth more: height is not where gravity ends,
+     * it is where the air does.
+     *
+     * The fuel budget is the puzzle. Impulse is force times time, so 3000 N for
+     * 20 s and 1500 N for 40 s cost the same 60,000 N·s — and they do not reach
+     * the same height. There is a real optimum near a thrust of three times the
+     * rocket's weight, and it falls away hard on both sides: at 1.02 times its
+     * weight the rocket hovers on its own exhaust and manages 1.5 km, and at
+     * six times it is fast where the air is thickest and loses a kilometre to
+     * drag. Shipping it slightly on the wrong side of that optimum is what
+     * makes the first instinct — turn the thrust up — the instructive mistake.
+     *
+     * The fuel rule is stated rather than enforced: there is no tank in the
+     * model and both sliders move freely. Enforcing it would need a fuel
+     * setting the bench does not have, and the arithmetic is on screen anyway.
+     *
+     * Modelling clay is for the landing. At 300 m/s a steel nose cone bounces
+     * to a kilometre and a half and then does it again, which is a distraction
+     * at the end of an otherwise honest flight.
+     */
+    params: {
+      shapeId: 'spaceship',
+      size: 1.5,
+      mass: 50,
+      materialId: 'clay',
+      x0: 0,
+      dropHeight: 0,
+      v0: 0,
+      // 60,000 N·s of impulse, spent a little too fast.
+      pushForce: 3000,
+      pushAngleDeg: 90,
+      pushSeconds: 20,
+      slopeDeg: 0,
+      // The one fluid whose density is read at the object's own height.
+      fluidId: 'atmosphere',
+      worldMode: 'planet',
+      objects: [],
+      cannons: [],
+      walls: [],
+    },
+    arrows: ['velocity', 'applied', 'weight', 'drag', 'net'],
+    teach: {
+      how: 'While the motor burns, three forces act: thrust up, weight down, and '
+        + 'drag against whichever way it is moving. Thrust and weight hold '
+        + 'steady, but drag grows with the square of the speed and shrinks with '
+        + 'the thinning air, so it peaks partway up and then falls away to '
+        + 'nothing. When the fuel runs out the thrust vanishes and the rocket '
+        + 'is a thrown stone: still climbing, no longer driven, slowing at '
+        + 'about g the whole way to the top.',
+      tryThis: [
+        'Press Play and watch it reach 16.2 km. The target is 17.',
+        'Try the obvious fix first — more thrust, same 20 seconds. It works, '
+        + 'but you have spent fuel you do not have.',
+        'Now keep the fuel fixed: whatever you set the force to, set the '
+        + 'seconds so force x time stays at 60,000. Try 1500 N for 40 s. It '
+        + 'reaches 17.5 km on exactly the fuel that managed 16.2.',
+        'Push that too far: 600 N for 100 s is the same fuel again and gets to '
+        + '8.5 km, because a rocket that barely out-pushes its own weight '
+        + 'spends most of its fuel hanging in the air.',
+        'Switch the fluid to vacuum and fly the original setting. It reaches '
+        + '58.9 km instead of 16.2 — the air was costing three quarters of the '
+        + 'altitude.',
+      ],
+      watch: [
+        'The drag arrow is the biggest thing on screen at about 6 km — 1646 N, '
+        + 'over three times the weight of the rocket itself and more than half '
+        + 'thrust. That is the moment the flight is really fighting.',
+        'By the top it has gone entirely. Same rocket, same shape: there is '
+        + 'simply almost nothing left to push out of the way.',
+        'The weight arrow is the one that does not visibly change. It is 491.0 N '
+        + 'on the pad and 488.5 N at 16 km, and the readout is the only place '
+        + 'you can see the difference at all.',
+        'At the moment the motor cuts, the net force arrow flips from up to '
+        + 'down in one frame, while the velocity arrow carries on pointing up. '
+        + 'That gap is the whole of why it keeps climbing for another 40 '
+        + 'seconds.',
+      ],
+      learn: 'Space is not where gravity stops. Sixteen kilometres up — twice '
+        + 'the height of Everest, above almost all the weather — gravity is '
+        + 'still 99.5% of what it is at sea level, and it stays strong enough '
+        + 'to matter far beyond that. What changes with height is the air, and '
+        + 'it changes enormously. That is why real rockets are built to get out '
+        + 'of the lower atmosphere quickly but not too quickly, and why they '
+        + 'do their real accelerating high up where there is nothing to push '
+        + 'through. The astronauts you see floating are not beyond gravity: '
+        + 'they are falling, and missing.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;
