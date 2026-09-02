@@ -143,6 +143,7 @@ export function boundsFor(bodies, { ground = null, minWidth = 6, minHeight = 3, 
   if (minX === Infinity) {
     minX = 0; maxX = minWidth; minY = 0; maxY = minHeight;
   }
+  const onGround = ground && minY >= ground.y - 1e-9;
   if (ground) minY = Math.min(minY, ground.y);
 
   minX -= margin; maxX += margin; minY -= margin; maxY += margin;
@@ -153,8 +154,22 @@ export function boundsFor(bodies, { ground = null, minWidth = 6, minHeight = 3, 
     minX -= extra; maxX += extra;
   }
   if (maxY - minY < minHeight) {
-    const extra = (minHeight - (maxY - minY)) / 2;
-    minY -= extra; maxY += extra;
+    const extra = minHeight - (maxY - minY);
+    /*
+     * Height is added above the ground, not around the middle of the scene.
+     *
+     * Growing symmetrically is right when the scene floats, and wrong the
+     * moment there is a floor: everything below the ground line is painted
+     * solid, so half the extra height became solid ground. A ball sitting on
+     * flat ground filled 45% of the window with dirt and left the top half
+     * empty. There is nothing to see under the ground - the interesting half
+     * of a bouncing ball is above it.
+     */
+    if (onGround) {
+      maxY += extra;
+    } else {
+      minY -= extra / 2; maxY += extra / 2;
+    }
   }
   return { minX, maxX, minY, maxY };
 }

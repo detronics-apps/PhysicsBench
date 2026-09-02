@@ -133,16 +133,31 @@
 .section { border-bottom: 1px solid var(--border); }
 .section:last-child { border-bottom: none; }
 
+/*
+ * A section heading has to look like a heading, not like the quietest thing in
+ * the panel.
+ *
+ * It used to be 11px faint grey above a body of full-size dark labels, which
+ * made it less prominent than its own contents: with several sections open at
+ * once there was nothing to tell you where one ended and the next began. A
+ * filled band fixes that without adding weight - the heading is still small and
+ * still quiet, but it is now obviously a different kind of thing from the
+ * inputs underneath it.
+ */
 .section__title {
   display: flex; align-items: center; gap: var(--space-2);
   margin: 0;
   padding: var(--space-3) var(--space-4);
   font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
+  background: var(--panel-2);
   cursor: pointer;
   list-style: none;
   user-select: none;
 }
+/* Open, it also needs a line under it: the band alone reads as a lid on a
+ * closed box, and as a label for the wrong thing once the box is open. */
+.section[open] > .section__title { border-bottom: 1px solid var(--border); }
 .section__title::-webkit-details-marker { display: none; }
 .section__title::after {
   content: '';
@@ -154,8 +169,8 @@
   transition: transform 0.12s ease;
 }
 .section[open] > .section__title::after { transform: rotate(45deg) translate(-1px, -1px); }
-.section__title:hover { color: var(--text-dim); background: var(--panel-2); }
-.section__body { padding: 0 var(--space-4) var(--space-4); }
+.section__title:hover { color: var(--text); background: var(--panel-3); }
+.section__body { padding: var(--space-3) var(--space-4) var(--space-4); }
 
 .muted { color: var(--text-faint); }
 .value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
