@@ -941,3 +941,96 @@ test('every gap in the level is inside the rover jumping range', () => {
   assert.ok(biggest > 1, `the widest gap is ${biggest.toFixed(1)} m, which is a seam not a jump`);
   assert.ok(biggest < 3, `the widest gap is ${biggest.toFixed(1)} m, past what the rover can carry`);
 });
+
+/* ----------------------------------------------------- the space slalom -- */
+
+/** Fly the slalom with a fixed key held, reporting where it ends up. */
+function flySlalom(bench, key = null, seconds = 30) {
+  const scenario = build('collide', bench);
+  let world = applyPush(scenario.world, bench, scenario.features);
+  const keys = key ? new Set([key]) : new Set();
+  let stopped = null;
+  for (let i = 0; i < 240 * seconds; i += 1) {
+    const b = findBody(world, 'main');
+    const f = controlForce({
+      mode: 'keyboard', body: b, keys, strength: bench.control.strength,
+    });
+    world = { ...world,
+      bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: f } : x)) };
+    world = applyPush(world, bench, scenario.features);
+    world = advance(world, 1 / 240);
+  }
+  const end = findBody(world, 'main');
+  return { x: end.pos.x, y: end.pos.y, v: Math.hypot(end.vel.x, end.vel.y), stopped };
+}
+
+/**
+ * The corridor is a course, not a tube.
+ *
+ * Flying straight down the centre line has to fail, or there is no game in it.
+ * The first version left the middle clear at every gate and could be completed
+ * by doing nothing at all.
+ */
+test('flying straight down the middle does not get through', () => {
+  const { bench } = exampleState('space-slalom');
+  const straight = flySlalom(bench, null, 30);
+  // The finish gate stands at x = 50; it should be stopped well before that.
+  assert.ok(straight.x < 0, `coasting straight reached x = ${straight.x.toFixed(1)}`);
+});
+
+/**
+ * The keys have enough authority to cross a gate, and no more.
+ *
+ * Every gate leaves six metres, and they are fifteen apart - about three
+ * seconds at flying speed. If steering could not cross six metres in that, the
+ * course would be impossible; if it crossed it instantly there would be
+ * nothing to it.
+ */
+test('steering can cross a gate in the time between gates', () => {
+  const { bench } = exampleState('space-slalom');
+  const up = flySlalom(bench, 'ArrowUp', 3);
+  const down = flySlalom(bench, 'ArrowDown', 3);
+  assert.ok(up.y > 5, `three seconds of up only moved ${up.y.toFixed(1)} m`);
+  assert.ok(down.y < -5, `three seconds of down only moved ${down.y.toFixed(1)} m`);
+  // Not so much that a tap throws it out of the corridor.
+  const tap = flySlalom(bench, 'ArrowUp', 0.5);
+  assert.ok(Math.abs(tap.y) < 1, `half a second of up moved it ${tap.y.toFixed(2)} m`);
+});
+
+/**
+ * Nothing takes speed away, which is the lesson.
+ *
+ * No drag, no gravity, no ground - so the engine's push accumulates and a
+ * sideways drift, once started, stays. If any of that stopped being true the
+ * example would be teaching the opposite of what it says.
+ */
+test('nothing in the slalom removes speed', () => {
+  const { bench } = exampleState('space-slalom');
+  assert.equal(bench.worldMode, 'space');
+  assert.equal(bench.fluidId, 'vacuum');
+
+  // A tap of up, then nothing: the sideways drift must still be there.
+  const scenario = build('collide', bench);
+  let world = applyPush(scenario.world, bench, scenario.features);
+  const keys = new Set(['ArrowUp']);
+  for (let i = 0; i < 240; i += 1) {
+    const b = findBody(world, 'main');
+    const f = controlForce({ mode: 'keyboard', body: b, keys, strength: bench.control.strength });
+    world = { ...world,
+      bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: f } : x)) };
+    world = applyPush(world, bench, scenario.features);
+    world = advance(world, 1 / 240);
+  }
+  const after = findBody(world, 'main').vel.y;
+  assert.ok(after > 1, `a second of thrust only gave ${after.toFixed(2)} m/s`);
+
+  // Now let go for three seconds. It must still be climbing at the same rate.
+  for (let i = 0; i < 240 * 3; i += 1) {
+    world = { ...world,
+      bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: { x: 0, y: 0 } } : x)) };
+    world = applyPush(world, bench, scenario.features);
+    world = advance(world, 1 / 240);
+  }
+  const later = findBody(world, 'main').vel.y;
+  close(later, after, 1e-9);
+});

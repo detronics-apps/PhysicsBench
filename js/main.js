@@ -864,6 +864,15 @@ export function loadExample(id) {
    * wrong. Escape still gives the keys back.
    */
   wantsKeys = next.bench?.control?.mode === 'keyboard';
+  /*
+   * Say so before the panels are built, not after.
+   *
+   * The focus itself has to wait for the drawing to be rebuilt, but the banner
+   * explaining the controls is written during that same render - so setting
+   * this afterwards left the page insisting "click the drawing to take the
+   * controls" while the drawing already had them.
+   */
+  if (wantsKeys) input.engaged = true;
   state.transport.playing = false;
   state.transport.scrubT = null;
   saveSoon();

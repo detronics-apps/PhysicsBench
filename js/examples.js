@@ -1083,6 +1083,119 @@ export const EXAMPLES = [
         + 'jumping is real, the second thoughts are not.',
     },
   },
+  {
+    id: 'space-slalom',
+    title: 'Fly the slalom, and try to stop',
+    blurb: 'A corridor in deep space with five gates to thread. The engine '
+      + 'never switches off and there are no brakes.',
+    watch: 'Every correction you make is permanent until you undo it. Push up '
+      + 'to clear a gate and you are still going up after it - the same key '
+      + 'held the same length of time is what it costs to stop again.',
+    stage: 'collide',
+    /*
+     * The idea was "constant flying force, keys to speed up and slow down",
+     * and the honest version of it needed one adjustment: in space there is no
+     * slowing down for free. A thruster only ever adds velocity, so braking is
+     * the same manoeuvre as accelerating, aimed the other way and paid for at
+     * the same price. That is the whole lesson and it is why the gates are the
+     * hard part rather than the length of the corridor.
+     *
+     * The gates reach 8 m into a 14 m corridor from alternating sides, so
+     * every one leaves 6 m clear and none of them leaves the middle clear:
+     * flying straight down the centre line hits the first gate at x = -21,
+     * which is the check that the course is a course. They are 15 m apart, and
+     * at about five metres a second that is three seconds - enough to cross the
+     * six metres with 1.6 m/s2 of steering, and not much more than enough.
+     *
+     * There is no fluid and no gravity, so nothing here slows the ship or
+     * pulls it off line. Everything that happens to it, the pilot did.
+     */
+    params: {
+      shapeId: 'spaceship',
+      size: 1.2,
+      mass: 400,
+      materialId: 'steel',
+      x0: -30,
+      y0: 0,
+      // Already moving when the corridor starts: this is a fly-through, not a
+      // standing start.
+      v0: 2,
+      // A steady 40 N along the corridor - 0.1 m/s2 on 400 kg, so it builds
+      // speed slowly and never stops building it.
+      pushForce: 40,
+      pushAngleDeg: 0,
+      pushSeconds: 600,
+      slopeDeg: 0,
+      worldMode: 'space',
+      fluidId: 'vacuum',
+      collisions: true,
+      control: { mode: 'keyboard', targetId: 'main', strength: 1.6 },
+      objects: [],
+      cannons: [],
+      walls: [
+        { x1: -32, y1: 7, x2: -15, y2: 7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -32, y1: -7, x2: -15, y2: -7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -15, y1: 7, x2: 2, y2: 7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -15, y1: -7, x2: 2, y2: -7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 2, y1: 7, x2: 19, y2: 7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 2, y1: -7, x2: 19, y2: -7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 19, y1: 7, x2: 36, y2: 7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 19, y1: -7, x2: 36, y2: -7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 36, y1: 7, x2: 53, y2: 7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 36, y1: -7, x2: 53, y2: -7, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -20, y1: 7, x2: -20, y2: -1, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -5, y1: -7, x2: -5, y2: 1, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 10, y1: 7, x2: 10, y2: -1, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 25, y1: -7, x2: 25, y2: 1, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 40, y1: 7, x2: 40, y2: -1, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: -13, y1: -7, x2: -5, y2: -7, bulge: -1.8, restitution: 0.35, mu: 0.05 },
+        { x1: 16, y1: 7, x2: 24, y2: 7, bulge: -1.8, restitution: 0.35, mu: 0.05 },
+        { x1: 50, y1: 7, x2: 50, y2: 2, bulge: 0, restitution: 0.35, mu: 0.05 },
+        { x1: 50, y1: -7, x2: 50, y2: -2, bulge: 0, restitution: 0.35, mu: 0.05 },
+      ],
+    },
+    // Following, and far enough out to see the next gate coming.
+    view: { camera: { mode: 'follow', cx: -30, cy: 0, span: 34 } },
+    arrows: ['velocity', 'applied', 'control', 'net'],
+    teach: {
+      how: 'The engine pushes the ship along the corridor and never stops, so '
+        + 'it is always gaining speed. The arrow keys add a force of their own '
+        + 'in whichever direction is held, and that force changes the velocity '
+        + 'for exactly as long as it is held. Nothing here removes velocity: '
+        + 'there is no air and no ground, so a sideways drift put in by one '
+        + 'press stays until an equal press the other way takes it out.',
+      tryThis: [
+        'Fly straight down the middle and see what happens. The first gate is '
+        + 'in the way - there is no line through this corridor that does not '
+        + 'need steering.',
+        'Tap up once and let go. The ship keeps climbing at the same rate for '
+        + 'ever. This is the mistake that ends most runs.',
+        'Learn the rhythm instead: press to start moving across, then press the '
+        + 'other way for the same count to stop moving across. Two presses per '
+        + 'gate, not one.',
+        'Notice how much harder the later gates are. The engine has been '
+        + 'running the whole time, so you arrive faster and have less time.',
+        'Turn the engine off in the push panel and fly it on the starting speed '
+        + 'alone. Easier - and it is the same corridor.',
+      ],
+      watch: [
+        'The control arrow appears only while a key is down. The velocity arrow '
+        + 'does not shrink when it goes - that gap is the entire game.',
+        'The net force arrow is the two thrusts added together and nothing '
+        + 'else. There is no drag term and no weight to balance.',
+        'The velocity arrow tilts as you steer and stays tilted. It is not a '
+        + 'heading you are setting, it is a velocity you are adding to.',
+        'Along the corridor the ship gets steadily faster with no key held at '
+        + 'all, because the engine is still running.',
+      ],
+      learn: 'A spacecraft has no brakes. Every manoeuvre is bought twice: once '
+        + 'to start it and once to stop it, at the same price, and a pilot who '
+        + 'forgets the second half arrives somewhere they did not intend. This '
+        + 'is why real docking takes hours of tiny paired burns, and why the '
+        + 'hardest part of getting anywhere in space is not going fast - it is '
+        + 'arriving slow.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;
