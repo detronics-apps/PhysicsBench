@@ -276,6 +276,117 @@ export const EXAMPLES = [
         + 'That gap, not lubrication, is why wheels were worth inventing.',
     },
   },
+  {
+    id: 'target-shooting',
+    title: 'Three targets, one cannon',
+    blurb: 'One shot lands. The other two need a different angle or a different speed.',
+    watch: 'The cannon never changes what it does — it is the arc that decides '
+      + 'which shelf gets hit. One target sits on the path the shot already '
+      + 'takes; one is too high for it and one is too far. Neither can be '
+      + 'reached by aiming harder in the same direction.',
+    stage: 'collide',
+    /*
+     * The middle shelf is on the trajectory the default settings already
+     * produce, so something happens on the first shot rather than the example
+     * opening with three misses and no clue why.
+     *
+     * The other two are deliberately unreachable without changing something,
+     * and they fail in opposite directions: the high one is above the apex, so
+     * it needs more height; the far one is past where the shot lands, so it
+     * needs more range. Aiming higher gets the first and loses the second,
+     * which is the thing worth discovering — for a given speed there is a limit
+     * to how far a thing can be thrown, and the angle that reaches highest is
+     * not the angle that reaches furthest.
+     *
+     * The trajectory was measured with drag on, not worked out on paper: air
+     * takes about half a metre off the range at these speeds, which is enough
+     * to move a shelf from a hit to a miss.
+     */
+    params: {
+      shapeId: 'sphere',
+      size: 0.3,
+      // Balsa, so a hit visibly knocks it off rather than shrugging.
+      materialId: 'balsa',
+      mass: 2.262,
+      x0: 4.15,
+      dropHeight: 1.75,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      slopeDeg: 0,
+      fluidId: 'air',
+      worldMode: 'planet',
+      collisions: true,
+      objects: [
+        // Too high: it sits above the apex of the default arc.
+        { id: 'o2', shapeId: 'sphere', size: 0.3, materialId: 'balsa', mass: 2.262, x: 0.6, y: 3.4, vx: 0, vy: 0 },
+        // Too far: the default shot is on the ground before it gets here.
+        { id: 'o3', shapeId: 'sphere', size: 0.3, materialId: 'balsa', mass: 2.262, x: 8.6, y: 0.6, vx: 0, vy: 0 },
+      ],
+      walls: [
+        { x1: 3.6, y1: 1.75, x2: 4.8, y2: 1.75, bulge: 0, restitution: 0.2, mu: 0.6 },
+        { x1: 0.0, y1: 3.4, x2: 1.2, y2: 3.4, bulge: 0, restitution: 0.2, mu: 0.6 },
+        { x1: 8.0, y1: 0.6, x2: 9.2, y2: 0.6, bulge: 0, restitution: 0.2, mu: 0.6 },
+      ],
+      cannons: [
+        {
+          id: 'cannon1', x: -6, y: 0.5, angleDeg: 35, speed: 12,
+          mass: 0.6, size: 0.18, shapeId: 'sphere',
+          /*
+           * Clay, at a bounce of 0.02, so a shot arrives and stays arrived.
+           *
+           * With a steel shot every trajectory turned into pinball: six bounces
+           * off the shelves and the floor, the path doubling back on itself,
+           * and targets "hit" by a ricochet from behind. That is not target
+           * shooting and it is not a readable arc.
+           */
+          materialId: 'clay',
+          muS: 2, muK: 1.5, rolling: 0.25,
+          // Slow enough to change something between shots and watch the result.
+          everySeconds: 3,
+        },
+      ],
+    },
+    arrows: ['velocity', 'weight', 'net'],
+    teach: {
+      how: 'Once a shot has left the barrel nothing is pushing it along. Its '
+        + 'sideways speed only changes because of air; its upward speed is '
+        + 'taken away by gravity at the same rate whatever the shot is doing, '
+        + 'which is what bends the path into an arc. Where that arc goes is '
+        + 'settled entirely at the moment of firing, by the angle and the speed '
+        + 'and nothing else.',
+      tryThis: [
+        'Press Play and watch the first shot. At 35° and 12 m/s it hits the '
+        + 'middle shelf.',
+        'Raise the angle to 42°, leaving the speed alone. That reaches the high '
+        + 'shelf — seven degrees, and nothing else changed.',
+        'Put it back to 35° and raise the muzzle speed to 15 m/s instead. Now '
+        + 'the far shelf is in reach, and the high one is not.',
+        'Hunt for the angle that throws furthest at a fixed speed. It is about '
+        + '43° here — a little under the 45° of the textbook, because there is '
+        + 'air in the way and the cannon is above the ground it lands on.',
+      ],
+      watch: [
+        'The velocity arrow turns as the shot flies: long and upward at first, '
+        + 'horizontal at the top, long and downward at the end. Its length is '
+        + 'the speed and its direction is the heading.',
+        'The weight arrow never changes — not at the top, not on the way down. '
+        + 'Gravity is not stronger at the end of the arc, the shot has simply '
+        + 'been falling for longer.',
+        'At the very top the shot is not motionless. It has stopped going up '
+        + 'and is still going sideways at nearly its launch speed.',
+        'Angle buys height and speed buys range, and they are not '
+        + 'interchangeable — no amount of aiming higher will reach the far '
+        + 'shelf, and no amount of speed at 35° will reach the high one.',
+      ],
+      learn: 'A projectile is doing two independent things at once: moving '
+        + 'sideways at a steady rate, and falling. Neither affects the other. '
+        + 'Every question about range and height is answered by working out how '
+        + 'long it is in the air and multiplying — which is why a faster shot '
+        + 'goes further mostly because it stays up longer, not because it is '
+        + 'travelling faster along the ground.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;

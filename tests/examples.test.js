@@ -349,3 +349,62 @@ test('one rolls away and the other does not move at all', () => {
   close(held.net.magnitude, 0, 1e-6);
   assert.ok(inspect(world, 'main').net.magnitude > 0.1, 'the ball should still be driven');
 });
+
+/* ----------------------------------------- three targets, one cannon (4) -- */
+
+/**
+ * The instructions name three settings, and all three have to work.
+ *
+ * The first draft of this example told the reader to try 55° and to raise the
+ * speed at 35°. Neither reached anything: the high shelf sits under the apex at
+ * 55° and the far one is out of range at 35° whatever the speed. Written
+ * instructions in a teaching app are a promise, and this is the test that keeps
+ * it — change a coefficient, the drag model or the shot's mass and this fails
+ * rather than the reader failing.
+ */
+test('the settings the example tells you to try actually hit', () => {
+  const base = exampleState('target-shooting').bench;
+
+  const fire = (angleDeg, speed) => {
+    const p = { ...base, cannons: [{ ...base.cannons[0], angleDeg, speed, everySeconds: 0 }] };
+    const s = build('collide', p);
+    let w = applyPush(s.world, p, s.features);
+    const before = ['main', 'o2', 'o3'].map((id) => ({ id, pos: { ...findBody(w, id).pos } }));
+    for (let i = 0; i < 240 * 6; i += 1) { w = applyPush(w, p, s.features); w = advance(w, 1 / 240); }
+    return before
+      .filter(({ id, pos }) => {
+        const b = findBody(w, id);
+        return Math.hypot(b.pos.x - pos.x, b.pos.y - pos.y) > 0.2;
+      })
+      .map(({ id }) => id);
+  };
+
+  // As it opens: the middle shelf, so something happens on the first shot.
+  assert.deepEqual(fire(35, 12), ['main'], 'the default shot should hit the middle shelf');
+  // Seven degrees higher, same speed: the high shelf.
+  assert.deepEqual(fire(42, 12), ['o2'], '42° should reach the high shelf');
+  // Back to the original angle, more speed: the far shelf.
+  assert.deepEqual(fire(35, 15), ['o3'], '15 m/s should reach the far shelf');
+});
+
+test('the shot arrives and stays arrived', () => {
+  // A steel shot turned every trajectory into pinball — six bounces, the path
+  // doubling back, targets struck by a ricochet from behind. An arc that ends
+  // where it is aimed is the whole readability of this example.
+  const base = exampleState('target-shooting').bench;
+  assert.equal(base.cannons[0].materialId, 'clay');
+
+  const s = build('collide', base);
+  let w = applyPush(s.world, base, s.features);
+  let bounces = 0;
+  let wasFalling = false;
+  for (let i = 0; i < 240 * 3; i += 1) {
+    w = applyPush(w, base, s.features);
+    w = advance(w, 1 / 240);
+    const shot = w.bodies.find((b) => b.projectile);
+    if (!shot) continue;
+    if (wasFalling && shot.vel.y > 0.5) bounces += 1;
+    wasFalling = shot.vel.y < -0.5;
+  }
+  assert.equal(bounces, 0, 'the default shot should fly a clean arc into its target');
+});
