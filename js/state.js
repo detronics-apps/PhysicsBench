@@ -324,7 +324,14 @@ const mass = (value, fallback) => clamp(value, 1e-6, 1e32, fallback);
  * it did before.
  */
 function pushFrom(b, d) {
-  const force = clamp(b.pushForce, -100000, 100000, d.pushForce);
+  /*
+   * A hundred kilonewtons was the whole range, which is a bench limit rather
+   * than a physical one: a Falcon 9 leaves the pad on 7.6 MN and a Saturn V on
+   * 35, so the interesting end of rocketry was seventy-six times outside what
+   * could be saved. The slider still offers twenty times the weight of
+   * whatever is on the bench, so nothing about the ordinary case changes.
+   */
+  const force = clamp(b.pushForce, -1e9, 1e9, d.pushForce);
   const angleDeg = clamp(b.pushAngleDeg, -180, 180, d.pushAngleDeg);
   if (force >= 0) return { force, angleDeg };
   const turned = angleDeg > 0 ? angleDeg - 180 : angleDeg + 180;
@@ -403,7 +410,8 @@ export function migrate(incoming) {
 
       pushForce: push.force,
       pushAngleDeg: push.angleDeg,
-      pushSeconds: clamp(b.pushSeconds, 0, 120, d.pushSeconds),
+      // Two minutes does not reach orbit: a launch burns for about nine.
+      pushSeconds: clamp(b.pushSeconds, 0, 1200, d.pushSeconds),
 
       otherMass: mass(b.otherMass, d.otherMass),
       otherSize: clamp(b.otherSize, 0.01, 1e9, d.otherSize),

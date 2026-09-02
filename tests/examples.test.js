@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { EXAMPLES, exampleById, exampleState } from '../js/examples.js';
 import { STAGE_IDS, defaults } from '../js/state.js';
 import { build, applyPush, featuresAt } from '../js/stages.js';
-import { advance, inspect, totals, findBody } from '../js/world.js';
+import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { slipAngle, ROLLING_DEFAULT } from '../js/friction.js';
 import { SHAPES, MATERIALS } from '../js/shapes.js';
 import { FLUIDS } from '../js/drag.js';
@@ -509,77 +509,96 @@ test('in water the rover settles at a top speed that goes as the root of thrust'
 
 /* ---------------------------------------------------------- the rocket -- */
 
-/** Fly the rocket with one setting changed, and report how high it got. */
-function apogee(bench, { pushForce, pushSeconds, fluidId }) {
-  const p = { ...bench,
-    pushForce: pushForce ?? bench.pushForce,
-    pushSeconds: pushSeconds ?? bench.pushSeconds,
-    fluidId: fluidId ?? bench.fluidId };
+/** Fly the rocket, reporting what it did on the way and how high it got. */
+function launch(bench, over = {}) {
+  const p = { ...bench, ...over };
   const scenario = build('fluid', p);
   let world = applyPush(scenario.world, p, scenario.features);
-  let peak = 0;
-  for (let i = 0; i < 240 * 900; i++) {
+  let peak = 0, vBurn = 0, hBurn = 0, t100 = null, dragUp = 0;
+  for (let i = 0; i < 240 * 2000; i++) {
     world = applyPush(world, p, scenario.features);
     world = advance(world, 1 / 240);
     const b = findBody(world, 'main');
+    if (t100 === null && b.pos.y >= 100000) t100 = world.t;
+    if (world.t <= p.pushSeconds) {
+      vBurn = b.vel.y; hBurn = b.pos.y;
+      const F = forcesFor(world, b).forces.find((x) => x.id === 'drag');
+      dragUp = Math.max(dragUp, F ? F.magnitude : 0);
+    }
     peak = Math.max(peak, b.pos.y);
-    if (world.t > p.pushSeconds && b.vel.y < 0 && b.pos.y < 1) break;
+    if (b.pos.y <= 0 && world.t > p.pushSeconds) break;
   }
-  return peak;
+  return { peak, vBurn, hBurn, t100, dragUp, world: scenario.world };
 }
 
 /**
- * The rocket misses its target, and the fix in the instructions is the one
- * that works.
+ * The rocket flies on the real numbers, and still cannot reach orbit.
  *
- * The whole example turns on a claim that sounds wrong: the same fuel burned
- * gentler goes higher. It is written down as three numbers a reader is invited
- * to reproduce, so all three are held here — including the failure at the far
- * end, because "too gentle is also bad" is what makes it an optimum rather
- * than a rule that less is always more.
+ * Everything the instructions quote is a figure a reader is invited to check
+ * against the real Falcon 9, so the inputs are held as well as the outcome. The
+ * outcome is the point of the example: it goes higher than the ISS and finishes
+ * its burn at less than a third of the speed an orbit needs.
  */
-test('the rocket misses 17 km, and the same fuel spent slower clears it', () => {
-  const { bench } = exampleState('rocket-to-the-stratosphere');
-  const impulse = bench.pushForce * bench.pushSeconds;
-  assert.equal(impulse, 60000, 'the fuel budget the instructions quote');
+test('the Falcon 9 clears the ISS height and is still nowhere near orbit', () => {
+  const { bench } = exampleState('rocket-to-orbit');
+  // The inputs are meant to be the real ones.
+  assert.equal(bench.mass, 549054, 'liftoff mass');
+  assert.equal(bench.pushForce, 7607000, 'sea-level thrust');
+  assert.equal(bench.pushSeconds, 540, 'burn to orbital insertion');
+  assert.equal(bench.pushAngleDeg, 90, 'straight up, which is the mistake shown');
 
-  const shipped = apogee(bench, {});
-  assert.ok(shipped > 16000 && shipped < 16500, `shipped reached ${shipped} m`);
-  assert.ok(shipped < 17000, 'the shipped setting must miss the target');
+  const r = launch(bench);
+  // Past the Karman line, and past where the ISS flies.
+  assert.ok(r.t100 > 200 && r.t100 < 260, `crossed 100 km at ${r.t100} s`);
+  assert.ok(r.peak > 900000 && r.peak < 1080000, `apogee was ${r.peak} m`);
+  assert.ok(r.peak > 400000, 'it should out-climb the ISS height');
 
-  // Same impulse, gentler and longer: this is the answer the text gives.
-  const better = apogee(bench, { pushForce: 1500, pushSeconds: 40 });
-  assert.equal(1500 * 40, impulse, 'the fix must cost the same fuel');
-  assert.ok(better > 17000, `the fix only reached ${better} m`);
-  assert.ok(better > shipped, 'the fix must actually be an improvement');
+  // And nowhere near orbital speed: the ISS needs about 7660 m/s.
+  assert.ok(r.vBurn > 2300 && r.vBurn < 2600, `burnout speed ${r.vBurn} m/s`);
+  assert.ok(r.vBurn < 7660 / 2, 'the whole lesson is that this is not close');
 
-  // And too gentle is bad again: a rocket barely beating its own weight
-  // spends its fuel hanging in the air.
-  const tooSlow = apogee(bench, { pushForce: 600, pushSeconds: 100 });
-  assert.equal(600 * 100, impulse, 'the far end must cost the same fuel too');
-  assert.ok(tooSlow < 9500 && tooSlow < better,
-    `too-gentle reached ${tooSlow} m, which does not read as a failure`);
+  // It comes back down, because height alone is not an orbit.
+  assert.ok(r.peak > 0, 'it left the ground');
 });
 
 /**
- * What the air costs, and what height does to weight.
+ * At this height the weight really does visibly shrink.
  *
- * The point of the example is that these two are wildly different sizes, so
- * both are pinned: the air takes about three quarters of the altitude, and the
- * weight barely moves at all.
+ * The toy rocket lost half a percent over 16 km, which is honest and invisible.
+ * A quarter of the weight over 992 km is the same equation finally drawn at a
+ * size the arrow can show, and it is what the example claims.
  */
-test('the air costs most of the altitude while gravity hardly changes', () => {
-  const { bench } = exampleState('rocket-to-the-stratosphere');
-  const inAir = apogee(bench, {});
-  const inVacuum = apogee(bench, { fluidId: 'vacuum' });
-  assert.ok(inVacuum > 3 * inAir,
-    `vacuum ${inVacuum} m against air ${inAir} m is not the stated gulf`);
-
-  // Weight at the top against weight on the pad: a fraction of a percent.
-  const world = build('fluid', bench).world;
-  const g0 = Math.abs(fieldAt(world.env, 0).y);
-  const gTop = Math.abs(fieldAt(world.env, inAir).y);
+test('a quarter of the rocket weight is gone by the top of the flight', () => {
+  const { bench } = exampleState('rocket-to-orbit');
+  const r = launch(bench);
+  const g0 = Math.abs(fieldAt(r.world.env, 0).y);
+  const gTop = Math.abs(fieldAt(r.world.env, r.peak).y);
   const fall = 1 - gTop / g0;
-  assert.ok(fall > 0.004 && fall < 0.007,
-    `weight fell by ${(fall * 100).toFixed(2)}%, not the ~0.5% the text claims`);
+  assert.ok(fall > 0.2 && fall < 0.3,
+    `weight fell ${(fall * 100).toFixed(1)}%, not the ~25% claimed`);
+
+  // Thrust barely beats weight on the pad, which is why a launch looks slow.
+  const ratio = bench.pushForce / (bench.mass * g0);
+  assert.ok(ratio > 1.35 && ratio < 1.5, `thrust to weight was ${ratio}`);
+});
+
+/**
+ * Air is not what makes orbit hard.
+ *
+ * The drawn shape is much stubbier than a real rocket, so this drag is roughly
+ * fifteen times the true figure — and the claim in the text survives that,
+ * which is why it is worth stating: even overstated it is a small fraction of
+ * thrust, and it is gone entirely above the atmosphere.
+ */
+test('drag peaks at a few percent of thrust and then vanishes', () => {
+  const { bench } = exampleState('rocket-to-orbit');
+  const r = launch(bench);
+  const share = r.dragUp / bench.pushForce;
+  assert.ok(share > 0.02 && share < 0.12,
+    `worst drag was ${(share * 100).toFixed(1)}% of thrust`);
+
+  // In a vacuum it barely does better, which is the same point from the side.
+  const noAir = launch(bench, { fluidId: 'vacuum' });
+  assert.ok(noAir.peak < r.peak * 1.35,
+    `vacuum reached ${noAir.peak} m against ${r.peak} m, a bigger gap than claimed`);
 });

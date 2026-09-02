@@ -254,6 +254,8 @@ function pushSection(ctx) {
   const f = ctx.features;
   const accel = p.mass > 0 ? p.pushForce / p.mass : 0;
   const gained = accel * p.pushSeconds;
+  // Whether the push really is the only thing acting on it.
+  const pushIsAlone = ctx.space && (!f.has('fluid') || p.fluidId === 'vacuum');
 
   /*
    * The slider is sized by what the object weighs, so `g` has to come from
@@ -287,17 +289,34 @@ function pushSection(ctx) {
       hint: '0° is to the right, 90° straight up. Measured anticlockwise, as '
         + 'angles are everywhere in this app.',
     }),
+    /*
+     * Twenty seconds is the right range for a push on a bench and useless for
+     * a launch, which burns for about nine minutes. Rather than stretch the
+     * scale for everyone — 0.25 s steps up to ten minutes is a slider nobody
+     * can place — it grows only when the value asks it to, rounded up to the
+     * next minute.
+     */
     sliderField('For how long', p.pushSeconds, (v) => set('pushSeconds', v), {
-      min: 0, max: 20, step: 0.25, key: 'pushSeconds',
+      min: 0,
+      max: p.pushSeconds > 20 ? Math.ceil(p.pushSeconds / 60) * 60 : 20,
+      step: p.pushSeconds > 20 ? 5 : 0.25,
+      key: 'pushSeconds',
       format: (v) => `${fmtFixed(v, 2)} s`,
       info: 'The push stops after this. What happens next is the interesting '
         + 'part: nothing is needed to keep the object moving.',
     }),
+    /*
+     * a*t is the push acting alone, which is only the whole story when it is
+     * the only force. Straight up through an atmosphere for nine minutes it is
+     * out by a factor of three, and it was stated flatly enough that a reader
+     * would trust it over the number they were watching.
+     */
     el('div', {
       class: 'field__hint',
       text: `${fmtFixed(p.pushForce, 0)} N on ${fmtFixed(p.mass, 2)} kg gives `
-        + `${fmtFixed(accel, 2)} m/s², held for ${fmtFixed(p.pushSeconds, 2)} s — so it `
-        + `should leave the push doing ${fmtFixed(Math.abs(gained), 2)} m/s.`,
+        + `${fmtFixed(accel, 2)} m/s², held for ${fmtFixed(p.pushSeconds, 2)} s — so the `
+        + `push on its own would leave it doing ${fmtFixed(Math.abs(gained), 2)} m/s`
+        + (pushIsAlone ? '.' : ', before gravity and the fluid take their share.'),
     }),
     numberField('Starting velocity', p.v0, (v) => set('v0', v), {
       unit: 'm/s', step: 0.5, min: -500, max: 500, key: 'v0',
