@@ -1030,6 +1030,16 @@ export const EXAMPLES = [
         { x1: 46.5, y1: 0, x2: 46.5, y2: 8, bulge: 0, restitution: 0.15, mu: 0.9 },
       ],
     },
+    /*
+     * Close in and following, the way an arcade game holds its camera.
+     *
+     * A span of 1.3 m puts the metre grid on 0.1 m, which is the scale the
+     * rover is actually built at - a 12 cm machine against 10 cm squares. The
+     * level auto-framed is 65 m wide and the rover is then two pixels of it.
+     * `follow` is what the Home button selects: keep this zoom, keep the object
+     * centred.
+     */
+    view: { camera: { mode: 'follow', cx: -18, cy: 6.1, span: 1.3 } },
     arrows: ['velocity', 'weight', 'normal', 'control', 'net'],
     teach: {
       how: 'On a platform the rover is held up by the normal force and driven '

@@ -838,6 +838,14 @@ function restorePageScroll(snap) {
  * It arrives paused. The setup *is* the demonstration — the reader should see
  * what was arranged before it starts moving, and press Play themselves.
  */
+/*
+ * Set when a loaded example wants the keys, and cleared the moment they are
+ * handed over. It cannot be done inside `loadExample` because the drawing is
+ * rebuilt by the render that follows it, and focusing an element that is about
+ * to be replaced achieves nothing.
+ */
+let wantsKeys = false;
+
 export function loadExample(id) {
   const next = exampleState(id);
   if (!next) return false;
@@ -845,6 +853,17 @@ export function loadExample(id) {
   Object.assign(state, next);
   // Picking one off the shelf means going to the bench with it.
   state.page = 'bench';
+  /*
+   * An example that is driven arrives with the keys already live.
+   *
+   * The drawing has to be selected before the arrow keys steer rather than
+   * scroll, which is right when someone is building their own scene - the keys
+   * belong to the page until asked for. But loading a level whose first
+   * instruction is "hold the right arrow" is the asking, and making a reader
+   * click the picture first only teaches them that the instructions were
+   * wrong. Escape still gives the keys back.
+   */
+  wantsKeys = next.bench?.control?.mode === 'keyboard';
   state.transport.playing = false;
   state.transport.scrubT = null;
   saveSoon();
@@ -989,6 +1008,11 @@ export function render({ controls = true } = {}) {
 
   clear(dom.controls);
   for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
+
+  if (wantsKeys) {
+    wantsKeys = false;
+    dom.stage.focus();
+  }
 
   clear(dom.summary);
   dom.summary.appendChild(el('h2', {
