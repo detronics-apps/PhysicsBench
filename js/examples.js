@@ -712,6 +712,103 @@ export const EXAMPLES = [
         + 'would fall, like anything else.',
     },
   },
+  {
+    id: 'four-dropped-together',
+    title: 'Four dropped at once',
+    blurb: 'Two share a mass, two share a shape. In air all four land at '
+      + 'different times. Take the air away and they land together.',
+    watch: 'Everyone knows heavier things fall faster and everyone knows that '
+      + 'is wrong. Both are true here, and the switch between them is the '
+      + 'fluid setting.',
+    stage: 'fluid',
+    /*
+     * Galileo, with the answer visible from both sides.
+     *
+     * Four objects fall forty metres. Two of them weigh the same and differ
+     * only in shape; three of them are the same shape and differ only in mass.
+     * Every pair is a controlled comparison, so nothing has to be taken on
+     * trust - whichever one lands first, the only thing that could have caused
+     * it is the one thing that was changed.
+     *
+     * Measured: in air they arrive at 3.00, 3.65, 5.18 and 7.95 s, doing 24.2,
+     * 15.5, 8.7 and 5.3 m/s. Switch the fluid to vacuum and every one of them
+     * lands at 2.85 s doing 27.9 m/s - not close, the same. That is the whole
+     * argument in one setting.
+     *
+     * Forty metres because the differences need time to accumulate: from four
+     * metres the four land within a tenth of a second of each other and the
+     * point is lost. The light sphere is 0.15 kg rather than lighter still,
+     * because below that it takes half a minute to arrive and the reader has
+     * stopped watching.
+     */
+    params: {
+      shapeId: 'sphere',
+      size: 0.4,
+      mass: 1,
+      materialId: 'pine',
+      x0: -3,
+      dropHeight: 40,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      slopeDeg: 0,
+      fluidId: 'air',
+      worldMode: 'planet',
+      objects: [
+        // Same mass as the sphere, blunter: the shape comparison.
+        { id: 'o2', shapeId: 'plate', size: 0.4, materialId: 'pine', mass: 1, x: -1, y: 40, vx: 0, vy: 0 },
+        // Same shape and size as the sphere, five times the mass.
+        { id: 'o3', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 5, x: 1, y: 40, vx: 0, vy: 0 },
+        // And a seventh of it.
+        { id: 'o4', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 0.15, x: 3, y: 40, vx: 0, vy: 0 },
+      ],
+      cannons: [],
+      walls: [],
+    },
+    arrows: ['velocity', 'weight', 'drag', 'net'],
+    teach: {
+      how: 'Gravity pulls on each of them in proportion to its mass, so a '
+        + 'heavier object is pulled harder - and needs proportionally more '
+        + 'force to accelerate, which is why the two cancel and mass drops out '
+        + 'of free fall entirely. Air does not care about mass. It pushes back '
+        + 'on frontal area and shape and the square of the speed, the same for '
+        + 'a heavy object as a light one of the same size. So what decides the '
+        + 'race is the ratio of that push to the weight carrying it down.',
+      tryThis: [
+        'Press Play and watch them separate. The 5 kg sphere lands at 3.00 s, '
+        + 'the 1 kg at 3.65, the plate at 5.18 and the light sphere at 7.95.',
+        'Compare only the sphere and the plate. Identical mass, identical size, '
+        + 'and a second and a half between them - so that gap is shape, and '
+        + 'nothing else.',
+        'Now compare the three spheres. Identical shape and size, so that gap '
+        + 'is mass, and nothing else.',
+        'Change the fluid to vacuum and press Play again. All four land at 2.85 '
+        + 'seconds doing 27.9 m/s - not nearly the same, the same.',
+        'Put the air back and make the light sphere heavier a step at a time. '
+        + 'Watch it catch the others up.',
+      ],
+      watch: [
+        'The weight arrows are wildly different lengths - the 5 kg sphere has '
+        + 'one thirty times the light one. The drag arrows start at nothing and '
+        + 'are the same for every sphere at the same speed.',
+        'The plate has a drag arrow half again as long as the sphere beside it, '
+        + 'on identical weight. That is all shape is.',
+        'The light sphere reaches a speed and stops gaining - its drag arrow '
+        + 'has grown to match its weight and the net force has gone. The heavy '
+        + 'one is still accelerating when it lands.',
+        'In vacuum every drag arrow disappears and all four fall as one, arrows '
+        + 'identical apart from weight.',
+      ],
+      learn: 'Drop two things and the heavier usually lands first - and the '
+        + 'reason is not gravity, which pulls on mass exactly in proportion to '
+        + 'the mass it has to move. It is the air, which pushes back on size '
+        + 'and shape and does not know what anything weighs. A heavy object '
+        + 'carries the same air resistance with more weight to overcome it, so '
+        + 'it wins. Remove the air and the advantage goes with it, which is '
+        + 'what the hammer and the feather showed on the Moon: not a different '
+        + 'law, just nothing in the way.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;

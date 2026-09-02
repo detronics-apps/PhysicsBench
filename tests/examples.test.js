@@ -692,3 +692,77 @@ test('the large mass moves too, so the orbit is mutual', () => {
   const ratio = bench.otherMass / bench.mass;
   assert.ok(ratio > 75 && ratio < 85, `mass ratio was ${ratio.toFixed(1)}:1`);
 });
+
+/* ------------------------------------------------------- four dropped -- */
+
+/** Drop all four and report when each one arrives, and how fast. */
+function dropAll(bench, fluidId) {
+  const p = { ...bench, fluidId };
+  const scenario = build('fluid', p);
+  let world = applyPush(scenario.world, p, scenario.features);
+  const landed = {};
+  const speed = {};
+  for (let i = 0; i < 240 * 30; i += 1) {
+    world = applyPush(world, p, scenario.features);
+    world = advance(world, 1 / 240);
+    for (const b of world.bodies) {
+      if (landed[b.id] === undefined && b.pos.y < p.size + 0.05) {
+        landed[b.id] = world.t;
+        speed[b.id] = Math.abs(b.vel.y);
+      }
+    }
+    if (Object.keys(landed).length === 4) break;
+  }
+  return { landed, speed };
+}
+
+/**
+ * In air the four separate, and each gap is caused by one thing.
+ *
+ * The example is a pair of controlled comparisons: two objects share a mass and
+ * differ in shape, three share a shape and differ in mass. If those pairs stop
+ * being controlled - a size drifting, a material changing the mass - the
+ * instructions stop being true, so the setup is checked as well as the result.
+ */
+test('the four fall at different rates in air, and the pairs are controlled', () => {
+  const { bench } = exampleState('four-dropped-together');
+  const byId = Object.fromEntries(bench.objects.map((o) => [o.id, o]));
+
+  // Same mass, different shape.
+  assert.equal(byId.o2.mass, bench.mass, 'the plate must share the sphere mass');
+  assert.notEqual(byId.o2.shapeId, bench.shapeId);
+  assert.equal(byId.o2.size, bench.size, 'and its size, or shape is not the only change');
+  // Same shape, different mass.
+  for (const id of ['o3', 'o4']) {
+    assert.equal(byId[id].shapeId, bench.shapeId, `${id} must share the sphere shape`);
+    assert.equal(byId[id].size, bench.size, `${id} must share the sphere size`);
+    assert.notEqual(byId[id].mass, bench.mass);
+  }
+
+  const { landed } = dropAll(bench, 'air');
+  // Heaviest first, lightest last, plate between its own mass and the light one.
+  assert.ok(landed.o3 < landed.main, 'the 5 kg sphere should land before the 1 kg');
+  assert.ok(landed.main < landed.o2, 'the sphere should beat the plate of the same mass');
+  assert.ok(landed.o2 < landed.o4, 'the plate should beat the 0.15 kg sphere');
+  // And the spread is big enough to see.
+  assert.ok(landed.o4 - landed.o3 > 3,
+    `only ${(landed.o4 - landed.o3).toFixed(2)} s between first and last`);
+});
+
+/**
+ * In vacuum they land together - not nearly, exactly.
+ *
+ * This is the claim the example rests on, and the one a reader is told to
+ * check by changing a single setting.
+ */
+test('in a vacuum all four land at the same moment and the same speed', () => {
+  const { bench } = exampleState('four-dropped-together');
+  const { landed, speed } = dropAll(bench, 'vacuum');
+  const times = Object.values(landed);
+  const speeds = Object.values(speed);
+  assert.equal(times.length, 4, 'all four should land');
+  assert.ok(Math.max(...times) - Math.min(...times) < 0.02,
+    `landing times spread by ${(Math.max(...times) - Math.min(...times)).toFixed(3)} s`);
+  assert.ok(Math.max(...speeds) - Math.min(...speeds) < 0.2,
+    `landing speeds spread by ${(Math.max(...speeds) - Math.min(...speeds)).toFixed(2)} m/s`);
+});
