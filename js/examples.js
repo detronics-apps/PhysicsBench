@@ -949,6 +949,130 @@ export const EXAMPLES = [
         + 'not.',
     },
   },
+  {
+    id: 'rover-arcade',
+    title: 'Drive the rover over the canyon',
+    blurb: 'Sixty-five metres of platforms, six gaps and two valleys, with the '
+      + 'ground a long way below. Arrow keys or WASD.',
+    watch: 'The gaps are jumpable and none of them is jumpable slowly. How far '
+      + 'the rover carries is set at the moment it leaves the ramp, and nothing '
+      + 'after that can help.',
+    stage: 'collide',
+    /*
+     * A side-on platform level for the real 12 cm rover. Falling is not a
+     * special case that had to be built: the ground is already there, and
+     * landing on it means the run is over and you drive back to try again.
+     *
+     * There is no loop-the-loop, and the reason is worth writing down. A real
+     * one works because the track crosses over itself - the vehicle is on the
+     * outside of the rail going in and on the inside coming round. A wall here
+     * is one line with two sides and no crossing, so a closed circle is a fence
+     * that stops a rover dead, and a circle with a hole in the bottom is
+     * something it drives straight through: tested at seven, nine and eleven
+     * metres a second, and it never rose higher than 0.25 m. What does work is
+     * a banked valley, which is a loop with the impossible part left out, and
+     * there are two of them.
+     *
+     * Every gap and step is measured rather than guessed. A rover doing six
+     * metres a second off a twenty-degree kicker carries about 2.9 m, so the
+     * gaps are 2.6, 2.2, 1.7, 1.9, 1.3 and 1.3 - the first is nearly the
+     * limit and the last is a formality. Two failures shaped the rest: a
+     * section whose last piece pointed downhill dropped the rover into the gap
+     * instead of launching it, and a landing shelf placed higher than the
+     * ledge before it could not be reached at all.
+     */
+    params: {
+      shapeId: 'magbot',
+      size: 0.12,
+      mass: 0.6,
+      materialId: 'rubber',
+      x0: -18,
+      dropHeight: 6.08,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      slopeDeg: 0,
+      fluidId: 'air',
+      worldMode: 'planet',
+      collisions: true,
+      // Enough engine to reach a jumping speed on a short platform.
+      control: { mode: 'keyboard', targetId: 'main', strength: 14 },
+      objects: [],
+      cannons: [],
+      walls: [
+        { x1: -19, y1: 6, x2: -12, y2: 6, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: -12, y1: 6, x2: -11.0323, y2: 6.1188, bulge: -0.0298, restitution: 0.15, mu: 0.9 },
+        { x1: -11.0323, y1: 6.1188, x2: -9.0917, y2: 6.6027, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: -6.5, y1: 5.6, x2: -4.5304, y2: 5.2527, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: -4.5304, y1: 5.2527, x2: -2.8884, y2: 4.487, bulge: 0.1193, restitution: 0.15, mu: 0.9 },
+        { x1: -2.8884, y1: 4.487, x2: 0.066, y2: 3.9661, bulge: -0.4019, restitution: 0.15, mu: 0.9 },
+        { x1: 0.066, y1: 3.9661, x2: 1.8709, y2: 4.124, bulge: 0.1193, restitution: 0.15, mu: 0.9 },
+        { x1: 1.8709, y1: 4.124, x2: 3.8405, y2: 3.7767, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 6, y1: 3.4, x2: 8.9836, y2: 3.0864, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 8.9836, y1: 3.0864, x2: 10.2242, y2: 3.2168, bulge: -0.0656, restitution: 0.15, mu: 0.9 },
+        { x1: 10.2242, y1: 3.2168, x2: 11.6508, y2: 3.6803, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 13.4, y1: 3.2, x2: 18.4, y2: 3.2, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 18.4, y1: 3.2, x2: 19.2269, y2: 3.3162, bulge: -0.0292, restitution: 0.15, mu: 0.9 },
+        { x1: 19.2269, y1: 3.3162, x2: 21.1494, y2: 3.8675, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 23, y1: 3.5, x2: 25.4863, y2: 3.2387, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 25.4863, y1: 3.2387, x2: 26.4236, y2: 3.2878, bulge: -0.0369, restitution: 0.15, mu: 0.9 },
+        { x1: 26.4236, y1: 3.2878, x2: 27.8908, y2: 3.5997, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 29.2, y1: 3, x2: 31.189, y2: 2.7909, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 31.189, y1: 2.7909, x2: 32.2115, y2: 2.5736, bulge: 0.0274, restitution: 0.15, mu: 0.9 },
+        { x1: 32.2115, y1: 2.5736, x2: 34.0724, y2: 2.378, bulge: -0.0983, restitution: 0.15, mu: 0.9 },
+        { x1: 34.0724, y1: 2.378, x2: 35.1177, y2: 2.378, bulge: 0.0274, restitution: 0.15, mu: 0.9 },
+        { x1: 35.1177, y1: 2.378, x2: 37.1068, y2: 2.169, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 38.4, y1: 1.6, x2: 42.3781, y2: 2.0181, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 42.3781, y1: 2.0181, x2: 42.7962, y2: 2.04, bulge: 0.0055, restitution: 0.15, mu: 0.9 },
+        { x1: 42.7962, y1: 2.04, x2: 45.7962, y2: 2.04, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 45.8, y1: 2, x2: 45.8, y2: 3.6, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: -20, y1: 0, x2: -20, y2: 8, bulge: 0, restitution: 0.15, mu: 0.9 },
+        { x1: 46.5, y1: 0, x2: 46.5, y2: 8, bulge: 0, restitution: 0.15, mu: 0.9 },
+      ],
+    },
+    arrows: ['velocity', 'weight', 'normal', 'control', 'net'],
+    teach: {
+      how: 'On a platform the rover is held up by the normal force and driven '
+        + 'along by its wheels, and it can change what it is doing at any '
+        + 'moment. The instant it leaves a ramp both of those stop: there is no '
+        + 'surface to push against, so the only force left is weight, and the '
+        + 'path is a parabola settled entirely by the speed and angle at the '
+        + 'lip. Holding the key down in mid-air does nothing at all, which is '
+        + 'the difference between a rover and an aeroplane.',
+      tryThis: [
+        'Hold the right arrow and go. The first gap needs most of the platform '
+        + 'to build up enough speed.',
+        'Try creeping up to a gap. The rover stops at the edge rather than '
+        + 'dropping in - it simply never gets across, because the jump is '
+        + 'bought with speed and there is no other currency.',
+        'Too much is a problem too. Around nine on the engine setting the rover '
+        + 'clears a shelf entirely and lands in the canyon beyond it.',
+        'Keep the key held down while you are in the air, then let go. The '
+        + 'flight is identical either way.',
+        'Ride the valley without braking. The far side gives back the speed the '
+        + 'near side took, minus what the tyres kept - which is why you arrive '
+        + 'a little slower than you went in.',
+        'Land badly and fall to the canyon floor. Nothing stops you driving '
+        + 'back to the start and trying again.',
+      ],
+      watch: [
+        'The normal force arrow disappears the moment the rover leaves a ramp '
+        + 'and comes back with a jolt on landing.',
+        'In the air the net force arrow is exactly the weight, straight down, '
+        + 'however hard you are holding the key.',
+        'On the up-slope of a valley the rover slows without braking, and speeds '
+        + 'up again on the way down. Height and speed are the same account.',
+        'The wheel turns at a rate that matches the ground going past. In the '
+        + 'air it keeps whatever spin it left with.',
+      ],
+      learn: 'A jump is decided before it starts. Once the wheels are off the '
+        + 'ramp there is no steering, no braking and no accelerating - only a '
+        + 'parabola that was fixed at the lip by how fast and at what angle you '
+        + 'left. Every arcade game that lets you steer in mid-air is lying '
+        + 'about that, and it is worth knowing which part is the lie: the '
+        + 'jumping is real, the second thoughts are not.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;

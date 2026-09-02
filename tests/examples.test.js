@@ -861,3 +861,83 @@ test('the marble run is built from straight and curved pieces, within the limit'
   assert.ok(Math.max(...ys) - Math.min(...ys) > 48,
     `the run is only ${(Math.max(...ys) - Math.min(...ys)).toFixed(0)} m tall`);
 });
+
+/* ---------------------------------------------------- the arcade level -- */
+
+/** Drive the rover right for `seconds`, reporting how far it got. */
+function driveLevel(bench, seconds = 30) {
+  const scenario = build('collide', bench);
+  let world = applyPush(scenario.world, bench, scenario.features);
+  const keys = new Set(['ArrowRight']);
+  let furthest = -Infinity;
+  let fellAt = null;
+  for (let i = 0; i < 240 * seconds; i += 1) {
+    const b = findBody(world, 'main');
+    const f = controlForce({
+      mode: 'keyboard', body: b, keys, strength: bench.control.strength,
+    });
+    world = { ...world,
+      bodies: world.bodies.map((x) => (x.id === 'main' ? { ...x, controlForce: f } : x)) };
+    world = applyPush(world, bench, scenario.features);
+    world = advance(world, 1 / 240);
+    const c = findBody(world, 'main');
+    furthest = Math.max(furthest, c.pos.x);
+    if (fellAt === null && c.pos.y < 0.6) fellAt = c.pos.x;
+  }
+  return { furthest, fellAt };
+}
+
+/**
+ * The level can actually be completed.
+ *
+ * Every version that could not was broken in a way the geometry did not show:
+ * a section whose last piece pointed downhill dropped the rover into the gap
+ * instead of launching it, and a landing shelf placed higher than the ledge
+ * before it simply could not be reached. Only driving it finds those.
+ */
+test('the rover can drive the whole arcade level without falling in', () => {
+  const { bench } = exampleState('rover-arcade');
+  const { furthest, fellAt } = driveLevel(bench);
+  assert.equal(fellAt, null, `the rover fell into the canyon at x = ${fellAt}`);
+  // The finish post stands at x = 45.8.
+  assert.ok(furthest > 44, `it only reached x = ${furthest.toFixed(1)}`);
+});
+
+/**
+ * A weak engine cannot finish the level.
+ *
+ * Not because it falls in - a rover that creeps up to a gap stops at the edge,
+ * which is what the geometry does rather than what I first assumed. It simply
+ * never gets across, so the jump really is bought with speed.
+ */
+test('a rover without the engine for it never reaches the finish', () => {
+  const { bench } = exampleState('rover-arcade');
+  const weak = { ...bench, control: { ...bench.control, strength: 3 } };
+  const { furthest } = driveLevel(weak, 30);
+  assert.ok(furthest < 0, `a weak rover still reached x = ${furthest.toFixed(1)}`);
+  // And it did get moving - this is about the jump, not about being stuck.
+  assert.ok(furthest > -14, `it barely moved, reaching only x = ${furthest.toFixed(1)}`);
+});
+
+/**
+ * The gaps are sized against what the rover can actually jump.
+ *
+ * About 2.9 m off a twenty-degree kicker at six metres a second, so a gap much
+ * past three is not a challenge but a wall. This holds the geometry to that
+ * without needing to drive it.
+ */
+test('every gap in the level is inside the rover jumping range', () => {
+  const { bench } = exampleState('rover-arcade');
+  const walls = bench.walls;
+  assert.ok(walls.length >= 20, `only ${walls.length} pieces`);
+  assert.ok(walls.length <= MAX_WALLS, `${walls.length} pieces is over the limit`);
+
+  // Consecutive pieces either join, or are a gap the rover has to jump.
+  let biggest = 0;
+  for (let i = 1; i < walls.length; i += 1) {
+    const gap = Math.hypot(walls[i].x1 - walls[i - 1].x2, walls[i].y1 - walls[i - 1].y2);
+    if (gap > 1e-6 && gap < 6) biggest = Math.max(biggest, gap);
+  }
+  assert.ok(biggest > 1, `the widest gap is ${biggest.toFixed(1)} m, which is a seam not a jump`);
+  assert.ok(biggest < 3, `the widest gap is ${biggest.toFixed(1)} m, past what the rover can carry`);
+});
