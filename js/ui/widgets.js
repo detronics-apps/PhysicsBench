@@ -280,16 +280,46 @@ export function sliderField(label, value, onChange, {
     },
   });
 
+  /*
+   * The track does not snap; the handler rounds instead.
+   *
+   * A range input silently moves its own value onto the step grid. With a
+   * slider reaching 110 MN the step is 1 MN, so a Falcon 9 set to 7,607,000 N
+   * showed as 8,000,000 - and touching the control at all, without moving it,
+   * committed that 8,000,000 and lost 393 kN. Any value set precisely
+   * elsewhere, by typing or by loading an experiment, was one stray tap from
+   * being rounded off.
+   *
+   * `step="any"` stops the element rewriting anything, so the thumb sits where
+   * the value really is and a tap changes nothing. Dragging still lands on
+   * tidy numbers, because the rounding now happens where it belongs: on the
+   * way out, to the value the drag produced, rather than on the way in to the
+   * value that was already there.
+   */
+  const snap = (raw) => {
+    // A press that moved nothing must change nothing. Without this the value
+    // is still rounded onto the grid the moment the control is touched, which
+    // was the whole bug - only now with the thumb in the right place first.
+    if (raw === value) return value;
+    if (!(step > 0)) return raw;
+    const onGrid = Math.round(raw / step) * step;
+    // Guard the ends: rounding must never push the value outside the range.
+    const held = Math.min(Math.max(onGrid, min), max);
+    // Float error at these magnitudes shows up as 7999999.999999999.
+    return Number(held.toPrecision(12));
+  };
+
   const input = el('input', {
-    type: 'range', min, max, step, value,
+    type: 'range', min, max, step: 'any', value,
     'data-field': field,
     on: {
       input: (event) => {
-        readout.value = format(Number(event.target.value));
+        const next = snap(Number(event.target.value));
+        readout.value = format(next);
         drag.active = true;
-        try { onChange(Number(event.target.value)); } finally { drag.active = false; }
+        try { onChange(next); } finally { drag.active = false; }
       },
-      change: (event) => { drag.active = false; onChange(Number(event.target.value)); },
+      change: (event) => { drag.active = false; onChange(snap(Number(event.target.value))); },
     },
   });
   return el('div', { class: 'field' }, [
