@@ -111,17 +111,78 @@ export function regime(re) {
  *   approximation the disclosure names.
  * @returns everything the readout needs, not just a number.
  */
-export function drag({ speed, density = 0, viscosity = 0, diameter = 0, area = 0, cdShape = null }) {
+/**
+ * How far a molecule travels between collisions.
+ *
+ * From kinetic theory: lambda = (mu/rho)*sqrt(pi/(2*R*T)). At sea level this
+ * gives 6.4e-8 m against a measured 6.8e-8, which is close enough to be the
+ * real quantity rather than a stand-in for one.
+ */
+export function meanFreePath({ density, viscosity, temperature = 288.15 }) {
+  if (!(density > 0) || !(viscosity > 0) || !(temperature > 0)) return Infinity;
+  return (viscosity / density) * Math.sqrt(Math.PI / (2 * ISA.gasConstant * temperature));
+}
+
+/**
+ * Knudsen number: how big the gaps between molecules are next to the object.
+ *
+ * This is the number that says whether a fluid is a fluid. Below about 0.01 the
+ * molecules are packed tightly enough to behave as a continuum and the ordinary
+ * drag laws hold. Above about 10 they are so far apart that the object flies
+ * between them, and the continuum picture has stopped meaning anything.
+ */
+export const knudsen = ({ density, viscosity, temperature = 288.15, length }) =>
+  (length > 0 ? meanFreePath({ density, viscosity, temperature }) / length : Infinity);
+
+/**
+ * The Cunningham slip correction, which is what was missing.
+ *
+ * Stokes drag genuinely does not depend on density - F = 3*pi*mu*D*v - and the
+ * viscosity of a gas genuinely does not depend on density either, because a
+ * thinner gas carries momentum further between collisions in exactly the
+ * proportion that it has fewer molecules to carry it. Both of those are real
+ * physics, correctly implemented, and together they said that a rocket 4,600 km
+ * up still feels 6.23 N of air. It does not, and the reason is that all of it
+ * assumes a continuum.
+ *
+ * This is the standard correction for when that assumption fails. It divides
+ * the viscous drag by 1 + Kn*(1.257 + 0.4*exp(-1.1/Kn)), which is 1 in ordinary
+ * air or water and grows without limit as the gas thins. Since it grows in
+ * proportion to Kn, and Kn goes as 1/rho, the viscous force ends up
+ * proportional to density after all - so drag falls to nothing in a vacuum, as
+ * it must.
+ */
+export const slipCorrection = (kn) => (Number.isFinite(kn)
+  ? 1 + kn * (1.257 + 0.4 * Math.exp(-1.1 / kn))
+  : Infinity);
+
+export function drag({
+  speed, density = 0, viscosity = 0, diameter = 0, area = 0, cdShape = null,
+  temperature = 288.15,
+}) {
   const v = Math.abs(speed);
   if (!(density > 0) || !(area > 0) || v < 1e-12) {
     return { force: 0, re: 0, cd: 0, regime: regime(0), viscousShare: 0 };
   }
 
-  const re = reynolds({ density, speed: v, length: diameter || Math.sqrt((4 * area) / Math.PI), viscosity });
+  const length = diameter || Math.sqrt((4 * area) / Math.PI);
+  const re = reynolds({ density, speed: v, length, viscosity });
   const sphere = sphereCd(re);
-  // 24/∞ and 6/(1+∞) are both zero, so an inviscid fluid leaves only the
-  // inertial coefficient — which is exactly the familiar constant-C_d model.
-  const viscousPart = Number.isFinite(re) ? 24 / re : 0;
+
+  /*
+   * The viscous term, divided by the slip correction.
+   *
+   * `re * slip` is computed as one product on purpose. Separately, 24/re
+   * overflows to Infinity once the air is thin enough - which is exactly what
+   * used to send a rocket at 4,634 km to an infinite drag force and a NaN
+   * position. Together they are well behaved, because re goes as density and
+   * the correction goes as 1/density, so their product tends to a constant
+   * and the force ends up proportional to density.
+   */
+  const kn = knudsen({ density, viscosity, temperature, length });
+  const slip = slipCorrection(kn);
+  const damped = re * slip;
+  const viscousPart = Number.isFinite(damped) && damped > 0 ? 24 / damped : 0;
   const transitionPart = Number.isFinite(re) ? 6 / (1 + Math.sqrt(re)) : 0;
 
   /*
@@ -131,7 +192,9 @@ export function drag({ speed, density = 0, viscosity = 0, diameter = 0, area = 0
    * matters and the viscosity does everything.
    */
   const cd = cdShape === null || !Number.isFinite(cdShape)
-    ? sphere
+    // A sphere gets the same three terms; the correlation is only reassembled
+    // here so the corrected viscous part is used rather than the raw 24/Re.
+    ? viscousPart + transitionPart + 0.4
     : viscousPart + transitionPart + cdShape;
 
   const force = 0.5 * density * cd * area * v * v;

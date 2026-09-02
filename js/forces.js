@@ -95,13 +95,14 @@ export function weightForce(mass, field) {
  */
 export function dragForce(velocity, {
   density = 0, viscosity = 0, cd = 0, area = 0, diameter = 0, wind = ZERO,
+  temperature = 288.15,
 } = {}) {
   const relative = sub(velocity, wind);
   const speed = len(relative);
   if (speed < 1e-9 || density <= 0 || area <= 0) return force('drag', vec(0, 0));
 
   const result = fluidDrag({
-    speed, density, viscosity, area, diameter, cdShape: cd > 0 ? cd : null,
+    speed, density, viscosity, area, diameter, temperature, cdShape: cd > 0 ? cd : null,
   });
 
   const f = force('drag', scale(norm(relative), -result.force),
@@ -196,11 +197,14 @@ export function surfaceField(env = {}, local = ZERO) {
 export function fluidAt(env = {}, y = 0) {
   if (env.fluidProfile === 'isa') {
     const air = atmosphereAt(y - (env.seaLevel ?? 0));
-    return { density: air.density, viscosity: air.viscosity };
+    return { density: air.density, viscosity: air.viscosity, temperature: air.temperature };
   }
   return {
     density: Math.max(0, env.fluidDensity ?? 0),
     viscosity: Math.max(0, env.viscosity ?? 0),
+    // Room temperature for a fluid off the table. It only feeds the mean free
+    // path, which in any liquid is small enough to leave the answer untouched.
+    temperature: 293.15,
   };
 }
 
@@ -304,6 +308,7 @@ export function forcesOn(body, env = {}, contact = null) {
     ? dragForce(velocity, {
       density: local.density,
       viscosity: local.viscosity,
+      temperature: local.temperature,
       cd: body.cd,
       area: body.area,
       diameter: body.diameter || body.radius * 2,

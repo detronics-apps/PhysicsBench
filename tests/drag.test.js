@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   reynolds, sphereCd, regime, drag, terminalSpeed, FLUIDS, fluidById,
-  atmosphereAt, atmosphereColumn,
+  atmosphereAt, atmosphereColumn, meanFreePath, knudsen, slipCorrection,
 } from '../js/drag.js';
 import { G_STANDARD as g } from '../js/constants.js';
 
@@ -181,4 +181,87 @@ test('the air column agrees with integrating the density by hand', () => {
     if (atmosphereColumn(mid) < total / 2) lo = mid; else hi = mid;
   }
   assert.ok(lo > 5200 && lo < 5800, `half the air below ${Math.round(lo)} m`);
+});
+
+/* -------------------------------------------- where the air stops being air -- */
+
+/**
+ * The mean free path is the real quantity, not a stand-in for one.
+ *
+ * Sea-level air is measured at about 6.8e-8 m between collisions. Getting this
+ * roughly right is what makes the Knudsen number below mean anything.
+ */
+test('the mean free path at sea level matches the measured one', () => {
+  const air = atmosphereAt(0);
+  const lambda = meanFreePath(air);
+  assert.ok(lambda > 5e-8 && lambda < 8e-8, `${lambda} m is not sea-level air`);
+});
+
+/**
+ * Drag has to vanish with the air, and it did not.
+ *
+ * Stokes drag genuinely does not depend on density, and gas viscosity genuinely
+ * does not either, so the two together said a rocket 4,600 km up still felt
+ * 6.23 N - the same figure it felt at 200 km, and at 1,000, and at 4,000. Then
+ * 24/Re overflowed and the force became infinite. Both halves were real physics
+ * applied where the continuum it assumes had stopped existing.
+ */
+test('drag falls away with the air instead of holding at a constant', () => {
+  const ROCKET = { speed: 8699, diameter: 70, area: 294, cdShape: 0.12 };
+  const at = (h) => {
+    const air = atmosphereAt(h);
+    return drag({ ...ROCKET, density: air.density, viscosity: air.viscosity, temperature: air.temperature });
+  };
+
+  const ground = at(0).force;
+  const high = at(100e3).force;
+  const veryHigh = at(1e6).force;
+  const space = at(1e7).force;
+
+  assert.ok(Number.isFinite(ground) && ground > 1e8, `sea level gave ${ground} N`);
+  // Each step up thins the air by orders of magnitude; the force must follow.
+  assert.ok(high < ground / 1000, `100 km gave ${high} N against ${ground} at sea level`);
+  assert.ok(veryHigh < high / 1e10, `1000 km gave ${veryHigh} N against ${high} at 100 km`);
+  assert.equal(space, 0, `10,000 km gave ${space} N`);
+
+  // And nothing anywhere on the way up is infinite - the old failure.
+  for (let h = 0; h <= 1e7; h += 1e5) {
+    const f = at(h).force;
+    assert.ok(Number.isFinite(f), `drag was ${f} at ${h / 1000} km`);
+  }
+});
+
+/**
+ * The correction is inert where the continuum holds, which is nearly everywhere.
+ *
+ * A slip correction that quietly changed the answer in water or at sea level
+ * would have fixed one bug by introducing a worse one.
+ */
+test('the slip correction leaves ordinary air and liquids alone', () => {
+  const cases = [
+    ['sea-level air', atmosphereAt(0)],
+    ['air at 10 km', atmosphereAt(10e3)],
+    ['water', { density: 997, viscosity: 1e-3, temperature: 293.15 }],
+    ['honey', { density: 1420, viscosity: 10, temperature: 293.15 }],
+  ];
+  for (const [name, fluid] of cases) {
+    const kn = knudsen({ ...fluid, length: 0.4 });
+    assert.ok(kn < 0.01, `${name} has Kn = ${kn}, which is not a continuum`);
+    const slip = slipCorrection(kn);
+    assert.ok(slip < 1.02, `${name} slip correction was ${slip}, not ~1`);
+  }
+});
+
+test('slip grows in proportion to Knudsen once the gas is thin', () => {
+  /*
+   * Far into free-molecular flow the exponential has gone to one, so the
+   * correction settles at (1.257 + 0.4)*Kn. What matters is that it is
+   * proportional to Kn at all: Kn goes as 1/density, so the viscous force ends
+   * up proportional to density and vanishes with the air.
+   */
+  for (const kn of [1e3, 1e6, 1e9]) {
+    const ratio = slipCorrection(kn) / kn;
+    close(ratio, 1.657, 0.01);
+  }
+  assert.equal(slipCorrection(Infinity), Infinity);
 });
