@@ -199,3 +199,22 @@ test('the page is remembered, and only ever one of the two', () => {
   assert.equal(migrate({ page: 7 }).page, 'bench');
   assert.equal(migrate({}).page, 'bench');
 });
+
+/**
+ * The push ceiling is set by what the bench is asked to do, not by taste.
+ *
+ * It was two minutes, which is fine for pushing a crate and useless for a
+ * rocket: a Falcon 9 straight up needs 370 s of burn to reach the height the
+ * ISS flies at, and a reader weakening it toward the point where it barely
+ * beats its own weight needs up to 660. Lowering the ceiling under either of
+ * those breaks the example quietly - the burn would be clamped on load and the
+ * rocket would simply come up short - so the reason is written down here.
+ */
+test('a push can last as long as reaching the ISS altitude takes', () => {
+  const ceiling = migrate({ bench: { pushSeconds: 1e9 } }).bench.pushSeconds;
+  assert.ok(ceiling >= 370, `a ${ceiling} s ceiling cannot reach ISS altitude`);
+  assert.ok(ceiling >= 660, `a ${ceiling} s ceiling leaves no room to weaken the rocket`);
+  // And it is still a bound: nonsense does not get through.
+  assert.ok(Number.isFinite(ceiling) && ceiling <= 3600, `${ceiling} s is not a bound`);
+  assert.equal(migrate({ bench: { pushSeconds: -5 } }).bench.pushSeconds, 0);
+});

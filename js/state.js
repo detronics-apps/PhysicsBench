@@ -468,8 +468,22 @@ export function migrate(incoming) {
 
       pushForce: push.force,
       pushAngleDeg: push.angleDeg,
-      // Two minutes does not reach orbit: a launch burns for about nine.
-      pushSeconds: clamp(b.pushSeconds, 0, 1200, d.pushSeconds),
+      /*
+       * Twelve minutes, and the number is measured rather than picked.
+       *
+       * The old ceiling was two minutes, which is a bench limit: a Falcon 9
+       * pointed straight up needs 370 s of burn to arrive at the height the
+       * ISS flies at. The rest is the room the example invites a reader into
+       * - weakening the rocket toward the point where it barely out-pushes
+       * its own weight makes the climb longer, and at a thrust of 1.15 times
+       * its weight it still gets there in 660 s. Below that it diverges, and
+       * a rocket that cannot beat its own weight never arrives at all.
+       *
+       * This is a bound against a corrupt share link, not a statement about
+       * physics, so it wants to be comfortably past the longest useful burn
+       * and no larger.
+       */
+      pushSeconds: clamp(b.pushSeconds, 0, 720, d.pushSeconds),
 
       otherMass: mass(b.otherMass, d.otherMass),
       otherSize: clamp(b.otherSize, 0.01, 1e9, d.otherSize),
