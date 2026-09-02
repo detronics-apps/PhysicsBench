@@ -621,6 +621,97 @@ export const EXAMPLES = [
         + 'rockets tip over almost as soon as they clear the tower.',
     },
   },
+  {
+    id: 'two-in-orbit',
+    title: 'Two masses going round each other',
+    blurb: 'Nothing is holding it up and nothing is pushing it along. It is '
+      + 'falling, and missing.',
+    watch: 'The small one never gets any closer and never gets away. Take its '
+      + 'sideways speed off and it drops straight in; add too much and it '
+      + 'leaves. An orbit is the one speed in between.',
+    stage: 'two-masses',
+    /*
+     * An orbit needs a sideways velocity, and the bench already had one - `v0`
+     * has always set the main body moving horizontally. What it needed was the
+     * geometry: put the small mass directly above the large one and that
+     * horizontal velocity is tangential, which is the whole trick. Sitting them
+     * side by side, as the step does by default, makes the same number radial
+     * and the two just fall together.
+     *
+     * The masses are chosen backwards from the answer. A twenty-second orbit at
+     * three metres wants G*M = 4*pi^2*r^3/T^2, which is 2.66 - so the pair
+     * comes to 3.99e10 kg, split 81:1 because that is the Earth and its Moon.
+     * The ratio is what makes it visibly *mutual*: the big one swings around a
+     * point rather than sitting still, which is the thing a diagram of the
+     * solar system never shows.
+     *
+     * The pair drifts about a metre over ninety seconds, because only the small
+     * mass is given a velocity and the centre of mass keeps whatever momentum
+     * that adds. At 81:1 the drift is a thirtieth of the orbit and reads as the
+     * pair sailing gently along, which is what a real binary does anyway.
+     * Measured over 90 s: separation holds between 3.000 and 3.036 m across
+     * four and a half orbits.
+     */
+    params: {
+      shapeId: 'sphere',
+      size: 0.3,
+      // A twentieth of a percent of the pair, like the Moon against the Earth.
+      mass: 4.869e8,
+      materialId: 'concrete',
+      x0: 0,
+      // Directly above the other mass, so v0 is tangential rather than radial.
+      y0: 3,
+      // sqrt(G*M/r): the one speed that neither falls in nor climbs away.
+      v0: 0.9425,
+      pushForce: 0,
+      pushSeconds: 0,
+      otherMass: 3.9439e10,
+      otherSize: 0.7,
+      otherX: 0,
+      objects: [],
+      cannons: [],
+      walls: [],
+    },
+    arrows: ['velocity', 'weight', 'acceleration'],
+    teach: {
+      how: 'The two masses pull on each other with G*m1*m2/r^2, and nothing '
+        + 'else acts at all - there is no floor, no air and no push. Left '
+        + 'alone they would simply fall together. What stops that is the '
+        + 'sideways speed: by the time the small one has fallen a little way '
+        + 'towards the big one, it has also moved sideways far enough that the '
+        + 'big one is in a new direction. It keeps falling and keeps missing, '
+        + 'and the path closes into a circle.',
+      tryThis: [
+        'Press Play. It goes round in about twenty seconds and keeps going.',
+        'Set the starting speed to 0 and watch instead. With nothing sideways '
+        + 'it falls straight in - which is what an orbit is protection from.',
+        'Try 0.6 m/s. Too slow to keep missing, so the path becomes an ellipse '
+        + 'that dives close and swings out again.',
+        'Try 1.4 m/s. Too fast: it climbs away and does not come back.',
+        'Watch the big mass rather than the small one. It is moving too, in a '
+        + 'little circle of its own - they both go round a point between them.',
+      ],
+      watch: [
+        'The velocity arrow is always across the gap, never along it. It is '
+        + 'never pointing at the mass it is going round.',
+        'The acceleration arrow always points straight at the other mass, and '
+        + 'it never lines up with the velocity. That is the whole difference '
+        + 'between falling and falling towards.',
+        'Speed and separation stay put on a circular orbit. Slow it down to '
+        + '0.6 m/s and both start breathing in and out together - fastest '
+        + 'where it is closest.',
+        'The trail closes on itself. It is not being steered; it comes back to '
+        + 'where it started because the same law applied the whole way round.',
+      ],
+      learn: 'An orbit is not a balance between gravity and some outward force '
+        + '- there is no outward force. It is free fall that keeps missing. '
+        + 'The astronauts on the ISS are not beyond gravity; at that height it '
+        + 'is still 89% of what it is here. They are falling exactly as this '
+        + 'ball is, and travelling sideways fast enough that the Earth curves '
+        + 'away underneath them as fast as they drop. Stop them dead and they '
+        + 'would fall, like anything else.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;

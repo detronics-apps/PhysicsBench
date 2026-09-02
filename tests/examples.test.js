@@ -595,3 +595,100 @@ test('drag peaks at a few percent of thrust and then vanishes', () => {
   assert.ok(share > 0.02 && share < 0.12,
     `worst drag was ${(share * 100).toFixed(1)}% of thrust`);
 });
+
+/* ----------------------------------------------------------- the orbit -- */
+
+/** Fly the orbit example with one setting changed, reporting what it did. */
+function orbit(bench, over = {}) {
+  const p = { ...bench, ...over };
+  const scenario = build('two-masses', p);
+  let world = scenario.world;
+  let rMin = Infinity;
+  let rMax = 0;
+  let wound = 0;
+  let last = null;
+  for (let i = 0; i < 240 * 90; i += 1) {
+    world = advance(world, 1 / 240);
+    const m = findBody(world, 'main');
+    const o = findBody(world, 'other');
+    const dx = m.pos.x - o.pos.x;
+    const dy = m.pos.y - o.pos.y;
+    const r = Math.hypot(dx, dy);
+    rMin = Math.min(rMin, r);
+    rMax = Math.max(rMax, r);
+    const a = Math.atan2(dy, dx);
+    if (last !== null) {
+      let d = a - last;
+      if (d > Math.PI) d -= 2 * Math.PI;
+      if (d < -Math.PI) d += 2 * Math.PI;
+      wound += d;
+    }
+    last = a;
+  }
+  return { rMin, rMax, orbits: Math.abs(wound) / (2 * Math.PI), world };
+}
+
+/**
+ * The orbit is a circle, and stays one.
+ *
+ * This is the example's whole claim - that a body can fall towards something
+ * for ever without arriving. If the separation drifts, it is spiralling rather
+ * than orbiting and the lesson is wrong.
+ */
+test('the small mass circles the large one without falling in or leaving', () => {
+  const { bench } = exampleState('two-in-orbit');
+  const r = orbit(bench);
+  assert.ok(r.orbits > 4, `only ${r.orbits.toFixed(2)} orbits in 90 s`);
+  // Circular: the separation barely moves across four and a half laps.
+  assert.ok(r.rMin > 2.99 && r.rMax < 3.06,
+    `separation ranged ${r.rMin.toFixed(3)}-${r.rMax.toFixed(3)} m`);
+});
+
+/**
+ * The three settings the instructions ask a reader to try do what they say.
+ *
+ * Too slow falls in, too fast climbs away, and the shipped speed is the one in
+ * between. An instruction that does not do what it promises is worse than no
+ * instruction.
+ */
+test('slower falls in, faster climbs away, and the shipped speed is neither', () => {
+  const { bench } = exampleState('two-in-orbit');
+
+  // Straight down: with nothing sideways it should arrive.
+  const dropped = orbit(bench, { v0: 0 });
+  assert.ok(dropped.rMin < 1, `standing still it only closed to ${dropped.rMin.toFixed(2)} m`);
+
+  // Too slow: an ellipse, so the separation must swing rather than hold.
+  const slow = orbit(bench, { v0: 0.6 });
+  assert.ok(slow.rMax - slow.rMin > 0.5,
+    `0.6 m/s held a near-circle: ${slow.rMin.toFixed(2)}-${slow.rMax.toFixed(2)} m`);
+  assert.ok(slow.rMin < bench.y0, 'a slow orbit should dive closer than it started');
+
+  // Too fast: it leaves, and does not come back within the run.
+  const fast = orbit(bench, { v0: 1.4 });
+  assert.ok(fast.rMax > 2 * bench.y0,
+    `1.4 m/s only reached ${fast.rMax.toFixed(2)} m`);
+});
+
+/**
+ * Both masses move, which is the part a diagram never shows.
+ *
+ * The 81:1 ratio is the Earth against its Moon, and it is chosen so the large
+ * mass visibly swings rather than sitting still.
+ */
+test('the large mass moves too, so the orbit is mutual', () => {
+  const { bench } = exampleState('two-in-orbit');
+  const scenario = build('two-masses', bench);
+  const start = findBody(scenario.world, 'other').pos;
+  let world = scenario.world;
+  let moved = 0;
+  for (let i = 0; i < 240 * 20; i += 1) {
+    world = advance(world, 1 / 240);
+    const o = findBody(world, 'other');
+    moved = Math.max(moved, Math.hypot(o.pos.x - start.x, o.pos.y - start.y));
+  }
+  assert.ok(moved > 0.02, `the large mass only moved ${moved.toFixed(3)} m`);
+  // The ratio is Earth to Moon, near enough.
+  const ratio = bench.otherMass / bench.mass;
+  assert.ok(ratio > 75 && ratio < 85, `mass ratio was ${ratio.toFixed(1)}:1`);
+});
