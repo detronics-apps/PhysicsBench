@@ -1196,6 +1196,107 @@ export const EXAMPLES = [
         + 'arriving slow.',
     },
   },
+  {
+    id: 'into-the-water',
+    title: 'Dropped into the water',
+    blurb: 'Three balls fall through air and hit a lake. Two stop; one keeps going.',
+    watch: 'The same three balls fall through the air at very nearly the same '
+      + 'rate — air is a thousandth of the density of water, so buoyancy in it '
+      + 'is a rounding error and drag has only a metre to work in. Then they '
+      + 'reach the surface, and the whole question changes. Nothing about the '
+      + 'balls changed at the waterline; what changed is what they are pushing '
+      + 'out of the way.',
+    stage: 'fluid',
+    /*
+     * The world itself is water rather than the whole scene being water, which
+     * is the point: buoyancy has to *arrive*. In a tank full of water it is
+     * already acting when the clock starts and a reader sees a result rather
+     * than a transition.
+     *
+     * Three densities either side of the interesting number. Balsa at 160
+     * floats with most of itself proud, pine at 500 floats half under, steel at
+     * 7850 never slows. Water is 997, so a ball floats with density/997 of
+     * itself submerged: 16% for balsa and 50% for pine, which is close enough
+     * to a half to be worth pointing at.
+     *
+     * Two metres of fall, not ten. Enough for them to be visibly moving when
+     * they arrive and short enough that the splash and the settling are both on
+     * screen at a zoom where a 0.4 m ball is still a ball.
+     */
+    params: {
+      shapeId: 'sphere',
+      size: 0.4,
+      materialId: 'balsa',
+      mass: 5.36165,
+      x0: -1.6,
+      dropHeight: 2,
+      v0: 0,
+      pushForce: 0,
+      pushSeconds: 0,
+      slopeDeg: 0,
+      fluidId: 'air',
+      // The floor is not a floor. Everything below the line is water, so a
+      // ball falls *into* it rather than onto it.
+      surfaceFluidId: 'water',
+      worldMode: 'planet',
+      objects: [
+        { id: 'o2', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 16.75516, x: 0, y: 2, vx: 0, vy: 0 },
+        { id: 'o3', shapeId: 'sphere', size: 0.4, materialId: 'steel', mass: 263.05602, x: 1.6, y: 2, vx: 0, vy: 0 },
+      ],
+      walls: [],
+      cannons: [],
+    },
+    select: 'o2',
+    /*
+     * Weight, buoyancy and the sum, and not drag.
+     *
+     * Three objects with four labelled arrows each is twelve labels inside
+     * three metres, and they sit on top of each other the moment the balls are
+     * near the surface together. Drag is the one to drop: it is the subject of
+     * its own example, and here it only sets how *fast* the answer arrives
+     * rather than what the answer is.
+     */
+    arrows: ['weight', 'buoyancy', 'net'],
+    view: { camera: { mode: 'manual', cx: 0, cy: -0.2, span: 9 } },
+    teach: {
+      how: 'A world does not have to be solid. This one is made of water: '
+        + 'everything above the line is air, everything below it is water, and '
+        + 'there is nothing to land on. Each ball falls through the air almost '
+        + 'unaffected — air is 1.2 kg/m\u00b3 against water at 997 — and then '
+        + 'meets a fluid eight hundred times denser. Buoyancy is the weight of '
+        + 'the fluid pushed aside, so at the surface it goes up by the same '
+        + 'factor, and how far each ball sinks before that stops it is the '
+        + 'whole demonstration.',
+      tryThis: [
+        'Press Play and watch all three fall together, then separate completely '
+        + 'at the waterline.',
+        'Watch the balsa ball go under and come back up. It overshoots because '
+        + 'it arrives with speed, and the water has to take that away first.',
+        'In "The fluid it moves through", change what the world is made of back '
+        + 'to solid ground and run it again — now all three bounce off the '
+        + 'same floor and nothing sorts itself.',
+        'Try honey instead of water. Even the steel ball slows to a crawl, '
+        + 'because honey is ten thousand times more viscous.',
+      ],
+      watch: [
+        'The buoyancy arrow is not there in the air and grows as the ball goes '
+        + 'under. It is not switched on at the surface — it has always been the '
+        + 'weight of the fluid displaced. In air the ball displaces 0.04 kg, '
+        + 'which weighs 0.4 N against its own 53 N; in water it displaces 33 kg.',
+        'Balsa settles with about a sixth of itself under the surface, and pine '
+        + 'with about half. That fraction is the ball\u2019s density divided by '
+        + 'the water\u2019s: 160/997 and 500/997.',
+        'The steel ball never reaches a floor, because there is not one. It '
+        + 'falls until drag balances its weight and then sinks at that speed '
+        + 'for ever.',
+      ],
+      learn: 'Whether something floats is a comparison of two densities, and '
+        + 'how much of it sits under the surface is the same comparison as a '
+        + 'fraction. A ball half as dense as the liquid floats half submerged. '
+        + 'That is the whole of it, and it is why a ship\u2019s waterline moves '
+        + 'when it is loaded.',
+    },
+  },
 ];
 
 export const exampleById = (id) => EXAMPLES.find((e) => e.id === id) || null;

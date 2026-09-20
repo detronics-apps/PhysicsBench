@@ -340,7 +340,35 @@ test('one explanation, rendered to the reader’s level', () => {
 
   // Bound once where the panels are built, not repeated at twenty call sites.
   const bench = read('../js/ui/bench.js');
-  assert.match(bench, /const explain = \(spec\) => explainSpec\(\{ level: ctx\.level, \.\.\.spec \}\);/);
+  assert.match(bench, /const explain = \(\{ need = 'simple', \.\.\.spec \}\) =>\s*\n?\s*\(ctx\.at\(need\) \? explainSpec\(\{ level: ctx\.level, \.\.\.spec \}\) : null\);/);
+});
+
+/**
+ * Thirteen closed grey summaries under the measurements is not an invitation.
+ *
+ * Which panels appear is a separate question from how much of a panel that
+ * does appear is rendered. Simple keeps the two that say where you are — the
+ * prepared experiment, if one is loaded, and what this step is about.
+ */
+test('the teaching stack is short at Simple and complete at Expert', () => {
+  const bench = read('../js/ui/bench.js');
+  const fn = bench.match(/export function explains\(ctx\)[\s\S]*?\n\}\r?\n/)[0];
+
+  // The two that survive Simple carry no `need`, and nothing else is ungated.
+  const titles = [...fn.matchAll(/title: (`[^`]*`|'[^']*'),\r?\n(\s*need: '(\w+)',)?/g)]
+    .map((m) => ({ title: m[1], need: m[3] || 'simple' }));
+  const atSimple = titles.filter((t) => t.need === 'simple').map((t) => t.title);
+
+  assert.deepEqual(atSimple, [
+    '`This experiment: ${example.title.toLowerCase()}`',
+    '`What this step adds: ${stage.label.toLowerCase()}`',
+  ], 'Simple shows more than the two panels that say where the reader is');
+
+  // The equation round-up and its triangles arrive at Advanced.
+  assert.ok(titles.some((t) => t.title.includes('The equations on this step') && t.need === 'advanced'));
+
+  // A gated panel returns null, so the stack has to drop them.
+  assert.match(fn, /return out\.filter\(Boolean\);/);
 });
 
 /**

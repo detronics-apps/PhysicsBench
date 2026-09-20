@@ -229,6 +229,18 @@ export const defaults = () => ({
     // The fluid.
     fluidId: 'air',
 
+    /*
+     * What the world is made of underfoot: 'solid', or any fluid.
+     *
+     * Solid ground by default, because that is what a bench is. Choose water
+     * and the floor stops being a floor — everything below the line is water,
+     * everything above it is whatever the fluid above is set to, and an object
+     * dropped in falls through one into the other and settles where its
+     * density says. It is the only way to watch buoyancy *arrive* rather than
+     * start out already applied.
+     */
+    surfaceFluidId: 'solid',
+
     // Bounciness, where every object does not bring its own.
     restitution: 0.6,
 
@@ -522,6 +534,7 @@ export function migrate(incoming) {
       muK: Math.min(clamp(b.muK, 0, 5, d.muK), clamp(b.muS, 0, 5, d.muS)),
 
       fluidId: oneOf(b.fluidId, FLUID_IDS, d.fluidId),
+      surfaceFluidId: oneOf(b.surfaceFluidId, ['solid', ...FLUID_IDS], d.surfaceFluidId),
 
       restitution: clamp(b.restitution, 0, 1, d.restitution),
       collisions: bool(b.collisions, d.collisions),
@@ -660,6 +673,23 @@ export function load() {
   // Arriving from a share link should not immediately start running: the point
   // of a shared experiment is the setup, and the recipient presses Play.
   state.transport.playing = false;
+
+  /*
+   * Opening the app puts you at the start of the bench.
+   *
+   * The steps are a progression through one subject, and every one of them
+   * assumes the one before it. Restoring somebody to step six a week later
+   * drops them into fluids and collisions with no memory of how the object got
+   * there — the settings are all still theirs, which is the point of them
+   * persisting, but the place to read them from is the beginning.
+   *
+   * A share link is the exception: it names a step on purpose, and its sender
+   * meant that one.
+   */
+  if (!shared) {
+    state.stage = defaults().stage;
+    state.page = 'bench';
+  }
   return state;
 }
 

@@ -18,6 +18,7 @@
  */
 
 import { vec, sub, scale, dot, len, norm, perp, sum, ZERO } from './vec.js';
+import { submergedFraction, displacedColumn } from './immersion.js';
 import { drag as fluidDrag, atmosphereAt, atmosphereColumn } from './drag.js';
 
 /**
@@ -195,6 +196,19 @@ export function surfaceField(env = {}, local = ZERO) {
 }
 
 export function fluidAt(env = {}, y = 0) {
+  /*
+   * A world can be made of a fluid rather than of solid ground, and then the
+   * scene has two: whatever fills it above the surface, and the world's own
+   * material below. Checked first so it composes with an atmosphere above
+   * rather than replacing it.
+   */
+  if (env.surfaceFluid && y <= (env.surfaceY ?? 0)) {
+    return {
+      density: Math.max(0, env.surfaceFluid.density ?? 0),
+      viscosity: Math.max(0, env.surfaceFluid.viscosity ?? 0),
+      temperature: env.surfaceFluid.temperature ?? 293.15,
+    };
+  }
   if (env.fluidProfile === 'isa') {
     const air = atmosphereAt(y - (env.seaLevel ?? 0));
     return { density: air.density, viscosity: air.viscosity, temperature: air.temperature };
@@ -208,8 +222,56 @@ export function fluidAt(env = {}, y = 0) {
   };
 }
 
-export const buoyantMass = (body, env = {}) =>
-  body.mass - fluidAt(env, body.pos?.y ?? 0).density * Math.max(0, body.volume ?? 0);
+/**
+ * The fluid a *body* is in, as opposed to the fluid at a point.
+ *
+ * Every force that reads a fluid has to read this one. Buoyancy is naturally
+ * smooth in how much of the body is under the surface; drag, asked for the
+ * fluid at the body's centre, is a step function. Mixing the two is not a
+ * small inconsistency — a floating ball's centre sits *above* the waterline,
+ * so it was getting buoyancy from the water and drag from the air, which is
+ * to say a restoring force with no damping whatsoever. Measured: the bob grew
+ * from 0.67 m/s to 1.31 m/s over five seconds and the energy books climbed
+ * 17% while it did.
+ *
+ * Blending the density is exactly right for buoyancy, which only ever wanted
+ * the displaced mass. Blending the viscosity is an effective-medium
+ * approximation for drag, declared as one: a half-submerged sphere is not
+ * really moving through a fluid of average viscosity. It is far closer than
+ * either pure fluid, and it damps.
+ */
+export function fluidAround(body, env = {}) {
+  const y = body.pos?.y ?? 0;
+  if (!env.surfaceFluid) return fluidAt(env, y);
+
+  const surfaceY = env.surfaceY ?? 0;
+  const under = submergedFraction(body, y, surfaceY);
+  if (under >= 1) return fluidAt(env, Math.min(y, surfaceY - 1e-9));
+
+  const above = fluidAt(env, Math.max(y, surfaceY + 1e-9));
+  if (under <= 0) return above;
+
+  const below = env.surfaceFluid;
+  return {
+    density: under * (below.density ?? 0) + (1 - under) * above.density,
+    viscosity: under * (below.viscosity ?? 0) + (1 - under) * above.viscosity,
+    temperature: above.temperature,
+  };
+}
+
+/**
+ * The mass of fluid a body is actually displacing, where it is.
+ *
+ * With one fluid everywhere this is the whole volume at the local density,
+ * which is what it has always been. At a surface it is the two parts added:
+ * what is under the line displaces the world's fluid, what is above it still
+ * displaces the air. Keeping the second term costs nothing and is what stops
+ * a floating body's books drifting by the weight of the air it stands in.
+ */
+export const displacedMass = (body, env = {}) =>
+  fluidAround(body, env).density * Math.max(0, body.volume ?? 0);
+
+export const buoyantMass = (body, env = {}) => body.mass - displacedMass(body, env);
 
 /**
  * Potential energy: gravitational, less whatever the fluid is holding up.
@@ -240,9 +302,19 @@ export function potentialEnergy(body, env = {}, datumY = 0) {
     : body.mass * g * (y - datumY);
 
   if (volume <= 0) return gravity;
-  const displaced = env.fluidProfile === 'isa'
-    ? atmosphereColumn(y - sea) - atmosphereColumn(datumY - sea)
-    : fluidAt(env, y).density * (y - datumY);
+  /*
+   * The work buoyancy does over the rise, which is only force x distance when
+   * the force is constant. Over a surface it is not: a body crossing a
+   * waterline sheds its support gradually, so the column is the integral of
+   * the very fraction the force reads. Anything else and a floating object's
+   * books drift every frame.
+   */
+  const displaced = env.surfaceFluid
+    ? displacedColumn(body, datumY, y, env.surfaceY ?? 0,
+      env.surfaceFluid.density ?? 0, fluidAt(env, (env.surfaceY ?? 0) + 1e-9).density)
+    : env.fluidProfile === 'isa'
+      ? atmosphereColumn(y - sea) - atmosphereColumn(datumY - sea)
+      : fluidAt(env, y).density * (y - datumY);
   return gravity - g * volume * displaced;
 }
 
@@ -303,7 +375,8 @@ export function forcesOn(body, env = {}, contact = null) {
 
   /* Step one: everything that does not depend on the surface. */
   const applied = body.applied && len(body.applied) > 0 ? force('applied', body.applied) : null;
-  const local = fluidAt(env, body.pos?.y ?? 0);
+  // The fluid the body is in, not the fluid at a point — see `fluidAround`.
+  const local = fluidAround(body, env);
   const drag = local.density > 0 && body.area > 0
     ? dragForce(velocity, {
       density: local.density,

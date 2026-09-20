@@ -449,7 +449,27 @@ export function build(stageId, p) {
    */
   const onWorld = f.has('planet') && !space;
   const planet = onWorld ? describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId }) : null;
+  /*
+   * What the world is made of underfoot.
+   *
+   * 'solid' is the ground the bench has always had. Anything else is a fluid
+   * filling everything below the surface line, and then there is nothing to
+   * stand on: the collider goes away and a body falls in, is slowed by the
+   * liquid and settles wherever its density says it should. That is the whole
+   * mechanism — no floating code, no surface tension, no special case.
+   */
+  const surfaceFluid = f.has('fluid') && !space && p.surfaceFluidId && p.surfaceFluidId !== 'solid'
+    ? fluidById(p.surfaceFluidId)
+    : null;
+  /*
+   * `hasGround` means "standing on a world", which is what decides that there
+   * is a downward field at all and where a body is placed to start. Whether
+   * that surface is something you can *land* on is a separate question, and
+   * conflating the two took the gravity away along with the floor: a ball
+   * dropped into a lake hung motionless in the air.
+   */
   const hasGround = f.has('ground') && !space;
+  const solidGround = hasGround && !surfaceFluid;
   const gravityMode = hasGround ? 'uniform' : (f.has('mutual-gravity') && !space ? 'mutual' : 'none');
   const g = planet ? planet.g : 0;
 
@@ -524,7 +544,11 @@ export function build(stageId, p) {
     viscosity: fluid.viscosity,
     // Only the atmosphere carries one; everything else is uniform.
     fluidProfile: fluid.profile ?? null,
-    ground: hasGround
+    surfaceFluid: surfaceFluid
+      ? { density: surfaceFluid.density, viscosity: surfaceFluid.viscosity }
+      : null,
+    surfaceY: 0,
+    ground: solidGround
       ? {
         y: 0,
         slopeDeg: p.slopeDeg,
@@ -634,7 +658,27 @@ export function applyLive(world, p, features, { stageId } = {}) {
   const space = f.has('space') && p.worldMode === 'space';
   const fluid = f.has('fluid') ? fluidById(p.fluidId) : fluidById('vacuum');
   const onWorld = f.has('planet') && !space;
+  /*
+   * What the world is made of underfoot.
+   *
+   * 'solid' is the ground the bench has always had. Anything else is a fluid
+   * filling everything below the surface line, and then there is nothing to
+   * stand on: the collider goes away and a body falls in, is slowed by the
+   * liquid and settles wherever its density says it should. That is the whole
+   * mechanism — no floating code, no surface tension, no special case.
+   */
+  const surfaceFluid = f.has('fluid') && !space && p.surfaceFluidId && p.surfaceFluidId !== 'solid'
+    ? fluidById(p.surfaceFluidId)
+    : null;
+  /*
+   * `hasGround` means "standing on a world", which is what decides that there
+   * is a downward field at all and where a body is placed to start. Whether
+   * that surface is something you can *land* on is a separate question, and
+   * conflating the two took the gravity away along with the floor: a ball
+   * dropped into a lake hung motionless in the air.
+   */
   const hasGround = f.has('ground') && !space;
+  const solidGround = hasGround && !surfaceFluid;
   const planet = onWorld ? describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId }) : null;
   const gravityMode = hasGround ? 'uniform' : (f.has('mutual-gravity') && !space ? 'mutual' : 'none');
   const g = planet ? planet.g : 0;
@@ -704,8 +748,12 @@ export function applyLive(world, p, features, { stageId } = {}) {
       mutualGravity: gravityMode === 'mutual',
       fluidDensity: fluid.density,
       viscosity: fluid.viscosity,
+      surfaceFluid: surfaceFluid
+        ? { density: surfaceFluid.density, viscosity: surfaceFluid.viscosity }
+        : null,
+      surfaceY: 0,
     },
-    ground: hasGround
+    ground: solidGround
       ? {
         y: 0,
         slopeDeg: p.slopeDeg,

@@ -38,6 +38,9 @@ export const SEARCH_ALIASES = {
   friction: ['grip', 'slide', 'slippery', 'sticky', 'rough', 'skid', 'brakes', 'stopping'],
   fluid: ['air', 'water', 'honey', 'underwater', 'liquid', 'thick',
     'air resistance', 'wind resistance', 'terminal velocity'],
+  'what the world is made of': ['lake', 'sea', 'ocean', 'pool', 'ground', 'floor',
+    'surface', 'waterline', 'float on', 'sink into', 'splash'],
+  buoyancy: ['float', 'sink', 'floats', 'why things float', 'displacement', 'archimedes'],
   gravity: ['falling', 'fall', 'drop', 'weight', 'planet', 'moon', 'orbit', 'space'],
   world: ['planet', 'moon', 'mars', 'earth', 'gravity', 'where it is'],
   // No `step` key: nearly every entry says "go to step 7", so aliasing it to
@@ -196,6 +199,21 @@ export const HOWTOS = [
       'Use the playback speed control on the bar under the drawing — 0.1× is a tenth of real time.',
       'Slowing down also records finer, so scrubbing back through that stretch shows more.',
       'Or change the fluid to water in "The fluid it moves through", which slows the whole scene down physically.',
+    ],
+  },
+  {
+    id: 'water-world',
+    title: 'Drop something into water instead of onto the ground',
+    category: 'Fluids',
+    steps: [
+      'Go to step 6, "Fluids and objects".',
+      'Open "The fluid it moves through". Leave the fluid as air.',
+      'Change "What the world is made of" from solid ground to water.',
+      'The floor is gone: everything below the line is water now.',
+      'Set a drop height and press Play. The object falls through the air, hits '
+        + 'the water, and settles where its own density puts it.',
+      'A ball half as dense as the liquid floats half submerged — try balsa, '
+        + 'pine and steel and compare.',
     ],
   },
   {
@@ -370,6 +388,20 @@ export const FAQS = [
       + 'any project file you have saved.',
   },
   {
+    q: 'Why has my floor disappeared?',
+    a: 'Because the world has been set to a liquid rather than to solid ground, in '
+      + '"The fluid it moves through". A lake has no floor to land on — an object '
+      + 'falls into it and settles where its density puts it. Set "What the world is '
+      + 'made of" back to solid ground to get the floor back.',
+  },
+  {
+    q: 'How far under the surface should something float?',
+    a: 'Its own density divided by the liquid’s, as a fraction of its volume. Pine '
+      + 'at 500 kg/m³ in water at 997 floats half submerged; balsa at 160 floats with '
+      + 'a sixth of itself under. That is also why a ship’s waterline moves when it is '
+      + 'loaded — nothing about the ship changed except how heavy it is.',
+  },
+  {
     q: 'Can I use it in dark mode?',
     a: 'Yes. The disc at the right of the header cycles the theme through auto, light and dark. '
       + 'Auto follows whatever your machine is set to. Set it explicitly before screen-recording, '
@@ -452,6 +484,13 @@ export const FEATURES = [
       + 'with why it is there and what would happen without it.',
   },
   {
+    name: 'The world can be made of water',
+    where: 'Step 6 · "The fluid it moves through"',
+    what: 'Set what the world is made of to a liquid and the floor goes away. Things '
+      + 'fall into it rather than onto it, and you can watch buoyancy arrive at the '
+      + 'surface instead of starting out already applied.',
+  },
+  {
     name: 'The drawing takes the keyboard',
     where: 'Step 7 · "Take the controls"',
     what: 'Click the drawing and the arrow keys drive the object instead of scrolling the page. '
@@ -478,7 +517,7 @@ export const FEATURES = [
   {
     name: 'Prepared experiments explain themselves',
     where: 'The step bar · "Prepared experiments"',
-    what: 'Eleven scenes already set up, each with what to try, what to watch and the point of '
+    what: 'Twelve scenes already set up, each with what to try, what to watch and the point of '
       + 'it. Every number in those notes is pinned by a test.',
   },
 ];
@@ -500,7 +539,7 @@ export const WELCOME = [
   },
   {
     title: 'Try one that is already set up',
-    what: 'Eleven prepared experiments — a marble run, a rocket to orbit, two masses in orbit — '
+    what: 'Twelve prepared experiments — a marble run, a rocket to orbit, a ball dropped into a lake — '
       + 'each with a note on what to look for.',
     go: { page: 'examples' },
     label: 'Show me the shelf',

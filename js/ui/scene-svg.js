@@ -137,6 +137,9 @@ export function renderScene(world, {
   for (const planet of planets) root.appendChild(drawPlanet(cam, planet));
   if (view.showGrid !== false) root.appendChild(drawGrid(cam, view.grid));
   if (world.ground) root.appendChild(drawGround(cam, world.ground));
+  // A world made of liquid has no ground to draw, and drawing nothing would
+  // leave an object apparently sinking through empty air.
+  if (world.env?.surfaceFluid) root.appendChild(drawLiquid(cam, world.env));
   if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
   if (drawing) root.appendChild(drawPending(cam, drawing));
   if (world.cannons?.length) root.appendChild(drawCannons(cam, world.cannons));
@@ -485,6 +488,30 @@ function drawGrid(cam, override = 'auto') {
   group.appendChild(svg('text', {
     x: 8, y: VIEW_H - 8, fill: 'var(--text-faint)', 'font-size': 10,
   }, `grid: ${fmtLength(step)}`));
+  return group;
+}
+
+/**
+ * A world whose surface is a liquid.
+ *
+ * The same shape as the ground it replaces — everything below a line is
+ * filled — and deliberately in the drag colour rather than the ground one,
+ * because it is the same substance the drag arrow is about. The fill is
+ * heavier than the ground's, since a liquid is something you are *in* rather
+ * than something you are on.
+ */
+function drawLiquid(cam, env) {
+  const group = svg('g', { class: 'scene__liquid' });
+  const y = clampY(toScreen(cam, { x: 0, y: env.surfaceY ?? 0 }).y);
+
+  group.appendChild(svg('rect', {
+    x: 0, y: r(y), width: VIEW_W, height: r(Math.max(0, VIEW_H - y)),
+    fill: 'var(--force-drag)', 'fill-opacity': 0.16,
+  }));
+  group.appendChild(svg('line', {
+    x1: 0, y1: r(y), x2: VIEW_W, y2: r(y),
+    stroke: 'var(--force-drag)', 'stroke-width': 2.5,
+  }));
   return group;
 }
 

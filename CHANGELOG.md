@@ -53,6 +53,81 @@ four things to *do*, each one click from where it happens. It is remembered by a
 session flag, and it never appears for someone arriving on a share link — they have been sent
 something specific by a person who knew what they were sending. Reopen it any time from the guide.
 
+### A world made of liquid
+
+From step six, "what the world is made of" can be a fluid instead of solid ground. Choose water
+and the floor goes away: everything below the line is water, everything above it is whatever the
+fluid is set to, and an object falls into it rather than onto it. Default is solid ground.
+
+Nothing is switched on to make it float. The collider is absent and buoyancy was always there;
+what a surface adds is that the displaced volume depends on how deep the body sits. Three things
+had to be true for that to hold together:
+
+- **The submerged fraction is exact for a sphere** (the spherical-cap formula) and linear by
+  height for everything else, declared as an approximation. Taking the whole body as in or out at
+  its centre is not a small simplification — it has no equilibrium, so a floating ball oscillates
+  about the waterline for ever.
+- **Buoyancy and drag read the same blended fluid.** They did not at first, and it was not a
+  detail: a floating ball's centre sits *above* the waterline, so it was getting buoyancy from
+  the water and drag from the air — a stiff restoring force with no damping at all. The bob grew
+  from 0.67 m/s to 1.31 m/s over five seconds and the energy books climbed 17% while it did.
+- **The energy ledger integrates the same submerged-fraction curve the force reads**, rather than
+  multiplying a density by a height. Verified by differentiating the integral back to the force:
+  they agree to one part in 10⁸.
+
+What was left after that was ordinary truncation error, and a big one, because buoyancy at a
+waterline is the first force here that is both very stiff — about 1,900 N per metre on a
+half-metre sphere — and confined to a few centimetres. It converges cleanly (7.73 J of drift at
+the bench's usual 2 ms substep, 1.94 at 0.5 ms, 0.49 at 0.125 ms), so the substep is refined to
+an eighth while a body straddles a surface and left alone everywhere else. Crossing takes a
+fraction of a second, so it costs almost nothing.
+
+Measured after, through the real code path: the books hold to 0.32% for a floating cork, 0.15%
+for pine and 0.01% for a sinking stone, against the 0.37% the app already carried on a bounce —
+and identically at 1/120 and 1/240, so it is frame-rate independent.
+
+### A twelfth prepared experiment
+
+**Dropped into the water.** Balsa, pine and steel fall two metres through air and hit a lake.
+They fall together and separate completely at the surface. Pine settles at exactly half
+submerged and balsa at 16%, which are their densities over the water's — both pinned by tests,
+along with balsa going under before it comes back up and the ledger holding over thirty seconds.
+
+### Simple means the inputs and nothing else
+
+- **"The object" at Simple is mass, shape, size and material.** Volume, density, frontal area and
+  the drag coefficient are all *derived* — the app saying what you just built, not anything you
+  can change — and four read-only numbers wedged between the size slider and the material picker
+  were the densest patch of screen in the app. They arrive at Advanced.
+- **The figures are out of the option labels too.** `Steel — 7850 kg/m³, bounce 0.6` on every row
+  is a table a newcomer can neither use nor ignore.
+- **The teaching stack is two panels at Simple**, not thirteen: what the step is about, and what
+  the loaded experiment is. Advanced adds the equation reference and its triangles; Expert adds
+  the essays and the "what people get wrong" lines. The text is written once and the level
+  decides how much of it renders.
+
+### Opening the app puts you at step one
+
+Whatever step it was left on. The steps are a progression and each assumes the one before it;
+restoring somebody to step six a week later drops them into fluids and collisions with no memory
+of how the object got there. Every setting is still theirs. A share link is the exception — it
+names a step on purpose.
+
+### "I am new here"
+
+A button in the footer, on every screen, that reopens the welcome. Showing it once is right, but
+"once" only works if there is an obvious way back, and the guide is not where somebody who does
+not yet know what the app is will think to look.
+
+### Fixed
+
+- **A floating body had no damping**, as above.
+- **Removing the ground removed gravity with it.** One flag meant both "there is a world with a
+  downward field" and "there is something to land on", so the first ball dropped into a lake hung
+  motionless in the air.
+- **One wrong figure in the new example's notes**: the air a 0.4 m ball displaces weighs 0.4 N,
+  not 0.04 N. 0.04 is the mass in kilograms.
+
 ### The links back to Detronics
 
 The logo is the way home. A Buy Me a Coffee button sits left of the theme disc, with a matching

@@ -30,6 +30,20 @@ gravitational field together — the honest pairing, since there is no such thin
 gravity and nothing to stand on. From step seven it becomes a sandbox: draw walls and ramps, add
 cannons, put up to twenty objects on it, take the controls and drive one.
 
+## A world made of liquid
+
+From step six the ground does not have to be solid. Set **what the world is made of** to water
+and the floor goes away: everything above the line is whatever the fluid is set to, everything
+below it is water, and an object falls *into* it rather than onto it. A ball settles with the
+fraction of itself under the surface that its density says — pine at 500 kg/m³ in water at 997
+floats half submerged, balsa at 160 with a sixth of itself under.
+
+Nothing is switched on to make that happen. The collider is simply absent and buoyancy was always
+there; what the surface adds is that the displaced volume now depends on how deep the body sits.
+Buoyancy and drag read the same blended fluid, and the energy ledger integrates the very same
+submerged-fraction curve the force does — without that a floating body has a restoring force with
+no damping, and the books climb 8% while it bobs for ever.
+
 ## Simple, Advanced, Expert
 
 The chips at the right of the step bar set how much is on screen. **The level never changes the
@@ -38,9 +52,12 @@ control folded away keeps whatever it was set to.
 
 | | |
 |---|---|
-| **Simple** | What the object is doing, and the formula that says so. The default. |
-| **Advanced** | Adds momentum and the energy figures, the conditions each equation holds under, and the settings worth changing. |
-| **Expert** | Adds what each equation is a special case of, what people commonly get wrong about it, and what the app is recording. |
+| **Simple** | The inputs, and nothing derived. What the object is doing, and one panel saying what the step is about. The default. |
+| **Advanced** | Adds the figures that follow from the inputs — volume, density, frontal area — momentum and the energy books, the conditions each equation holds under, and the equation reference with its triangles. |
+| **Expert** | Adds the essays, what each equation is a special case of, what people commonly get wrong about it, and what the app is recording. |
+
+Every step of the simulation runs at every level. A control folded away keeps whatever it was set
+to, so switching levels never changes a number.
 
 The controls are an accordion — one panel open at a time — and arriving at a step opens the panel
 that step introduces.
@@ -262,6 +279,7 @@ js/camera.js          metres to pixels, arrow rules, and keeping labels off each
 js/graph.js           graph geometry: ticks, scales, axis labels that miss each other
 js/recorder.js        the recording the animation and the graphs both read
 js/levels.js          Simple / Advanced / Expert, and which of them shows what
+js/immersion.js       how much of a body is under a surface, and what that is worth
 js/guide.js           the how-tos, the FAQs, and the everyday-words search
 js/state.js           one parameter object, localStorage, URL-hash sharing
 js/main.js            the shell, the clock, live editing, pointer and keyboard input

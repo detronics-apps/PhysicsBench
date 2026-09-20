@@ -1034,3 +1034,83 @@ test('nothing in the slalom removes speed', () => {
   const later = findBody(world, 'main').vel.y;
   close(later, after, 1e-9);
 });
+
+/* -------------------------------------------------- dropped into water -- */
+
+/**
+ * A world made of liquid, and the one number the example promises.
+ *
+ * "A ball half as dense as the liquid floats half submerged" is the point of
+ * the whole scene, so it is the thing most worth pinning: the settled volume
+ * fraction has to come out as the density ratio, and it has to come out of the
+ * simulation rather than out of the sentence.
+ */
+test('a world can be made of water, and then there is nothing to land on', () => {
+  const { scenario } = play('into-the-water', 0.1);
+  assert.equal(scenario.world.ground, null, 'a lake still has a floor to bounce off');
+  assert.equal(scenario.world.env.surfaceFluid.density, 997);
+  // And the air above it is still air, or the fall through it means nothing.
+  assert.equal(scenario.world.env.fluidDensity, 1.225);
+});
+
+test('each ball settles at the fraction its density says, or does not settle', () => {
+  // Thirty seconds, because a cork arriving with speed bobs for a while before
+  // it settles and sampling mid-bob reads it high: 13% under at fifteen
+  // seconds against the 16% it comes to rest at.
+  const { world } = play('into-the-water', 30, 1 / 120);
+
+  // Volume submerged for a sphere of radius r sunk to depth d, as a fraction.
+  const capFraction = (centreY, r) => {
+    const d = Math.min(2 * r, Math.max(0, 0 - (centreY - r)));
+    return (d * d * (3 * r - d)) / (4 * r * r * r);
+  };
+
+  for (const [id, density] of [['main', 160], ['o2', 500]]) {
+    const b = inspect(world, id);
+    const want = density / 997;
+    const got = capFraction(b.pos.y, 0.2);
+    assert.ok(Math.abs(got - want) < 0.03,
+      `${id}: floats ${(got * 100).toFixed(0)}% under, density says ${(want * 100).toFixed(0)}%`);
+    assert.ok(Math.abs(b.vel.y) < 0.15, `${id} is still bobbing at ${b.vel.y.toFixed(2)} m/s`);
+  }
+
+  // Steel is denser than water by eight times: there is no depth at which it
+  // stops, and the example says so.
+  const steel = inspect(world, 'o3');
+  assert.ok(steel.pos.y < -30, `steel only reached ${steel.pos.y.toFixed(1)} m`);
+  assert.ok(steel.vel.y < -1, 'steel should still be sinking, at its terminal speed');
+});
+
+test('the balsa ball goes under before it comes back up', () => {
+  // "It overshoots because it arrives with speed" is a claim about the shape of
+  // the motion, not just where it ends up.
+  let deepest = Infinity;
+  const state = exampleState('into-the-water');
+  const scenario = build(state.stage, state.bench);
+  let world = scenario.world;
+  for (let i = 0; i < 900; i += 1) {
+    world = advance(world, 1 / 60);
+    deepest = Math.min(deepest, inspect(world, 'main').pos.y);
+  }
+  const end = inspect(world, 'main').pos.y;
+  assert.ok(deepest < -0.05, `balsa never went properly under: deepest ${deepest.toFixed(3)}`);
+  assert.ok(end > deepest + 0.1, 'balsa never came back up');
+});
+
+/**
+ * The books still balance over a surface.
+ *
+ * Buoyancy at a waterline is the first force here that is both stiff and
+ * confined to a few centimetres, and integrating it at the bench's ordinary
+ * 2 ms substep pumped the energy ledger up by 8% over thirty seconds. The
+ * substep is refined while a body straddles the surface; this is what says so.
+ */
+test('the energy ledger holds while something floats', () => {
+  const state = exampleState('into-the-water');
+  const scenario = build(state.stage, state.bench);
+  let world = scenario.world;
+  const first = totals(world).balance;
+  for (let i = 0; i < 1800; i += 1) world = advance(world, 1 / 60);
+  const drift = Math.abs(totals(world).balance - first) / Math.abs(first);
+  assert.ok(drift < 0.01, `the books drifted ${(drift * 100).toFixed(2)}% over thirty seconds`);
+});

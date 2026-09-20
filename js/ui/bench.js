@@ -67,8 +67,18 @@ export function controls(ctx) {
   ].filter(Boolean), 'controls');
 }
 
+/**
+ * What the object is: the four things you set, and what follows from them.
+ *
+ * At Simple the panel is the four controls and nothing else. Volume, density,
+ * frontal area and the drag coefficient are all *derived* — they are the app
+ * telling you what you just built, not anything you can change — and four
+ * read-only numbers wedged between the size slider and the material picker
+ * were the single densest patch of screen in the app. They are the first
+ * thing Advanced adds, because density is the whole of floating and sinking.
+ */
 function objectSection(ctx, object, f) {
-  const { params: p, set } = ctx;
+  const { params: p, set, at } = ctx;
   return section('The object', [
     numberField('Mass', p.mass, (v) => set('mass', v), {
       unit: 'kg', min: 0.001, max: 1e7, step: 0.5, key: 'mass',
@@ -94,8 +104,10 @@ function objectSection(ctx, object, f) {
      * drawing is not a car, and the density that falls out of it is not a car's
      * either. Both stay adjustable immediately afterwards.
      */
+    // The drag coefficient on every option is a number a newcomer cannot use
+    // and cannot ignore. It comes back at Advanced, where it means something.
     f.has('shape') ? selectField('Shape',
-      SHAPES.map((x) => ({ value: x.id, label: `${x.label} — C_d ${x.cd}` })),
+      SHAPES.map((x) => ({ value: x.id, label: at('advanced') ? `${x.label} — C_d ${x.cd}` : x.label })),
       p.shapeId,
       (v) => {
         const t = typicalFor(v);
@@ -127,7 +139,7 @@ function objectSection(ctx, object, f) {
      * first step: it is the whole of floating and sinking later on, and it is
      * the first quantity in the app that is a *ratio* rather than a reading.
      */
-    el('div', { class: 'dims' }, [
+    !at('advanced') ? null : el('div', { class: 'dims' }, [
       el('dt', { text: 'Volume' }),
       el('dd', { text: `${object.volume.toPrecision(3)} m³` }),
       el('dt', { text: 'Density' }),
@@ -137,7 +149,7 @@ function objectSection(ctx, object, f) {
       el('dt', { text: 'Frontal area' }),
       el('dd', { text: `${object.area.toPrecision(3)} m²` }),
     ]),
-    el('div', {
+    !at('advanced') ? null : el('div', {
       class: 'field__hint',
       text: `${fmtFixed(object.mass, 3)} kg spread through ${object.volume.toPrecision(3)} m³ `
         + `is ${fmtFixed(object.density, object.density < 10 ? 2 : 0)} kg/m³ — `
@@ -146,7 +158,9 @@ function objectSection(ctx, object, f) {
 
     // Drag is the only thing C_d·A is about, so it only appears once there is
     // something to be dragged through.
-    f.has('fluid') && !ctx.space ? el('div', { class: 'field__hint', text: dragComparison(p.shapeId, p.size).text }) : null,
+    at('advanced') && f.has('fluid') && !ctx.space
+      ? el('div', { class: 'field__hint', text: dragComparison(p.shapeId, p.size).text })
+      : null,
 
     /*
      * The material is no longer decorative. It supplies the density the button
@@ -154,10 +168,16 @@ function objectSection(ctx, object, f) {
      * something hits it, which is half of every collision it takes part in.
      */
     selectField('Material',
-      MATERIALS.map((m) => ({ value: m.id, label: `${m.label} — ${m.density} kg/m³, bounce ${m.bounce}` })),
+      MATERIALS.map((m) => ({
+        value: m.id,
+        label: at('advanced') ? `${m.label} — ${m.density} kg/m³, bounce ${m.bounce}` : m.label,
+      })),
       p.materialId, (v) => set('materialId', v), {
         key: 'materialId',
-        hint: f.has('collide')
+        hint: !at('advanced')
+          ? 'What it is made of. Use the button below to give it the mass that '
+            + 'material would actually have at this size.'
+          : f.has('collide')
           ? `What it is made of. It decides how bouncy every collision this object `
             + `takes part in is — against another ${materialById(p.materialId).label.toLowerCase()} `
             + `object that is e ≈ ${fmtFixed(pairBounce(p.materialId, p.materialId), 2)} — and it `
@@ -558,8 +578,13 @@ function surfaceSection(ctx) {
 }
 
 function fluidSection(ctx, object) {
-  const { params: p, set } = ctx;
+  const { params: p, set, at } = ctx;
+  const f = ctx.features;
   const table = FLUIDS.find((x) => x.id === p.fluidId) || FLUIDS[0];
+  // The world's own material, when it has been given one instead of ground.
+  const surface = p.surfaceFluidId && p.surfaceFluidId !== 'solid' && !ctx.space
+    ? fluidById(p.surfaceFluidId)
+    : null;
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
 
   /*
@@ -603,8 +628,35 @@ function fluidSection(ctx, object) {
 
   return section('The fluid it moves through', [
     selectField('Fluid', FLUIDS.map((x) => ({ value: x.id, label: x.label })), p.fluidId, (v) => set('fluidId', v), {
-      key: 'fluidId', hint: fluid.note,
+      key: 'fluidId',
+      hint: (surface ? 'What fills the scene above the surface. ' : '') + fluid.note,
     }),
+
+    /*
+     * What the world is made of underfoot.
+     *
+     * Solid ground is the bench as it has always been. Anything else and the
+     * floor stops being a floor: everything below the line is that fluid, and
+     * an object dropped into it falls through the air, slows, and settles
+     * wherever its density says it should. Nothing is switched on to make that
+     * happen - the collider is simply gone, and buoyancy was always there.
+     */
+    !f.has('ground') || ctx.space ? null : selectField('What the world is made of',
+      [{ value: 'solid', label: 'Solid ground' },
+        ...FLUIDS.filter((x) => x.density > 0).map((x) => ({ value: x.id, label: x.label }))],
+      p.surfaceFluidId, (v) => set('surfaceFluidId', v), {
+        key: 'surfaceFluidId',
+        hint: surface
+          ? `Below the line is ${surface.label.toLowerCase()} at ${surface.density} kg/m³, and there `
+            + 'is nothing to stand on. The object falls in and settles where its own density '
+            + `puts it — ${object.density < surface.density
+              ? `at ${fmtFixed(object.density, 0)} kg/m³ it is lighter than that, so it will float, `
+                + `with ${fmtFixed((object.density / surface.density) * 100, 0)}% of it under the surface`
+              : `at ${fmtFixed(object.density, 0)} kg/m³ it is denser than that, so it will sink`}.`
+          : 'Solid ground. Choose a liquid and the floor goes away: the object falls into it '
+            + 'rather than onto it, and you can watch buoyancy arrive rather than start out '
+            + 'already applied.',
+      }),
     here ? el('div', { class: 'field__hint' }, [
       el('strong', { text: `${fmtLength(up)} up: ` }),
       el('span', {
@@ -613,7 +665,7 @@ function fluidSection(ctx, object) {
           + `${fmtFixed((here.density / 1.225) * 100, 0)}% of the density at sea level.`,
       }),
     ]) : null,
-    el('div', { class: 'dims' }, [
+    !at('advanced') ? null : el('div', { class: 'dims' }, [
       el('dt', { text: here ? 'Density here' : 'Density' }),
       el('dd', { text: `${here ? fmtFixed(here.density, 4) : fluid.density} kg/m³` }),
       el('dt', { text: here ? 'Viscosity here' : 'Viscosity' }),
@@ -1444,14 +1496,28 @@ export function explains(ctx) {
   /*
    * Bound to the reader's level once, rather than at twenty call sites.
    *
-   * Every panel below is written in full and the level decides how much of it
-   * is rendered — so there is one version of the teaching text, not three that
-   * drift apart. Simple keeps the idea, the formula and the worked numbers;
-   * Advanced adds the conditions each equation holds under; Expert adds what
-   * it is a special case of and what people get wrong about it.
+   * Two things happen here, and they are different. *Which* panels appear is
+   * `need`; how much of a panel that does appear is rendered is the level
+   * inside `explainSpec`. Every panel is written in full either way, so there
+   * is one version of the teaching text rather than three that drift apart.
+   *
+   * The stack runs to thirteen panels by the last step, which below the
+   * measurements is a wall of closed grey summaries — the opposite of an
+   * invitation. Simple keeps the two that say where you are: the experiment,
+   * if one is loaded, and what this step is about. Advanced adds the equations
+   * and their triangles. Expert adds the essays.
    */
-  const explain = (spec) => explainSpec({ level: ctx.level, ...spec });
-  const equationPanel = (eq, worked, open) => equationFor(eq, worked, open, ctx.level);
+  const explain = ({ need = 'simple', ...spec }) =>
+    (ctx.at(need) ? explainSpec({ level: ctx.level, ...spec }) : null);
+  const equationPanel = (eq, worked, open, need = 'advanced') =>
+    (ctx.at(need) ? equationFor(eq, worked, open, ctx.level) : null);
+  /*
+   * The second way of describing the same motion, rather than the step's own
+   * relation. Momentum, kinetic energy and potential energy each restate what
+   * F = ma has already said, which is exactly what makes them worth reading
+   * once someone is comfortable and noise before that.
+   */
+  const equationPanelExpert = (eq, worked, open) => equationPanel(eq, worked, open, 'expert');
 
   /*
    * A prepared experiment explains itself, above the step it happens to sit on.
@@ -1501,6 +1567,7 @@ export function explains(ctx) {
   if (used.length) {
     out.push(explain({
       title: `The equations on this step (${used.length})`,
+      need: 'advanced',
       plain: [
         'Everything the simulation is doing on this step, written out. Where an '
         + 'equation is a product of two things it is drawn as a triangle: cover '
@@ -1515,7 +1582,8 @@ export function explains(ctx) {
           el('p', { class: 'equation__plain', text: eq.plain }),
           tri ? el('ul', { class: 'equation__means' },
             tri.means.map((line) => el('li', { text: line }))) : null,
-          eq.misreads
+          // The misreading describes a mistake the reader has not made yet.
+          eq.misreads && ctx.at('expert')
             ? el('p', { class: 'equation__misread' }, [
               el('strong', { text: 'Careful: ' }), eq.misreads,
             ])
@@ -1529,6 +1597,7 @@ export function explains(ctx) {
     const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
     out.push(explain({
       title: 'Mass, size, and the thing that connects them',
+      need: 'expert',
       plain: [
         'Mass and size are set separately here, and that is deliberate: they are '
         + 'independent, and the quantity that relates them has a name. Density is '
@@ -1569,14 +1638,14 @@ export function explains(ctx) {
       + `v = u + a·t = ${fmtFixed(p.v0, 2)} + ${fmtFixed(p.pushForce / p.mass, 3)} × ${fmtFixed(p.pushSeconds, 2)}`
       + ` = ${fmtFixed(p.v0 + (p.pushForce / p.mass) * p.pushSeconds, 3)} m/s`));
 
-    out.push(equationPanel(equation('momentum'),
+    out.push(equationPanelExpert(equation('momentum'),
       `p = m · v = ${fmtFixed(main.mass, 3)} × ${fmtFixed(main.vel.x, 3)} = ${fmtFixed(main.momentum.x, 3)} kg·m/s\n\n`
       + `The push delivered an impulse of F·t = ${fmtFixed(p.pushForce, 2)} × ${fmtFixed(p.pushSeconds, 2)}`
       + ` = ${fmtFixed(p.pushForce * p.pushSeconds, 3)} kg·m/s,\n`
       + 'and that is exactly the momentum it now has. Impulse *is* the change in\n'
       + 'momentum — they are the same statement written two ways.'));
 
-    out.push(equationPanel(equation('kinetic-energy'),
+    out.push(equationPanelExpert(equation('kinetic-energy'),
       `KE = ½ · m · v² = ½ × ${fmtFixed(main.mass, 3)} × ${fmtFixed(main.speed, 3)}²`
       + ` = ${fmtFixed(main.kinetic, 3)} J\n\n`
       + 'Notice how differently this grows from the momentum: doubling the speed\n'
@@ -1608,6 +1677,7 @@ export function explains(ctx) {
     const weight = p.mass * world.g;
     out.push(explain({
       title: 'What the surface does',
+      need: 'expert',
       plain: 'The surface can only push perpendicular to itself. On the level that '
         + 'is straight up and it cancels the weight exactly. Tilted, it can only '
         + 'cancel the part of the weight pressing into it — and the rest is left '
@@ -1623,7 +1693,7 @@ export function explains(ctx) {
         + 'lost in the splitting.',
     }));
 
-    out.push(equationPanel(equation('potential-energy'),
+    out.push(equationPanelExpert(equation('potential-energy'),
       `PE = m · g · h = ${fmtFixed(p.mass, 3)} × ${fmtFixed(world.g, 3)} × ${fmtFixed(main?.heightAboveGround ?? 0, 3)}`
       + ` = ${fmtFixed(p.mass * world.g * (main?.heightAboveGround ?? 0), 3)} J\n\n`
       + 'Measured from the ground, because only differences in potential energy\n'
@@ -1639,6 +1709,7 @@ export function explains(ctx) {
 
     out.push(explain({
       title: 'What the shape of the contact changes — and what it does not',
+      need: 'expert',
       plain: [
         'The surprising half first. Sliding friction does not depend on how much '
         + 'surface is touching. Make the box twice as wide at the same mass and '
@@ -1684,6 +1755,7 @@ export function explains(ctx) {
     const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
     out.push(explain({
       title: 'Why anything floats',
+      need: 'expert',
       plain: [
         'The pressure in a fluid rises with depth, so the fluid presses harder on '
         + 'the bottom of a submerged object than on its top. The difference is an '
@@ -1728,6 +1800,7 @@ export function explains(ctx) {
     const flow = main?.forces.find((x) => x.id === 'drag')?.flow;
     out.push(explain({
       title: 'Why honey is not just thick air',
+      need: 'expert',
       plain: [
         'Two properties of a fluid matter, and they do different jobs. Density is '
         + 'how much of it has to be shoved aside; viscosity is how much it resists '
@@ -1770,7 +1843,9 @@ export function explains(ctx) {
       + 'flat and the other has a step in it.'));
   }
 
-  return out;
+  // A gated panel comes back as null rather than being skipped at its call
+  // site, so each one stays one statement and the level lives in one place.
+  return out.filter(Boolean);
 }
 
 /** The stage the second-mass panel jumps to, exposed for the shell to wire up. */

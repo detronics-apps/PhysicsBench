@@ -509,6 +509,20 @@ function buildFooter() {
         render();
         toast('Back to the start of the bench');
       }, { small: true, title: 'Back to the default settings' }),
+      /*
+       * A way back to the welcome, for anyone who is not new but wishes they
+       * had read it.
+       *
+       * The overlay shows itself once and then never again, which is right —
+       * an app that greets you every visit is an app you learn to dismiss
+       * without reading. But "once" only works if there is a door back in, and
+       * the guide is not where someone who does not yet know what the app is
+       * will think to look. The footer is on every screen.
+       */
+      button('I am new here', () => openWelcome(), {
+        small: true,
+        title: 'Show the welcome again — what this is, and three places to start',
+      }),
       el('a', {
         class: 'linkish', href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer',
         text: 'Buy me a coffee',
