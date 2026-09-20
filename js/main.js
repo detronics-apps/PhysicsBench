@@ -935,12 +935,43 @@ function applyParams() {
   sim.world = applyLive(sim.world, state.bench, sim.scenario.features, { stageId: state.stage });
 }
 
+/**
+ * Every container that is currently scrolled, and how far, on both axes.
+ *
+ * Found rather than listed. Naming the containers is what made this a bug
+ * three times over: the sidebar and the workspace were remembered and the step
+ * bar was not, so scrolling right to reach "How to use" and clicking it threw
+ * the bar back to step one — the render rebuilt its children and nothing put
+ * the offset back. A list has to be added to every time a scroller appears,
+ * and the one nobody adds is the one that jumps.
+ *
+ * Captured by node, not by selector, because a render replaces a container's
+ * *children* and keeps the container. A node that does get replaced simply
+ * falls out of the map.
+ */
+function captureScroll() {
+  const scrolled = [];
+  for (const node of document.querySelectorAll('*')) {
+    if (node.scrollTop || node.scrollLeft) {
+      scrolled.push([node, node.scrollTop, node.scrollLeft]);
+    }
+  }
+  return scrolled;
+}
+
+const restoreScroll = (scrolled) => {
+  for (const [node, top, left] of scrolled) {
+    if (!node.isConnected) continue;
+    if (top) node.scrollTop = top;
+    if (left) node.scrollLeft = left;
+  }
+};
+
 function captureFocus() {
   const active = document.activeElement;
   const key = active?.dataset?.field;
   return {
-    sidebar: dom.sidebar?.scrollTop ?? 0,
-    viewport: dom.workspace?.scrollTop ?? 0,
+    scrolled: captureScroll(),
     /*
      * The document's own scroll, which on a narrow screen is the only one that
      * matters: the layout stops being two columns and simply stacks, so neither
@@ -959,17 +990,28 @@ function captureFocus() {
 }
 
 function restoreFocus(snap) {
-  if (dom.sidebar) dom.sidebar.scrollTop = snap.sidebar;
-  if (dom.workspace) dom.workspace.scrollTop = snap.viewport;
-  if (!snap.key) return;
-  const target = document.querySelector(`[data-field="${CSS.escape(snap.key)}"]`);
-  if (!target) return;
-  target.focus({ preventScroll: true });
-  if (snap.start != null && target.setSelectionRange) {
-    try { target.setSelectionRange(snap.start, snap.end); } catch { /* not a text field */ }
+  restoreScroll(snap.scrolled);
+  /*
+   * And again after layout, for the same reason the page scroll is set twice:
+   * a container whose new contents are momentarily shorter than its old ones
+   * clamps the offset it is handed, and the clamped value is what sticks.
+   */
+  requestAnimationFrame(() => restoreScroll(snap.scrolled));
+
+  if (snap.key) {
+    const target = document.querySelector(`[data-field="${CSS.escape(snap.key)}"]`);
+    if (target) {
+      // `preventScroll`, because focusing a control the browser thinks is out
+      // of view is the other way a page jumps on its own.
+      target.focus({ preventScroll: true });
+      if (snap.start != null && target.setSelectionRange) {
+        try { target.setSelectionRange(snap.start, snap.end); } catch { /* not a text field */ }
+      }
+      // Focusing can still nudge a container, so the offsets go back after it.
+      restoreScroll(snap.scrolled);
+    }
   }
-  if (dom.sidebar) dom.sidebar.scrollTop = snap.sidebar;
-  if (dom.workspace) dom.workspace.scrollTop = snap.viewport;
+
   restorePageScroll(snap);
 }
 

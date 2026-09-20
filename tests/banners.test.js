@@ -342,3 +342,59 @@ test('one explanation, rendered to the reader’s level', () => {
   const bench = read('../js/ui/bench.js');
   assert.match(bench, /const explain = \(spec\) => explainSpec\(\{ level: ctx\.level, \.\.\.spec \}\);/);
 });
+
+/**
+ * Clicking something must never move the page under the reader.
+ *
+ * A render replaces a container's children, and a container whose children are
+ * replaced loses its scroll offset. This was remembered for two containers by
+ * name — the sidebar and the workspace — and on one axis, so scrolling the
+ * step bar right to reach "How to use" and clicking it threw the bar back to
+ * step one.
+ *
+ * Naming the containers is the bug. A list has to be added to every time a
+ * scroller appears, and the one nobody adds is the one that jumps.
+ */
+test('every scrolled container is found, not listed, and restored on both axes', () => {
+  const main = read('../js/main.js');
+  const capture = main.match(/function captureScroll\(\)[\s\S]*?\n\}\r?\n/)[0];
+
+  // Found by walking the document, so a scroller added later is covered.
+  assert.match(capture, /document\.querySelectorAll\('\*'\)/);
+  assert.match(capture, /node\.scrollTop \|\| node\.scrollLeft/);
+
+  // Both axes go back, and only onto nodes that survived the render.
+  const restore = main.match(/const restoreScroll = \(scrolled\)[\s\S]*?\n\};\r?\n/)[0];
+  assert.match(restore, /if \(!node\.isConnected\) continue;/);
+  assert.match(restore, /node\.scrollTop = top/);
+  assert.match(restore, /node\.scrollLeft = left/);
+
+  // Nothing is remembered by name any more.
+  assert.ok(!/snap\.sidebar|snap\.viewport/.test(main),
+    'a container is still being restored by name, so the next one added will jump');
+});
+
+test('a scroll offset is re-applied after layout, not only before it', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function restoreFocus\(snap\)[\s\S]*?\n\}\r?\n/)[0];
+  // A container whose new contents are briefly shorter clamps what it is
+  // handed, and the clamped value is what sticks.
+  assert.match(fn, /requestAnimationFrame\(\(\) => restoreScroll\(snap\.scrolled\)\)/);
+  assert.match(fn, /focus\(\{ preventScroll: true \}\)/);
+});
+
+/**
+ * A control that disappears must not move anything.
+ *
+ * Hiding the level chips with `display: none` handed the step bar their width,
+ * which changed how far it could scroll: a reader who had scrolled right to
+ * reach the guide had their offset clamped on the way in — measured at 534 px
+ * clamped to 337 — and did not get it back on the way out.
+ */
+test('hiding the level chips keeps their box', () => {
+  const css = read('../css/components.css');
+  const rule = css.match(/html:not\(\[data-page='bench'\]\) \.chipset--modes \{[^}]*\}/)[0];
+  assert.match(rule, /visibility: hidden/);
+  assert.ok(!rule.includes('display: none'),
+    'the chips still collapse their box, which reflows the step bar');
+});

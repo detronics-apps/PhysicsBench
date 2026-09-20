@@ -1271,9 +1271,17 @@ html:not([data-page='bench']) #banners,
 html:not([data-page='bench']) .viewport--more,
 html:not([data-page='bench']) .sidebar { display: none; }
 
-/* The level chips govern the bench. On the shelf or in the guide there is
-   nothing for them to govern, and a dead control is worse than no control. */
-html:not([data-page='bench']) .chipset--modes { display: none; }
+/*
+ * The level chips govern the bench. On the shelf or in the guide there is
+ * nothing for them to govern, and a dead control is worse than no control.
+ *
+ * `visibility`, not `display`: taking their box away hands the step bar their
+ * width, which changes how far it can scroll — so a reader who had scrolled
+ * right to reach "How to use" had their position clamped on the way in and
+ * did not get it back on the way out. Hidden is enough; it also takes them out
+ * of the tab order. A control disappearing must not move anything.
+ */
+html:not([data-page='bench']) .chipset--modes { visibility: hidden; }
 
 /* -------------------------------------------------- equation triangles -- */
 
