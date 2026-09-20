@@ -36,6 +36,7 @@ import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
+import { guidePage, welcomeOverlay } from './ui/guide.js';
 import { toWorld } from './camera.js';
 import { LEVELS, shownAt } from './levels.js';
 import { vec, ZERO } from './vec.js';
@@ -185,13 +186,22 @@ function buildHeader() {
 function renderStages() {
   clear(dom.stages);
   const here = stageIndex(state.stage);
+  /*
+   * A step is only the current tab while the bench is what is showing.
+   *
+   * The step a reader will come back to is still marked as done and still
+   * highlighted on return — but on the shelf or in the guide, two tabs reading
+   * as current at once is the bar saying it does not know where you are.
+   */
+  const onBench = state.page === 'bench';
 
   STAGES.forEach((stage, i) => {
+    const current = onBench && i === here;
     dom.stages.appendChild(el('button', {
-      class: `stepper__step${i === here ? ' is-current' : ''}${i < here ? ' is-done' : ''}`,
+      class: `stepper__step${current ? ' is-current' : ''}${i < here ? ' is-done' : ''}`,
       type: 'button',
       role: 'tab',
-      'aria-selected': String(i === here),
+      'aria-selected': String(current),
       title: stage.ask,
       'data-field': `stage:${stage.id}`,
       on: { click: () => goToStage(stage.id) },
@@ -220,6 +230,31 @@ function renderStages() {
     el('span', { class: 'stepper__label tab-label--long', text: 'Prepared experiments' }),
     el('span', { class: 'stepper__label tab-label--short', text: 'Examples' }),
   ]));
+
+  /*
+   * The guide, fenced off from everything before it.
+   *
+   * The rule separates a change of *kind*, not a change of topic: the seven
+   * steps and the shelf are the subject, and this is about the app. It is last
+   * because that is where anyone who has been let down by an interface looks
+   * for help.
+   *
+   * The rule is drawn once, before the first of the two — `--aside` carries
+   * it, and the CSS drops it on a second one running. A bar with a rule
+   * between every tab has said nothing.
+   */
+  dom.stages.appendChild(el('button', {
+    class: `stepper__step stepper__step--aside${state.page === 'guide' ? ' is-current' : ''}`,
+    type: 'button',
+    role: 'tab',
+    'aria-selected': String(state.page === 'guide'),
+    title: 'How to do anything here — search it in your own words',
+    'data-field': 'page:guide',
+    on: { click: () => showGuide() },
+  }, [
+    el('span', { class: 'stepper__label tab-label--long', text: 'How to use' }),
+    el('span', { class: 'stepper__label tab-label--short', text: 'Guide' }),
+  ]));
 }
 
 /**
@@ -245,9 +280,15 @@ function renderLevels() {
           if (current) return;
           state.ui.level = level.id;
           saveSoon();
-          // A level change rebuilds the panels but touches nothing physical:
-          // the clock keeps running and every hidden field keeps its value.
-          rebuild();
+          /*
+           * Re-render, never rebuild.
+           *
+           * The level is presentation. `rebuild()` builds the world again from
+           * the parameters and puts the clock back to zero, so switching from
+           * Advanced to Expert two minutes into a run threw the run away — the
+           * same class of bug as a slider that resets the simulation, and
+           * squarely against the rule that a level only hides.
+           */
           render();
         },
       },
@@ -336,6 +377,14 @@ function goToStage(id) {
 
   update((draft) => {
     draft.stage = id;
+    /*
+     * Picking a step is asking for the bench.
+     *
+     * Without this the step changes underneath a page that is not showing one,
+     * so from the shelf or the guide the bar highlighted a step and nothing
+     * else happened — which reads as the tab being broken.
+     */
+    draft.page = 'bench';
     draft.transport.scrubT = null;
     draft.transport.playing = false;
   }, { sim: 'full' });
@@ -1006,6 +1055,53 @@ export function showExamples() {
   render();
 }
 
+/* ------------------------------------------------------------ welcome -- */
+
+/**
+ * The welcome card, and the one flag that decides whether it ever appears.
+ *
+ * A timestamp rather than a boolean, because "when did this reader first open
+ * it" is the more useful thing to have kept, and it costs the same.
+ */
+function openWelcome() {
+  if (document.querySelector('.welcome')) return;
+
+  const dismiss = () => {
+    document.querySelector('.welcome')?.remove();
+    if (!state.ui.onboardedAt) {
+      state.ui.onboardedAt = new Date().toISOString();
+      save();
+    }
+  };
+
+  const card = welcomeOverlay({
+    dismiss,
+    go: (where) => {
+      dismiss();
+      if (where.stage) goToStage(where.stage);
+      if (where.page === 'examples') showExamples();
+      else if (where.page === 'guide') showGuide();
+      else showBench();
+    },
+  });
+
+  document.body.appendChild(card);
+  // Focus it, so Escape reaches the handler and a keyboard reader is put
+  // inside the dialog rather than left behind it.
+  card.querySelector('.welcome__card')?.setAttribute('tabindex', '-1');
+  card.querySelector('.welcome__card')?.focus();
+}
+
+/** Show the how-to page. */
+export function showGuide() {
+  if (state.page === 'guide') return;
+  state.transport.playing = false;
+  cancelAnimationFrame(clock.raf);
+  state.page = 'guide';
+  saveSoon();
+  render();
+}
+
 /** Back to the bench, exactly as it was left. */
 export function showBench() {
   if (state.page === 'bench') return;
@@ -1046,7 +1142,7 @@ export function render({ controls = true } = {}) {
    * the clock is left stopped. The stepper stays, because it is how a reader
    * gets back.
    */
-  if (state.page === 'examples') {
+  if (state.page !== 'bench') {
     /*
      * Marked on the root, and the CSS hides the bench from there.
      *
@@ -1055,16 +1151,18 @@ export function render({ controls = true } = {}) {
      * above a large white rectangle. Hiding by structure rather than reaching
      * in and setting styles keeps the two ways of being visible in one place.
      */
-    document.documentElement.dataset.page = 'examples';
+    document.documentElement.dataset.page = state.page;
     clear(dom.ask);
     /*
-     * The two things a card can do, handed over by name.
+     * What a page can do, handed over by name.
      *
      * `actions` in this scope is the transport bag — play, pause, scrub — and
      * passing it here compiled fine and failed at the click, which is the worst
-     * place to find out. The gallery needs exactly two functions and says so.
+     * place to find out. Each page needs a couple of functions and says so.
      */
-    dom.ask.appendChild(galleryPage({ loadExample, showBench }));
+    dom.ask.appendChild(state.page === 'guide'
+      ? guidePage({ showBench, showWelcome: () => openWelcome() })
+      : galleryPage({ loadExample, showBench }));
     for (const host of [dom.vectors, dom.stage, dom.legend, dom.transportHost,
       dom.banners, dom.graphs, dom.measurements, dom.summary, dom.explain,
       dom.controls]) {
@@ -1891,6 +1989,15 @@ function init() {
   render();
   visited.add(state.stage);
   save();
+
+  /*
+   * The welcome, once, and only when nobody arrived with an experiment.
+   *
+   * A share link or a saved project means somebody already knows what this is
+   * and has been sent something specific — putting a card over it first is the
+   * app talking over the person who sent it.
+   */
+  if (!state.ui.onboardedAt && !location.hash.length) openWelcome();
 
   // The share link has done its job once it has been read; leaving it in the
   // address bar means a later reload silently overrides the saved experiment.

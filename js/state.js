@@ -315,6 +315,15 @@ export const defaults = () => ({
     level: 'simple',
 
     /*
+     * When this reader first opened the app, or null if they have not.
+     *
+     * A timestamp rather than a flag, because "when" is the more useful thing
+     * to have kept and costs the same. It is what stops the welcome nagging:
+     * it appears once, and after that it lives in the guide.
+     */
+    onboardedAt: null,
+
+    /*
      * How the run is recorded, and what that costs.
      *
      * Every number here is a real trade rather than a preference, which is why
@@ -431,7 +440,7 @@ export function migrate(incoming) {
     theme: oneOf(incoming.theme, ['system', 'light', 'dark'], base.theme),
     selectedId: typeof incoming.selectedId === 'string' ? incoming.selectedId : 'main',
     exampleId: typeof incoming.exampleId === 'string' ? incoming.exampleId : null,
-    page: oneOf(incoming.page, ['bench', 'examples'], 'bench'),
+    page: oneOf(incoming.page, ['bench', 'examples', 'guide'], 'bench'),
 
     transport: {
       playing: bool(incoming.transport?.playing, false),
@@ -538,6 +547,16 @@ export function migrate(incoming) {
       sections: sectionFlags(incoming.ui?.sections),
       tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
       level: oneOf(incoming.ui?.level, LEVEL_IDS, base.ui.level),
+      /*
+       * Only ever a string that looks like a date, or null.
+       *
+       * A share link carries this, and a reader opening somebody else's link
+       * should not be shown the welcome — they have been sent something
+       * specific. Anything else in the field reads as "not yet onboarded".
+       */
+      onboardedAt: typeof incoming.ui?.onboardedAt === 'string'
+        ? incoming.ui.onboardedAt.slice(0, 40)
+        : null,
       recording: recordingFrom(incoming.ui?.recording, base.ui.recording),
     },
   };

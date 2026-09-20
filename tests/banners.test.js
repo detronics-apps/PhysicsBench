@@ -221,12 +221,39 @@ test('paint does nothing while the shelf is showing', () => {
   assert.ok(guardAt > 0 && guardAt < workAt, 'the guard must come before the drawing');
 });
 
-test('the gallery is a page, not an eighth step', () => {
+test('the gallery and the guide are pages, not extra steps', () => {
   const state = read('../js/state.js');
   // `page` is its own field, and the stepper is left alone.
-  assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples'\], 'bench'\)/);
+  assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples', 'guide'\], 'bench'\)/);
   const stages = read('../js/stages.js');
-  assert.ok(!/id: 'examples'/.test(stages), 'the shelf must not be a stage');
+  for (const id of ['examples', 'guide']) {
+    assert.ok(!new RegExp(`id: '${id}'`).test(stages), `${id} must not be a stage`);
+  }
+});
+
+/**
+ * The welcome runs once, and never over somebody else's link.
+ *
+ * A share link means the reader has been sent one specific thing by a person
+ * who knew what they were sending. Putting a card over it is the app talking
+ * across them. A saved timestamp — not a session flag — is what makes "once"
+ * mean once rather than once per tab.
+ */
+test('the welcome is shown once, and not to someone arriving with a link', () => {
+  const main = read('../js/main.js');
+  assert.match(main, /if \(!state\.ui\.onboardedAt && !location\.hash\.length\) openWelcome\(\);/);
+  assert.match(main, /state\.ui\.onboardedAt = new Date\(\)\.toISOString\(\);/);
+
+  // Persisted, and coerced on the way in — a share link carries this field.
+  const stateSrc = read('../js/state.js');
+  assert.match(stateSrc, /onboardedAt: null,/);
+  assert.match(stateSrc, /typeof incoming\.ui\?\.onboardedAt === 'string'/);
+});
+
+test('the guide is reachable from the bar and the welcome from the guide', () => {
+  const main = read('../js/main.js');
+  assert.match(main, /'data-field': 'page:guide'/);
+  assert.match(main, /showWelcome: \(\) => openWelcome\(\)/);
 });
 
 /**
@@ -277,4 +304,41 @@ test('arriving at a step opens exactly the panel that step adds', () => {
   // seven's panel rather than step two's.
   assert.match(block, /\.pop\(\)/);
   assert.match(block, /const wanted = node === newest/);
+});
+
+/**
+ * A level only hides. It must never restart the experiment.
+ *
+ * The chip handler called `rebuild()` first, which builds the world again from
+ * the parameters and puts the clock back to zero — so switching from Advanced
+ * to Expert two minutes into a run threw the run away. Measured before the fix
+ * at 12.2231 m/s on Simple and 0.0061 m/s on Advanced; after it, 12.2231 on
+ * all three with the clock held at t = 2 s.
+ */
+test('changing the detail level re-renders and never rebuilds', () => {
+  const main = read('../js/main.js');
+  const handler = main.match(/state\.ui\.level = level\.id;[\s\S]*?\n {8}\},/)[0]
+    // The comment explaining why it must not rebuild says the word, so the
+    // check has to read the code rather than the prose around it.
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.ok(!handler.includes('rebuild()'),
+    'the level handler rebuilds the world, which resets the clock mid-run');
+  assert.match(handler, /render\(\);/);
+});
+
+/**
+ * The teaching text exists once, and the level decides how much of it renders.
+ *
+ * Three hand-written versions of the same explanation is three things to keep
+ * in step, and the one nobody is looking at is the one that goes stale.
+ */
+test('one explanation, rendered to the reader’s level', () => {
+  const explain = read('../js/ui/explain.js');
+  assert.match(explain, /if \(!at\('advanced'\)\) validWhen = null;/);
+  assert.match(explain, /if \(!at\('expert'\)\) \{ becomes = null; notes = null; \}/);
+
+  // Bound once where the panels are built, not repeated at twenty call sites.
+  const bench = read('../js/ui/bench.js');
+  assert.match(bench, /const explain = \(spec\) => explainSpec\(\{ level: ctx\.level, \.\.\.spec \}\);/);
 });

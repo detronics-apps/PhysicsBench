@@ -1,5 +1,73 @@
 # Changelog
 
+## Unreleased
+
+The house chrome this app was missing, and the self-teaching shell that goes with it.
+
+### Simple, Advanced, Expert
+
+A three-way detail level in a workspace bar above the drawing, beside the steps. It hides and
+never changes a value: every step of the simulation runs at every level, every force is computed,
+and a control folded away keeps whatever it was set to.
+
+- **Simple** keeps what the object is doing — mass, velocity, acceleration, net force, height —
+  and the formula that says so, worked through with the numbers on screen.
+- **Advanced** adds momentum, the energy figures and the heat account, the collision settings, the
+  grid and print controls, and "Holds when" under every equation.
+- **Expert** adds the two ledger readouts, the recording settings, and in every teaching panel the
+  wider statement each equation is a special case of and what people commonly get wrong about it.
+
+The teaching text is written once and the level decides how much of it renders, so there is one
+version of it rather than three that drift apart.
+
+### One panel open at a time
+
+The sidebar is an accordion. Twelve panels all open is a sidebar where the one being worked in is
+below the fold with no sight of what else there is. Arriving at a step opens the panel that step
+introduces — the last new one, so jumping from step one to step seven lands on step seven's panel
+rather than step two's.
+
+### How to use
+
+A page at the end of the step bar, fenced off from the steps because it is about the app rather
+than part of the subject.
+
+- **One search over all of it, in whatever words you would use.** "Slow motion", "air resistance",
+  "how heavy", "lost it" all find the right entry, through a map from the app's word to the
+  everyday ones. Every word typed must appear, so typing more narrows.
+- **Eighteen step-by-step tasks**, each naming the control so there is nothing to work out.
+- **Eleven questions** with straight answers.
+- **Twelve tiles** for the features you would never find from a label, and the five ideas the
+  app is built on.
+
+Two bugs in the alias map were caught by its own tests and are worth recording, because both are
+the same mistake: an alias key must be a word that only means the app thing, and one some entry
+actually contains. "Air resistance" was keyed on `drag`, which also means dragging a slider, so it
+matched seven unrelated entries; "slow motion" was keyed on `transport`, the internal name for the
+play bar, which appears nowhere a reader can see, so it matched nothing at all.
+
+### A welcome that runs once
+
+On the very first open, over a bench that already has a worked example on it: the app's story in
+four things to *do*, each one click from where it happens. It is remembered by a timestamp, not a
+session flag, and it never appears for someone arriving on a share link — they have been sent
+something specific by a person who knew what they were sending. Reopen it any time from the guide.
+
+### The links back to Detronics
+
+The logo is the way home. A Buy Me a Coffee button sits left of the theme disc, with a matching
+link beside the version in the footer. The cup is a line drawing in `currentColor` rather than the
+☕ emoji, which arrives with its own colours and belongs to no theme here.
+
+### Fixed
+
+- **Clicking a step from the shelf or the guide did nothing.** The step changed underneath a page
+  that was not showing one, so the bar highlighted a step and the screen stayed put.
+- **Two tabs read as current at once** on the shelf and the guide.
+- **The README said eight steps.** There have been seven since the surface step was folded into
+  friction.
+
+
 ## 1.5.0
 
 Eleven prepared experiments, a page to reach them from, and a recorder that keeps minutes

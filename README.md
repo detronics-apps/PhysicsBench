@@ -2,14 +2,14 @@
 
 **Live: https://detronics-apps.github.io/PhysicsBench/**
 
-One object on one bench, built up in eight steps. Change something, watch what happens, measure
+One object on one bench, built up in seven steps. Change something, watch what happens, measure
 it, and only then see the equation that describes it. A single static page — no backend, no build
 step, no dependencies, no network requests once it has loaded.
 
-## The eight steps
+## The seven steps
 
-This is one experiment, not eight. Every step adds one thing to the same object, and everything
-from the earlier steps stays — the mass you set in step one is still the mass in step eight, and
+This is one experiment, not seven. Every step adds one thing to the same object, and everything
+from the earlier steps stays — the mass you set in step one is still the mass in step seven, and
 its slider is still where you left it.
 
 | | | The question it opens with |
@@ -18,15 +18,32 @@ its slider is still where you left it.
 | 2 | **Push it** | What happens if I push harder, or make it heavier? |
 | 3 | **A second mass** | Do two masses pull on each other? |
 | 4 | **Grow it into a planet** | What has to change before that pull turns into weight? |
-| 5 | **Surface** | If gravity is still pulling, what holds it up? |
-| 6 | **Friction** | What happens if the surface holds on? |
-| 7 | **Fluids and objects** | Air, water, honey — what actually changes? |
-| 8 | **Playground** | Everything at once — what survives a collision, and what does not? |
+| 5 | **Friction** | Now there is a floor. What holds the object up, and what holds it back? |
+| 6 | **Fluids and objects** | Air, water, honey — what actually changes? |
+| 7 | **Playground** | Everything at once — what survives a collision, and what does not? |
 
-From step five the bench can also be moved to **deep space**, which removes the floor and the
+Beside them sit two things that are not steps: **Prepared experiments**, a shelf of eleven scenes
+already set up, and **How to use**, which is searchable in whatever words you would use yourself.
+
+From step four the bench can also be moved to **deep space**, which removes the floor and the
 gravitational field together — the honest pairing, since there is no such thing as a world with
 gravity and nothing to stand on. From step seven it becomes a sandbox: draw walls and ramps, add
-cannons, put up to twenty objects on it, and from step eight take the controls and drive one.
+cannons, put up to twenty objects on it, take the controls and drive one.
+
+## Simple, Advanced, Expert
+
+The chips at the right of the step bar set how much is on screen. **The level never changes the
+answer** — every step of the simulation runs and every force is computed at all three, and a
+control folded away keeps whatever it was set to.
+
+| | |
+|---|---|
+| **Simple** | What the object is doing, and the formula that says so. The default. |
+| **Advanced** | Adds momentum and the energy figures, the conditions each equation holds under, and the settings worth changing. |
+| **Expert** | Adds what each equation is a special case of, what people commonly get wrong about it, and what the app is recording. |
+
+The controls are an accordion — one panel open at a time — and arriving at a step opens the panel
+that step introduces.
 
 The point of building it this way is that split across separate labs, "mass", "force", "gravity",
 "friction" and "drag" look like separate subjects with separate formulas. Accumulated on one
@@ -236,7 +253,7 @@ js/models.js          reality / model / assumption / approximation, and the equa
 js/integrator.js      RK4 and semi-implicit Euler
 js/forces.js          weight, normal, friction, drag — each named, never just a net
 js/world.js           bodies, contact, collisions, the energy ledger, one step of time
-js/stages.js          the eight steps, and what each one turns on
+js/stages.js          the seven steps, and what each one turns on
 js/kinematics.js      the constant-acceleration relations and a solver
 js/collide.js         one-dimensional and planar impacts at any restitution
 js/energy.js          an energy audit that relocates rather than loses
@@ -244,10 +261,13 @@ js/momentum.js        p = mv, impulse, and how wrong that is near c
 js/camera.js          metres to pixels, arrow rules, and keeping labels off each other
 js/graph.js           graph geometry: ticks, scales, axis labels that miss each other
 js/recorder.js        the recording the animation and the graphs both read
+js/levels.js          Simple / Advanced / Expert, and which of them shows what
+js/guide.js           the how-tos, the FAQs, and the everyday-words search
 js/state.js           one parameter object, localStorage, URL-hash sharing
 js/main.js            the shell, the clock, live editing, pointer and keyboard input
 js/ui/bench.js        the controls, the measurements and the teaching panels
 js/ui/vectors.js      the arrow picker
+js/ui/guide.js        the how-to page, and the welcome that runs once
 js/ui/                renderers, the inspector, the transport, DOM helpers
 tests/                node --test over the pure modules
 ```

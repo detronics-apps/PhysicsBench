@@ -1246,21 +1246,34 @@ summary:hover .gear { color: var(--accent-strong); }
   background: var(--border);
 }
 
+/* The rule marks a change of kind — steps, then the things that are not steps
+   — so it is drawn once, before the first of them. A bar with a rule between
+   every tab has said nothing. */
+.stepper__step--aside + .stepper__step--aside { margin-left: 0; }
+.stepper__step--aside + .stepper__step--aside::before { display: none; }
+
 /*
- * On the shelf, the bench is not merely empty — it is not there.
+ * On a whole-page view, the bench is not merely empty — it is not there.
  *
  * Clearing the regions leaves their boxes behind: the drawing keeps its 300 px
  * and its border with nothing in it, which put a large white rectangle under
  * the cards. The stepper and the prompt stay, because they are how a reader
  * gets back.
+ *
+ * Written as "not the bench" rather than as a list of page names, so a page
+ * added later is hidden correctly without anyone remembering this block.
  */
-[data-page='examples'] #vectors,
-[data-page='examples'] #stage,
-[data-page='examples'] #legend,
-[data-page='examples'] #transport,
-[data-page='examples'] #banners,
-[data-page='examples'] .viewport--more,
-[data-page='examples'] .sidebar { display: none; }
+html:not([data-page='bench']) #vectors,
+html:not([data-page='bench']) #stage,
+html:not([data-page='bench']) #legend,
+html:not([data-page='bench']) #transport,
+html:not([data-page='bench']) #banners,
+html:not([data-page='bench']) .viewport--more,
+html:not([data-page='bench']) .sidebar { display: none; }
+
+/* The level chips govern the bench. On the shelf or in the guide there is
+   nothing for them to govern, and a dead control is worse than no control. */
+html:not([data-page='bench']) .chipset--modes { display: none; }
 
 /* -------------------------------------------------- equation triangles -- */
 
@@ -1295,3 +1308,113 @@ summary:hover .gear { color: var(--accent-strong); }
 .triangle__times { fill: var(--text-dim); font-size: 15px; }
 .triangle__label { fill: var(--text); font-size: 12px; }
 .triangle__unit { fill: var(--text-faint); font-size: 11px; }
+
+/* --- the guide --------------------------------------------------------- *
+ * One search over everything, then the three things a stuck reader wants:
+ * the steps for a task, the answer to a question, and the features they would
+ * never have found from a label.                                           */
+
+.guide { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.guide__searchbar { display: flex; flex-direction: column; gap: var(--space-2); }
+.guide__search { font-size: 15px; padding: var(--space-3); }
+.guide__count { margin: 0; font-size: 12px; color: var(--text-faint); }
+
+.guide__block { display: flex; flex-direction: column; gap: var(--space-3); }
+.guide__heading {
+  margin: 0;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.guide__note { margin: 0; max-width: 62ch; font-size: 0.92rem; color: var(--text-dim); }
+
+/* Numbered, because a task is an order and a bullet does not say so. */
+.guide__steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-2);
+  max-width: 68ch;
+  line-height: 1.5;
+}
+
+.guide__faqs { display: flex; flex-direction: column; gap: var(--space-4); }
+.faq { max-width: 70ch; }
+.faq__q { font-weight: 600; margin-bottom: var(--space-1); }
+.faq__a { margin: 0; color: var(--text-dim); line-height: 1.55; }
+
+.guide__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+.guide__tile {
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.guide__tile-name { font-weight: 600; }
+.guide__tile-where {
+  margin-top: 2px;
+  font-size: 11px; letter-spacing: 0.02em;
+  color: var(--accent-strong);
+}
+.guide__tile-what {
+  margin: var(--space-2) 0 0;
+  font-size: 0.9rem; line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* --- the welcome ------------------------------------------------------- *
+ * Shown once, on the very first open, over a bench that already has a worked
+ * example on it — so the first numbered action is a real try on a populated
+ * screen rather than a blank form.                                         */
+
+.welcome {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  background: rgb(31 45 61 / 55%);
+  overflow-y: auto;
+}
+.welcome__card {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.welcome__card:focus { outline: none; }
+.welcome__title { margin: 0; font-size: 1.25rem; }
+.welcome__lede { margin: 0; color: var(--text-dim); line-height: 1.55; }
+
+.welcome__steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+.welcome__step { padding-left: var(--space-1); }
+.welcome__step-title { font-weight: 600; }
+.welcome__step-what {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: 0.92rem; line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.welcome__foot {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.welcome__foot p { margin: 0; flex: 1 1 200px; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .welcome { padding: var(--space-2); align-items: flex-start; }
+  .welcome__card { padding: var(--space-4); gap: var(--space-3); }
+}
