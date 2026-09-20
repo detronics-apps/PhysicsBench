@@ -74,7 +74,9 @@ test('sorting puts the severest first, under either name', () => {
  */
 test('a remembered panel state wins over the caller default', () => {
   const widgets = read('../js/ui/widgets.js');
-  const block = widgets.match(/export function section\([\s\S]*?\n\}/)[0];
+  // To the closing brace in the first column — `section`'s options are
+  // destructured over several lines, so the first `\n}` is the signature's.
+  const block = widgets.match(/export function section\([\s\S]*?\n\}\r?\n/)[0];
 
   // The recorded value is consulted, and only stands aside when it is absent.
   assert.match(block, /const remembered = sectionStore\.get\(id\)/);
@@ -225,4 +227,54 @@ test('the gallery is a page, not an eighth step', () => {
   assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples'\], 'bench'\)/);
   const stages = read('../js/stages.js');
   assert.ok(!/id: 'examples'/.test(stages), 'the shelf must not be a stage');
+});
+
+/**
+ * The sidebar is an accordion, and the invariant has two halves.
+ *
+ * `widgets.js` keeps one panel open once a reader is clicking. It cannot
+ * *establish* that: a `<details>` built with its `open` attribute already set
+ * fires no `toggle`, so a fresh load, a share link or a restored session would
+ * every one of them arrive with a dozen panels open at once. `main.js` folds
+ * the extras after each render.
+ *
+ * Read from the source for the same reason as the tests above — the widget
+ * module needs a document, and what is being defended is a pairing across two
+ * files. Whether it actually holds is checked by driving the page.
+ */
+test('opening one grouped panel folds its siblings', () => {
+  const widgets = read('../js/ui/widgets.js');
+
+  // The group travels on the node, so a caller can group a list in one pass.
+  assert.match(widgets, /function collapseSiblings/);
+  assert.match(widgets, /export function grouped/);
+  assert.match(widgets, /node\.dataset\.group = group/);
+
+  // And the toggle handler reaches for it there, not in its closure.
+  const toggle = widgets.match(/toggle: \(event\) => \{[\s\S]*?\n {6}\},/)[0];
+  assert.match(toggle, /event\.target\.dataset\.group/);
+  assert.match(toggle, /if \(event\.target\.open && g\) collapseSiblings/);
+});
+
+test('a render never leaves two panels open', () => {
+  const main = read('../js/main.js');
+
+  assert.match(main, /function soloOpenSection/);
+  // Called where the sidebar is filled, not only where a step changes.
+  assert.match(main, /for \(const node of bench\.controls\(ctx\)\) dom\.controls\.appendChild\(node\);\r?\n\s*soloOpenSection\(\);/);
+
+  // It keeps the first open panel and closes the rest — it must not close
+  // every one of them, which would open the app on a sidebar of headings.
+  const block = main.match(/function soloOpenSection\(\)[\s\S]*?\n\}\r?\n/)[0];
+  assert.match(block, /if \(!kept\) \{ kept = true; continue; \}/);
+  assert.match(block, /node\.open = false/);
+});
+
+test('arriving at a step opens exactly the panel that step adds', () => {
+  const block = read('../js/main.js').match(/function focusNewSections\([\s\S]*?\n\}\r?\n/)[0];
+
+  // The last new one, so a jump from step one to step seven lands on step
+  // seven's panel rather than step two's.
+  assert.match(block, /\.pop\(\)/);
+  assert.match(block, /const wanted = node === newest/);
 });

@@ -26,6 +26,7 @@ import { WORLDS } from './gravitation.js';
 import { SHAPES, MATERIALS } from './shapes.js';
 import { FLUIDS } from './drag.js';
 import { CHANNELS } from './recorder.js';
+import { LEVEL_IDS } from './levels.js';
 
 const KEY = 'physics-bench';
 export const STATE_VERSION = 3;
@@ -304,6 +305,16 @@ export const defaults = () => ({
     tool: 'none',
 
     /*
+     * How much of the bench is on screen.
+     *
+     * Simple by default, because the first screen a stranger sees decides
+     * whether they stay. The level hides; it never changes a value, so nothing
+     * folded away here is reset or ignored — the physics runs in full at every
+     * level. See js/levels.js.
+     */
+    level: 'simple',
+
+    /*
      * How the run is recorded, and what that costs.
      *
      * Every number here is a real trade rather than a preference, which is why
@@ -526,6 +537,7 @@ export function migrate(incoming) {
     ui: {
       sections: sectionFlags(incoming.ui?.sections),
       tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
+      level: oneOf(incoming.ui?.level, LEVEL_IDS, base.ui.level),
       recording: recordingFrom(incoming.ui?.recording, base.ui.recording),
     },
   };

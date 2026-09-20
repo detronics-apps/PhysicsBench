@@ -189,6 +189,9 @@
   color: var(--text);
   cursor: pointer;
   white-space: nowrap;
+  /* Two of these are anchors — the home link and the coffee cup — and without
+     this the browser underlines the glyph inside the disc. */
+  text-decoration: none;
 }
 .btn:hover { background: var(--panel-3); }
 .btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
@@ -708,6 +711,27 @@ summary:hover .gear { color: var(--accent-strong); }
 }
 .modal__title { margin: 0 0 var(--space-3); font-size: 17px; }
 .modal__row { display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap; }
+
+/* --- the workspace bar ------------------------------------------------- *
+ * One row above everything: the steps on the left, the detail level on the
+ * right. The steps take whatever room is going and scroll inside themselves;
+ * the chips keep their size, because three short words squeezed to fit is
+ * three words nobody can read.                                            */
+
+.workspace-bar {
+  display: flex; align-items: center; gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.workspace-bar .stepper { flex: 1 1 300px; min-width: 0; }
+.workspace-bar .chipset--modes { flex: 0 0 auto; }
+.chipset--modes .chip { font-size: 12px; padding: 4px var(--space-2); }
+
+/* The one place the chips may grow: wrapped onto their own row on a phone,
+   stretching is better than three chips huddled at the left. */
+@media (max-width: 640px) {
+  .workspace-bar .chipset--modes { flex: 1 1 100%; }
+  .chipset--modes .chip { flex: 1 1 0; }
+}
 
 /* --- the stepper ------------------------------------------------------- *
  * Eight steps, all of them reachable at any time. Nothing here is unlocked

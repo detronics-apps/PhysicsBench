@@ -9,9 +9,9 @@
 import { el, gearIcon } from './dom.js';
 import {
   section, subsection, numberField, sliderField, selectField, toggleField, stat, banner, table,
-  buttonRow, button,
+  buttonRow, button, grouped,
 } from './widgets.js';
-import { explain, equationPanel, equationTriangle } from './explain.js';
+import { explain as explainSpec, equationPanel as equationFor, equationTriangle } from './explain.js';
 import { equation, EQUATIONS, triangleFor } from '../models.js';
 import { stageById, featuresAt, pushState, pushRange, equationsAt, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
@@ -40,9 +40,17 @@ import { G, G_STANDARD } from '../constants.js';
 export function controls(ctx) {
   const { params: p, set, state } = ctx;
   const f = ctx.features;
+  const at = ctx.at;
   const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
 
-  return [
+  /*
+   * What each step is *about* is on at every level — hiding the walls on the
+   * step whose subject is walls would be hiding the step. What the level
+   * decides is the housekeeping either side of that: how the picture is drawn
+   * is a preference, and what the app is recording is a trade only a reader
+   * who wants to tune the model will care about.
+   */
+  return grouped([
     objectSection(ctx, object, f),
     f.has('applied') ? pushSection(ctx) : null,
     f.has('second-mass') && !f.has('planet') ? otherMassSection(ctx) : null,
@@ -52,11 +60,11 @@ export function controls(ctx) {
     f.has('objects') ? objectsSection(ctx) : null,
     f.has('obstacles') ? wallsSection(ctx) : null,
     f.has('obstacles') ? cannonsSection(ctx) : null,
-    f.has('objects') ? collisionSection(ctx) : null,
+    f.has('objects') && at('advanced') ? collisionSection(ctx) : null,
     f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
-    recordingSection(ctx),
-  ].filter(Boolean);
+    at('expert') ? recordingSection(ctx) : null,
+  ].filter(Boolean), 'controls');
 }
 
 function objectSection(ctx, object, f) {
@@ -1047,7 +1055,7 @@ function controlSection(ctx) {
 }
 
 function viewSection(ctx) {
-  const { state, setView } = ctx;
+  const { state, setView, at } = ctx;
   const cam = state.view.camera;
   const span = cam.mode === 'manual' ? cam.span : (ctx.autoSpan ?? null);
 
@@ -1086,7 +1094,9 @@ function viewSection(ctx) {
             + 'the bench. Zoom or pan and it will hold still instead.',
     }),
 
-    selectField('Grid spacing', [
+    // Choosing a grid step is a decision about comparing two runs at different
+    // zooms, which is not a question anyone has yet at Simple.
+    !at('advanced') ? null : selectField('Grid spacing', [
       { value: 'auto', label: 'Automatic — always readable' },
       // Down to a millimetre, because a twelve-centimetre robot on a
       // metre-spaced grid has no grid on it at all.
@@ -1102,7 +1112,7 @@ function viewSection(ctx) {
           + 'zoom. Zoom far enough out and the lines will be too dense to read.',
     }),
 
-    toggleField('Numbers on the arrows', state.view.showValues, (v) => setView('showValues', v), { key: 'view:values' }),
+    !at('advanced') ? null : toggleField('Numbers on the arrows', state.view.showValues, (v) => setView('showValues', v), { key: 'view:values' }),
     toggleField('Trail', state.view.showTrail, (v) => setView('showTrail', v), { key: 'view:trail' }),
     toggleField('Metre grid', state.view.showGrid, (v) => setView('showGrid', v), { key: 'view:grid' }),
     toggleField('Graphs', state.view.graphs, (v) => setView('graphs', v), { key: 'view:graphs' }),
@@ -1113,7 +1123,9 @@ function viewSection(ctx) {
      * renderer — the page already knows how to lay itself out on paper, and a
      * separate PDF writer would be one more thing to keep in step with it.
      */
-    el('div', { class: 'print-choices' }, [
+    // Printing everything is the right default; picking the parts is not a
+    // first-hour question, and Print/PDF still works without touching this.
+    !at('advanced') ? null : el('div', { class: 'print-choices' }, [
       el('div', { class: 'field__label', text: 'What to print or save as PDF' }),
       ...PRINT_PARTS.map((part) => toggleField(PRINT_LABEL[part], state.view.print[part],
         (v) => ctx.setPrint(part, v), { key: `print:${part}` })),
@@ -1153,6 +1165,17 @@ export function readouts(ctx) {
   const sums = totals(ctx.world);
   const tiles = [];
 
+  /*
+   * Which tiles the reader is at a level to want.
+   *
+   * Every one of these is computed either way — the level does not reach into
+   * the world. Simple keeps what the object is *doing*: how heavy, how fast,
+   * how hard it is being pushed, how high. The energy and momentum books are
+   * the second way of describing the same motion, so they wait for Advanced,
+   * and the two that only balance the ledger wait for Expert.
+   */
+  const add = (need, tile) => { if (ctx.at(need)) tiles.push(tile); };
+
   tiles.push(stat('Mass', `${fmtFixed(main.mass, main.mass < 10 ? 2 : 0)} kg`, {
     note: 'Unchanged by anything that happens to it',
   }));
@@ -1171,11 +1194,11 @@ export function readouts(ctx) {
       note: main.net.magnitude < 1e-9 ? 'The forces cancel' : fmtDirectionWords(main.net.vec),
     }));
     // Momentum and energy, from here to the end of the bench.
-    tiles.push(stat('Momentum', `${fmtFixed(len(main.momentum), 2)} kg·m/s`, {
+    add('advanced', stat('Momentum', `${fmtFixed(len(main.momentum), 2)} kg·m/s`, {
       swatch: '--vec-momentum',
       note: 'p = m·v',
     }));
-    tiles.push(stat('Kinetic energy', `${fmtFixed(main.kinetic, 2)} J`, {
+    add('advanced', stat('Kinetic energy', `${fmtFixed(main.kinetic, 2)} J`, {
       swatch: '--vec-velocity',
       note: '½·m·v² — no direction',
     }));
@@ -1183,7 +1206,7 @@ export function readouts(ctx) {
 
   if (f.has('ground')) {
     tiles.push(stat('Height', `${fmtFixed(main.heightAboveGround, 2)} m`, {}));
-    tiles.push(stat('Potential energy', `${fmtFixed(sums.potential, 2)} J`, {
+    add('advanced', stat('Potential energy', `${fmtFixed(sums.potential, 2)} J`, {
       swatch: '--force-weight',
       note: 'm·g·h from the ground',
     }));
@@ -1211,29 +1234,31 @@ export function readouts(ctx) {
   }
 
   if (f.has('friction') || f.has('fluid')) {
-    tiles.push(stat('Gone to heat', `${fmtFixed(sums.elsewhere.heat + sums.elsewhere.impact, 2)} J`, {
+    add('advanced', stat('Gone to heat', `${fmtFixed(sums.elsewhere.heat + sums.elsewhere.impact, 2)} J`, {
       swatch: '--force-friction',
       note: 'Left the mechanical account — not the universe',
     }));
   }
 
   if (f.has('collide') || f.has('second-mass')) {
-    tiles.push(stat('Total momentum', `${fmtFixed(sums.momentumX, 3)} kg·m/s`, {
+    add('advanced', stat('Total momentum', `${fmtFixed(sums.momentumX, 3)} kg·m/s`, {
       swatch: '--vec-momentum',
       accent: true,
       note: 'The whole system. Watch it through the impact.',
     }));
   }
 
+  // The last two are the audit rather than the motion: they answer "does the
+  // energy add up?", which is a question about the simulation itself.
   if (Math.abs(sums.supplied) > 1e-9) {
-    tiles.push(stat('Put in from outside', `${fmtFixed(sums.supplied, 2)} J`, {
+    add('expert', stat('Put in from outside', `${fmtFixed(sums.supplied, 2)} J`, {
       swatch: '--force-applied',
       note: 'Work done on it by the push and by you: F·d',
     }));
   }
 
   if (f.has('applied') || f.has('ground')) {
-    tiles.push(stat('The books', `${fmtFixed(sums.balance, 2)} J`, {
+    add('expert', stat('The books', `${fmtFixed(sums.balance, 2)} J`, {
       accent: true,
       note: 'Everything it holds, minus what you put in. This does not change.',
     }));
@@ -1415,6 +1440,18 @@ export function explains(ctx) {
   const stage = stageById(ctx.state.stage);
   const main = inspect(ctx.world, 'main');
   const out = [];
+
+  /*
+   * Bound to the reader's level once, rather than at twenty call sites.
+   *
+   * Every panel below is written in full and the level decides how much of it
+   * is rendered — so there is one version of the teaching text, not three that
+   * drift apart. Simple keeps the idea, the formula and the worked numbers;
+   * Advanced adds the conditions each equation holds under; Expert adds what
+   * it is a special case of and what people get wrong about it.
+   */
+  const explain = (spec) => explainSpec({ level: ctx.level, ...spec });
+  const equationPanel = (eq, worked, open) => equationFor(eq, worked, open, ctx.level);
 
   /*
    * A prepared experiment explains itself, above the step it happens to sit on.

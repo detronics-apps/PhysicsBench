@@ -20,6 +20,7 @@
 
 import { el, svg as svgEl } from './dom.js';
 import { KIND_LABEL, KIND_MEANING } from '../models.js';
+import { shownAt } from '../levels.js';
 
 /**
  * @param {object} spec
@@ -93,10 +94,28 @@ export function equationTriangle(triangle) {
   ]);
 }
 
+/**
+ * How much of a panel each level shows.
+ *
+ * Simple is not a stub: it keeps the whole of what the app promises anyone —
+ * the idea in plain words, the formula, and that formula worked through with
+ * the numbers on screen. What the higher levels add is the part that turns a
+ * rule into understanding, and which is noise to someone meeting it today:
+ *
+ *   advanced   the conditions the equation holds under
+ *   expert     the wider statement it is a special case of, and what people
+ *              commonly get wrong about it
+ *
+ * `becomes` at Simple would say "this is really dp/dt" to a reader who has not
+ * yet accepted F = ma, which is how a teaching panel loses someone.
+ */
 export function explain({
-  title, plain, formula, validWhen, worked, becomes, notes, body, open = false,
+  title, plain, formula, validWhen, worked, becomes, notes, body, open = false, level = 'expert',
 }) {
   const paragraphs = (value) => (Array.isArray(value) ? value : [value]).filter(Boolean);
+  const at = shownAt(level);
+  if (!at('advanced')) validWhen = null;
+  if (!at('expert')) { becomes = null; notes = null; }
 
   return el('details', { class: 'explain', open: open || null }, [
     el('summary', { text: title }),
@@ -134,8 +153,8 @@ export function explain({
 }
 
 /** A stack of panels, the first one open. */
-export const explainStack = (specs) =>
-  specs.filter(Boolean).map((spec, i) => explain({ ...spec, open: spec.open ?? i === 0 }));
+export const explainStack = (specs, level = 'expert') =>
+  specs.filter(Boolean).map((spec, i) => explain({ level, ...spec, open: spec.open ?? i === 0 }));
 
 /**
  * An equation from `js/models.js`, rendered with everything it carries.
@@ -144,14 +163,17 @@ export const explainStack = (specs) =>
  * what guarantees that F = ma is never shown without the note that it is the
  * constant-mass case of F = dp/dt — wherever in the app it turns up.
  */
-export const equationPanel = (equation, worked = null, open = false) => explain({
+export const equationPanel = (equation, worked = null, open = false, level = 'expert') => explain({
   title: equation.name,
-  plain: [equation.plain, equation.misreads || null].filter(Boolean),
+  // The misreading is the most valuable line in the registry and the one most
+  // likely to confuse: it describes a mistake the reader has not made yet.
+  plain: [equation.plain, shownAt(level)('expert') ? equation.misreads : null].filter(Boolean),
   formula: equation.formula,
   validWhen: equation.validWhen,
   worked,
   becomes: equation.general ? `${equation.general}\n\n${equation.becomes}` : equation.becomes,
   open,
+  level,
 });
 
 /* ------------------------------------------------------- the disclosure -- */

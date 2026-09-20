@@ -84,7 +84,28 @@ export function subsection(title, children, { key = null, open = false } = {}) {
   ]);
 }
 
-export function section(title, children, { info = null, actions = null, key = null, open = null } = {}) {
+/**
+ * Close every other panel in the same group.
+ *
+ * Setting `open = false` fires each sibling's own `toggle`, which records the
+ * close — so the store stays right without this having to write to it, and
+ * there is no recursion, because closing is not opening.
+ */
+function collapseSiblings(node, group) {
+  for (const other of document.querySelectorAll(`.section[data-group="${group}"]`)) {
+    if (other !== node && other.open) other.open = false;
+  }
+}
+
+/** Make a list of panels an accordion: one open at a time. */
+export function grouped(sections, group) {
+  for (const node of sections) if (node) node.dataset.group = group;
+  return sections;
+}
+
+export function section(title, children, {
+  info = null, actions = null, key = null, open = null, group = null,
+} = {}) {
   const id = key || title;
   const remembered = sectionStore.get(id);
   const showing = remembered === undefined || remembered === null
@@ -95,10 +116,28 @@ export function section(title, children, { info = null, actions = null, key = nu
     class: 'section',
     open: showing ? '' : null,
     'data-section': id,
+    /*
+     * A group makes the panels an accordion: opening one folds the rest away.
+     *
+     * By the last step the sidebar is a dozen panels long, and with all of them
+     * open the one being worked on is somewhere below the fold with no way to
+     * see what else there is. One open at a time keeps the whole list of
+     * headings in view, which is the only thing that makes a long sidebar
+     * navigable. Nothing is lost by folding — a closed panel's settings are
+     * still in force.
+     */
+    'data-group': group,
     on: {
       // Recorded, not re-rendered: collapsing a panel is not a change to the
       // experiment, and rebuilding the sidebar here would fight the animation.
-      toggle: (event) => sectionStore.set(id, event.target.open),
+      toggle: (event) => {
+        sectionStore.set(id, event.target.open);
+        // Read back off the node rather than the closure, so a caller can
+        // group a whole list of panels in one pass instead of naming the
+        // group at every one of a dozen call sites.
+        const g = event.target.dataset.group;
+        if (event.target.open && g) collapseSiblings(event.target, g);
+      },
     },
   }, [
     el('summary', { class: 'section__title' }, [title, info ? infoIcon(info) : null, actions]),

@@ -30,6 +30,7 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.brand__home { display: inline-flex; align-items: center; text-decoration: none; }
 .brand__logo { height: 26px; width: auto; display: block; border-radius: 5px; }
 .brand__sep { width: 1px; height: 22px; background: var(--border); }
 .brand__tool { font-weight: 600; color: var(--text-dim); white-space: nowrap; }
@@ -99,6 +100,11 @@ body {
 }
 
 .app-footer nav { margin-left: auto; display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+
+/* A link that reads as a link, sitting in a row of buttons without pretending
+   to be one — it leaves the app, and it should not look like an action here. */
+.linkish { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+.linkish:hover { text-decoration-thickness: 2px; }
 
 /* A phone gets the drawing first and the controls under it. */
 @media (max-width: 640px) {

@@ -20,7 +20,7 @@
  */
 
 import { load, save, saveSoon, state, reset } from './state.js';
-import { el, clear, toast, hideTooltip } from './ui/dom.js';
+import { el, svg, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
 import { configureSections, button, drag, banner } from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
@@ -37,6 +37,7 @@ import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
 import { toWorld } from './camera.js';
+import { LEVELS, shownAt } from './levels.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
@@ -91,7 +92,32 @@ const THEME_ORDER = ['system', 'light', 'dark'];
 const THEME_LABEL = { system: 'Theme: auto', light: 'Theme: light', dark: 'Theme: dark' };
 const THEME_GLYPH = { system: '◐', light: '○', dark: '●' };
 
+const SITE_URL = 'https://www.detronics.co.za/';
+const COFFEE_URL = 'https://buymeacoffee.com/detronics';
+
 /* --------------------------------------------------------------- chrome -- */
+
+/**
+ * The cup, drawn rather than typed.
+ *
+ * `☕` is an emoji: it arrives with its own browns and reds baked in, which
+ * belong to no theme this app has. A line drawing in `currentColor` inherits
+ * the button's text colour and follows light and dark exactly like the theme
+ * glyph beside it.
+ */
+function coffeeIcon() {
+  return svg('svg', {
+    width: '18', height: '18', viewBox: '0 0 24 24', 'aria-hidden': 'true',
+    fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8',
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  }, [
+    svg('path', { d: 'M6.5 8 H15.5 V13 A4.5 4.5 0 0 1 6.5 13 Z' }),
+    svg('path', { d: 'M15.5 9.5 h1.8 a2.6 2.6 0 0 1 0 5.2 h-1.8' }),
+    svg('path', { d: 'M4 19.5 Q 11 21.8 18 19.5' }),
+    svg('path', { d: 'M9.3 5.2 q -1.4 -1.1 0 -2.2 q 1.4 -1.1 0 -2.2' }),
+    svg('path', { d: 'M13.3 5.2 q -1.4 -1.1 0 -2.2 q 1.4 -1.1 0 -2.2' }),
+  ]);
+}
 
 function buildHeader() {
   /*
@@ -117,7 +143,12 @@ function buildHeader() {
 
   return el('header', { class: 'app-header' }, [
     el('div', { class: 'brand' }, [
-      el('img', { class: 'brand__logo', src: 'assets/logo.png', alt: 'Detronics' }),
+      // The mark is the way home. An anchor rather than a click handler, so
+      // middle-click, copy-link and open-in-a-new-tab all behave.
+      el('a', {
+        class: 'brand__home', href: SITE_URL, target: '_blank', rel: 'noopener noreferrer',
+        title: 'Detronics (opens in a new tab)',
+      }, el('img', { class: 'brand__logo', src: 'assets/logo.png', alt: 'Detronics' })),
       el('span', { class: 'brand__sep', 'aria-hidden': 'true' }),
       el('span', { class: 'brand__tool', text: 'PhysicsBench' }),
     ]),
@@ -134,6 +165,11 @@ function buildHeader() {
         class: 'btn', type: 'button', title: 'Load a saved experiment',
         on: { click: () => openProject(() => { rebuild(); render(); }) },
       }, dualLabel('Load project', 'Load')),
+      el('a', {
+        class: 'btn btn--icon', href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer',
+        'aria-label': 'Buy me a coffee (opens in a new tab)',
+        title: 'Buy me a coffee (opens in a new tab)',
+      }, coffeeIcon()),
       themeButton,
     ]),
   ]);
@@ -187,6 +223,39 @@ function renderStages() {
 }
 
 /**
+ * Simple · Advanced · Expert.
+ *
+ * Each chip carries its reason in the tooltip rather than in a line of prose
+ * beside it, because the bar has to stay one row. The sentence under them says
+ * the thing a reader would otherwise have to discover by experiment: this hides
+ * and shows, it does not change the answer.
+ */
+function renderLevels() {
+  clear(dom.levels);
+
+  for (const level of LEVELS) {
+    const current = level.id === state.ui.level;
+    dom.levels.appendChild(el('button', {
+      class: 'chip', type: 'button',
+      'aria-pressed': String(current),
+      title: `${level.note} The physics is the same at every level — this only sets how much is shown.`,
+      'data-field': `level:${level.id}`,
+      on: {
+        click: () => {
+          if (current) return;
+          state.ui.level = level.id;
+          saveSoon();
+          // A level change rebuilds the panels but touches nothing physical:
+          // the clock keeps running and every hidden field keeps its value.
+          rebuild();
+          render();
+        },
+      },
+    }, level.label));
+  }
+}
+
+/**
  * Which steps have been opened before, so the sidebar is only rearranged once.
  *
  * Session-scoped on purpose. Coming back to a step should show it the way you
@@ -194,29 +263,60 @@ function renderStages() {
  */
 const visited = new Set();
 
+/**
+ * Hold the sidebar to one open panel.
+ *
+ * The accordion in `widgets.js` keeps the invariant once a reader is clicking,
+ * but it cannot establish it: a panel built with its `open` attribute already
+ * set fires no `toggle`, so a fresh load, a share link or a restored session
+ * would all arrive with everything open at once. This is the same rule applied
+ * to the sidebar as rendered — keep the first open panel, fold the rest.
+ *
+ * Closing a panel fires its own `toggle`, which records it — so the folding
+ * survives the next render without this having to know how the store is keyed.
+ */
+function soloOpenSection() {
+  let kept = false;
+  for (const node of dom.controls.querySelectorAll('.section[data-group]')) {
+    if (!node.open) continue;
+    if (!kept) { kept = true; continue; }
+    node.open = false;
+  }
+}
+
 /** The keys of the panels currently in the sidebar. */
 const sectionKeys = () =>
   new Set([...document.querySelectorAll('#controls [data-section]')].map((n) => n.dataset.section));
 
 /**
- * Open what this step adds, and close what it inherited.
+ * Open the panel this step adds, and close what it inherited.
  *
- * By the last step the sidebar is eleven panels long, and every one of them was
- * introduced by an earlier step and left open. Arriving somewhere new and
- * having to hunt down the one panel that is new is the opposite of what the
- * stepper is for — so the new ones are opened and the rest are folded away,
- * once, on the first visit. Everything is still there, and anything reopened
- * stays open.
+ * By the last step the sidebar is twelve panels long, and every one of them was
+ * introduced by an earlier step. Arriving somewhere new and having to hunt down
+ * the one panel that is new is the opposite of what the stepper is for — so the
+ * first new one is opened and everything else is folded away, once, on the
+ * first visit. Everything is still there, and anything reopened stays open.
+ *
+ * One panel, not all of them, because the sidebar is an accordion: opening
+ * three would leave the third to close the other two a moment later, which
+ * reads as the panel you were just shown collapsing by itself.
+ *
+ * The *last* new one. Walking a step at a time there is only one, so it makes
+ * no difference; jumping from step one to step seven it is the difference
+ * between landing on the panel step seven introduced and landing on the one
+ * step two did.
  */
 function focusNewSections(previous) {
-  for (const node of document.querySelectorAll('#controls [data-section]')) {
-    const key = node.dataset.section;
+  const nodes = [...document.querySelectorAll('#controls [data-section]')]
     // The drawing options are housekeeping rather than part of any step, and
     // they were closed to begin with.
-    if (key === 'view') continue;
-    const isNew = !previous.has(key);
-    node.open = isNew;
-    state.ui.sections[`${state.stage}:${key}`] = isNew;
+    .filter((n) => n.dataset.section !== 'view');
+  const newest = nodes.filter((n) => !previous.has(n.dataset.section)).pop();
+
+  for (const node of nodes) {
+    const wanted = node === newest;
+    node.open = wanted;
+    state.ui.sections[`${state.stage}:${node.dataset.section}`] = wanted;
   }
   saveSoon();
 }
@@ -260,6 +360,17 @@ function goToStage(id) {
  */
 function buildViewport() {
   dom.stages = el('div', { class: 'stepper', role: 'tablist', 'aria-label': 'Steps' });
+  dom.levels = el('div', { class: 'chipset chipset--modes', role: 'group', 'aria-label': 'Detail level' });
+  /*
+   * Steps on the left, detail level on the right, on one row above everything.
+   *
+   * The level governs the whole screen — the sidebar, the readouts and the
+   * teaching panels all read it — and a control that governs the whole screen
+   * cannot live inside one panel of it, where it reads as a setting for that
+   * panel. It is also the first thing a newcomer needs and the first thing a
+   * returning reader changes, so it must not be somewhere you scroll to find.
+   */
+  dom.workspaceBar = el('div', { class: 'workspace-bar' }, [dom.stages, dom.levels]);
   dom.ask = el('div', { id: 'ask' });
   dom.vectors = el('div', { id: 'vectors' });
   dom.stage = el('div', {
@@ -307,7 +418,7 @@ function buildViewport() {
    * control should not mean scrolling past all the output first.
    */
   dom.viewport = el('section', { class: 'viewport' }, [
-    dom.stages,
+    dom.workspaceBar,
     dom.ask,
     dom.vectors,
     dom.stage,
@@ -349,6 +460,10 @@ function buildFooter() {
         render();
         toast('Back to the start of the bench');
       }, { small: true, title: 'Back to the default settings' }),
+      el('a', {
+        class: 'linkish', href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer',
+        text: 'Buy me a coffee',
+      }),
       el('span', { class: 'muted', text: `v${APP_VERSION}` }),
     ]),
   ]);
@@ -911,6 +1026,7 @@ export function render({ controls = true } = {}) {
   hideTooltip();
   applyTheme();
   renderStages();
+  renderLevels();
 
   if (dom.themeButton) {
     const glyph = dom.themeButton.querySelector('.btn__glyph');
@@ -1017,6 +1133,7 @@ export function render({ controls = true } = {}) {
 
   clear(dom.controls);
   for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
+  soloOpenSection();
 
   if (wantsKeys) {
     wantsKeys = false;
@@ -1194,6 +1311,9 @@ function context() {
     pressed: input.pressed,
     engaged: input.engaged,
     features: sim.scenario?.features || featuresAt(state.stage),
+    // How much of what follows is shown. Never how it is computed.
+    level: state.ui.level,
+    at: shownAt(state.ui.level),
     scenario: sim.scenario,
     world: shownWorld(),
     liveWorld: sim.world,
