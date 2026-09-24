@@ -562,3 +562,73 @@ export const WELCOME = [
 
 /** The categories the how-tos fall into, in the order they are written. */
 export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
+
+/* ----------------------------------------------- what the footer holds -- */
+
+/**
+ * The three panels every Detronics app carries in its footer.
+ *
+ * Plain data, like everything else here, and deliberately short: each one
+ * answers the question a reader actually has rather than reciting a policy.
+ * Nothing in them is invented — the privacy text is the architecture stated
+ * plainly, and the licence is the licence.
+ */
+export const WHATS_NEW = {
+  title: "What's new",
+  version: '1.5.0',
+  body: [
+    ['A world made of water',
+      'From step 6, "what the world is made of" can be a liquid instead of solid ground. '
+      + 'The floor goes away and an object falls into it, settling with the fraction of '
+      + 'itself under the surface that its density says. A twelfth prepared experiment, '
+      + '"Dropped into the water", shows three balls doing exactly that.'],
+    ['Simple, Advanced, Expert',
+      'A detail level above the steps. It never changes a number — every step of the '
+      + 'simulation runs at every level — it sets how much is on screen. Simple is the '
+      + 'inputs and nothing derived.'],
+    ['One panel at a time, unless you pin it',
+      'The controls are an accordion, and the padlock beside a heading keeps that panel '
+      + 'open when you open another.'],
+    ['How to use',
+      'A guide you can search in your own words, and a welcome on the first visit that '
+      + 'you can reopen any time from "I am new here".'],
+  ],
+};
+
+export const LICENCE = {
+  title: 'Licence & terms',
+  body: [
+    ['The code', 'MIT. Use it, change it, ship it, teach with it. The licence text is in the '
+      + 'repository, and it is the whole of the legal position on the software.'],
+    ['What it does not promise',
+      'This is a teaching bench, not an engineering tool. The physics is real and the '
+      + 'arithmetic is tested, but the app tells you plainly where it is approximating — '
+      + 'every panel carries "What this simulation is doing", which separates the reality '
+      + 'from the model, the assumptions and the approximations. Do not size a real part '
+      + 'from it without checking the figure against a source you trust.'],
+    ['Which numbers are indicative',
+      'Friction coefficients and high-Reynolds drag coefficients are typical textbook '
+      + 'values and are labelled as such: published figures for the same pair of materials '
+      + 'differ by more than a factor of two with finish, cleanliness and contact pressure. '
+      + 'Constants, planetary masses and radii are the CODATA and IAU/NASA figures.'],
+  ],
+};
+
+export const IMPRINT = {
+  title: 'Imprint & privacy',
+  body: [
+    ['Who made it', 'Detronics — detronics.co.za. Built as a teaching tool and kept free.'],
+    ['What leaves your browser',
+      'Nothing. There is no server, no account, no analytics, no cookies, and no fonts or '
+      + 'scripts from anywhere else. The page you are reading was the last thing that '
+      + 'crossed the network.'],
+    ['Where your work is kept',
+      'In this browser, on this device, in local storage — which is functional storage for '
+      + 'your own work rather than anything that tracks you. "Save project" downloads a file '
+      + 'to your machine. A share link carries the whole experiment in the part of the URL '
+      + 'after the "#", which browsers never transmit to a server.'],
+    ['Getting rid of it',
+      'Clearing this site’s data in your browser removes everything the app has kept. '
+      + 'There is nowhere else to ask, because there is nowhere else it went.'],
+  ],
+};

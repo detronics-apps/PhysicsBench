@@ -53,6 +53,30 @@ four things to *do*, each one click from where it happens. It is remembered by a
 session flag, and it never appears for someone arriving on a share link — they have been sent
 something specific by a person who knew what they were sending. Reopen it any time from the guide.
 
+### The furniture, matched to the other benches
+
+Four things that now look and behave the same as Bench-Calculator and GearBench, so somebody who
+learns one knows the next.
+
+- **The detail level has its own row**, directly under the wordmark and directly above the steps
+  it governs. Sharing a row with the steps made it read as a filter on them. Beside the chips is
+  the chosen level's own sentence, not a description of the control — a reader wants to know what
+  they are looking at.
+- **A padlock on every section.** One panel open at a time is right almost always and wrong
+  exactly when somebody is comparing two things, so rather than weaken the default, pin the panel
+  you want kept in view. Three code paths fold a panel — opening a sibling, the invariant applied
+  after each render, and arriving at a step — and all three honour it. Locks persist and are not
+  filed per step: pinning "The object" open means you want it in view, and walking to step six
+  does not change that.
+- **The exports moved to the sidebar**, last, as "Share and export": the link, SVG, PNG, CSV and
+  Print. They are things you do to an experiment, and everything else you do to an experiment is
+  already in that column. Never lockable — an export you cannot find is an export nobody uses.
+- **The footer is about the app now**, and carries what the other benches carry: What's new ·
+  Licence & terms · Imprint & privacy · I am new here · Reset · the coffee link · the version.
+  The first three open the same dismissible card as the welcome. All three are written as data
+  rather than markup, so the wording lives in one place: the licence is the licence, and the
+  privacy text is the architecture stated plainly rather than a policy invented for it.
+
 ### A world made of liquid
 
 From step six, "what the world is made of" can be a fluid instead of solid ground. Choose water

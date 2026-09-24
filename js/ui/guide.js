@@ -202,3 +202,48 @@ export function welcomeOverlay(actions) {
   back.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
   return back;
 }
+
+/* --------------------------------------------------------------- panels -- */
+
+/**
+ * One of the three footer panels, as a dismissible card.
+ *
+ * The same backdrop and the same card as the welcome, because they are the
+ * same kind of thing: a short read that stops the reader doing what they were
+ * doing, and gets out of the way on a click, a backdrop press or Escape.
+ *
+ * Each panel is `{ title, body: [[heading, text], ...] }` from `js/guide.js`.
+ * Nothing here composes prose — it renders what the data says, so the wording
+ * lives in one place and can be read without opening the app.
+ */
+export function panelOverlay(panel, onClose) {
+  const close = () => { back.remove(); onClose?.(); };
+
+  const card = el('div', {
+    class: 'welcome__card', role: 'dialog', 'aria-modal': 'true', 'aria-label': panel.title,
+    tabindex: '-1',
+  }, [
+    el('div', { class: 'panel__head' }, [
+      el('h2', { class: 'welcome__title', text: panel.title }),
+      el('button', {
+        class: 'btn btn--icon', type: 'button', 'aria-label': 'Close', title: 'Close',
+        on: { click: close },
+      }, el('span', { class: 'btn__glyph', 'aria-hidden': 'true', text: '×' })),
+    ]),
+
+    ...panel.body.map(([heading, text]) => el('div', { class: 'panel__item' }, [
+      el('div', { class: 'panel__item-title', text: heading }),
+      el('p', { class: 'panel__item-text', text }),
+    ])),
+
+    el('div', { class: 'welcome__foot' }, [
+      el('p', { class: 'muted', text: panel.version ? `Version ${panel.version}` : '' }),
+      button('Close', close, { primary: true }),
+    ]),
+  ]);
+
+  const back = el('div', { class: 'welcome' }, card);
+  back.addEventListener('click', (event) => { if (event.target === back) close(); });
+  back.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  return back;
+}

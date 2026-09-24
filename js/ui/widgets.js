@@ -12,7 +12,7 @@
  *   replaces the very element being used, so a drag dies on the first pixel.
  */
 
-import { el, field, infoIcon, select, chips } from './dom.js';
+import { el, svg as svgEl, field, infoIcon, select, chips } from './dom.js';
 import { parseEng } from '../units.js';
 import { fmtFixed } from '../format.js';
 
@@ -38,9 +38,30 @@ export function parseNumber(text) {
 /* --------------------------------------------------------------- layout -- */
 
 let sectionStore = { get: () => true, set: () => {} };
+let lockStore = { get: () => false, set: () => {} };
 
-export function configureSections(store) {
+export function configureSections(store, locks = null) {
   sectionStore = store;
+  if (locks) lockStore = locks;
+}
+
+/**
+ * The padlock beside a section title.
+ *
+ * Drawn rather than typed, like every other icon here: a line drawing in
+ * `currentColor` that follows the theme. The only difference between the two
+ * states is whether the shackle comes back down to the body, which is what a
+ * padlock actually looks like open and shut and needs no colour to read.
+ */
+function lockIcon(locked) {
+  return svgEl('svg', {
+    viewBox: '0 0 24 24', width: '14', height: '14', 'aria-hidden': 'true',
+    fill: 'none', stroke: 'currentColor', 'stroke-width': '1.9',
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  }, [
+    svgEl('path', { d: 'M5.5 11 h13 v8.5 h-13 z' }),
+    svgEl('path', { d: locked ? 'M8.5 11 V7.5 a3.5 3.5 0 0 1 7 0 V11' : 'M8.5 11 V7.5 a3.5 3.5 0 0 1 7 0' }),
+  ]);
 }
 
 /**
@@ -93,7 +114,10 @@ export function subsection(title, children, { key = null, open = false } = {}) {
  */
 function collapseSiblings(node, group) {
   for (const other of document.querySelectorAll(`.section[data-group="${group}"]`)) {
-    if (other !== node && other.open) other.open = false;
+    // A locked panel is one the reader has said to leave alone. That is the
+    // whole point of the lock: one open at a time is the right default and the
+    // wrong rule when you are comparing two things.
+    if (other !== node && other.open && other.dataset.locked !== 'true') other.open = false;
   }
 }
 
@@ -104,13 +128,54 @@ export function grouped(sections, group) {
 }
 
 export function section(title, children, {
-  info = null, actions = null, key = null, open = null, group = null,
+  info = null, actions = null, key = null, open = null, group = null, lockable = true,
 } = {}) {
   const id = key || title;
   const remembered = sectionStore.get(id);
   const showing = remembered === undefined || remembered === null
     ? (open === null ? true : open)
     : remembered;
+  const locked = !!lockStore.get(id);
+
+  /*
+   * The lock, which is the escape hatch from the accordion.
+   *
+   * One panel open at a time is right almost always and wrong exactly when
+   * somebody is comparing two things — the object against the fluid, the
+   * surface against the push. Rather than weaken the default, let a reader
+   * pin the panel they want to keep in view. Locked panels are never folded
+   * by anything else; they still fold when their own heading is clicked,
+   * because a lock is not a trap.
+   */
+  const lock = lockable ? el('button', {
+    class: 'section__lock', type: 'button',
+    'aria-pressed': String(locked),
+    'data-field': `lock:${id}`,
+    title: locked
+      ? 'Locked open — it will stay open when you open another section'
+      : 'Lock this section open',
+    'aria-label': locked ? `Unlock ${title}` : `Lock ${title} open`,
+    on: {
+      click: (event) => {
+        // Without this the click reaches the <summary> and folds the very
+        // panel being pinned.
+        event.preventDefault();
+        event.stopPropagation();
+        const node = event.currentTarget.closest('.section');
+        const now = node.dataset.locked !== 'true';
+        node.dataset.locked = String(now);
+        lockStore.set(id, now);
+        event.currentTarget.setAttribute('aria-pressed', String(now));
+        event.currentTarget.title = now
+          ? 'Locked open — it will stay open when you open another section'
+          : 'Lock this section open';
+        event.currentTarget.setAttribute('aria-label', now ? `Unlock ${title}` : `Lock ${title} open`);
+        event.currentTarget.replaceChildren(lockIcon(now));
+        // Locking a closed panel is asking for it open.
+        if (now && !node.open) node.open = true;
+      },
+    },
+  }, lockIcon(locked)) : null;
 
   return el('details', {
     class: 'section',
@@ -127,6 +192,14 @@ export function section(title, children, {
      * still in force.
      */
     'data-group': group,
+    /*
+     * Always present, not only when a group was passed here.
+     *
+     * A caller may group a whole list in one pass after the fact
+     * (`grouped()`), so at this point `group` is usually still null and
+     * gating on it rendered no locks at all.
+     */
+    'data-locked': lockable ? String(locked) : null,
     on: {
       // Recorded, not re-rendered: collapsing a panel is not a change to the
       // experiment, and rebuilding the sidebar here would fight the animation.
@@ -140,7 +213,12 @@ export function section(title, children, {
       },
     },
   }, [
-    el('summary', { class: 'section__title' }, [title, info ? infoIcon(info) : null, actions]),
+    el('summary', { class: 'section__title' }, [
+      el('span', { class: 'section__name', text: title }),
+      info ? infoIcon(info) : null,
+      lock,
+      actions,
+    ]),
     el('div', { class: 'section__body' }, Array.isArray(children) ? children : [children]),
   ]);
 }

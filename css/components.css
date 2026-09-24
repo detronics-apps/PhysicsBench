@@ -712,26 +712,58 @@ summary:hover .gear { color: var(--accent-strong); }
 .modal__title { margin: 0 0 var(--space-3); font-size: 17px; }
 .modal__row { display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap; }
 
-/* --- the workspace bar ------------------------------------------------- *
- * One row above everything: the steps on the left, the detail level on the
- * right. The steps take whatever room is going and scroll inside themselves;
- * the chips keep their size, because three short words squeezed to fit is
- * three words nobody can read.                                            */
+/* --- the mode bar ------------------------------------------------------ *
+ * Its own row, directly under the wordmark and directly above the steps it
+ * governs. Sharing a row with the steps made it read as a filter on them.
+ *
+ * The sentence beside the chips is the *current* level's, not a description
+ * of the control: a reader wants to know what they are looking at.        */
 
-.workspace-bar {
+.modebar-host {
   display: flex; align-items: center; gap: var(--space-3);
   flex-wrap: wrap;
 }
-.workspace-bar .stepper { flex: 1 1 300px; min-width: 0; }
-.workspace-bar .chipset--modes { flex: 0 0 auto; }
-.chipset--modes .chip { font-size: 12px; padding: 4px var(--space-2); }
-
-/* The one place the chips may grow: wrapped onto their own row on a phone,
-   stretching is better than three chips huddled at the left. */
-@media (max-width: 640px) {
-  .workspace-bar .chipset--modes { flex: 1 1 100%; }
-  .chipset--modes .chip { flex: 1 1 0; }
+.modebar { display: flex; gap: var(--space-1); flex: 0 0 auto; }
+.modebar__chip { font-size: 12px; padding: 4px var(--space-3); }
+.modebar__hint {
+  flex: 1 1 240px; min-width: 0;
+  font-size: 12px; line-height: 1.4;
+  color: var(--text-faint);
 }
+
+/* On a phone the sentence drops under the chips rather than squeezing them. */
+@media (max-width: 640px) {
+  .modebar { flex: 1 1 100%; }
+  .modebar__chip { flex: 1 1 0; }
+  .modebar__hint { flex: 1 1 100%; }
+}
+
+/* --- the section lock -------------------------------------------------- *
+ * One panel open at a time is right almost always and wrong exactly when
+ * somebody is comparing two things. Rather than weaken the default, let a
+ * reader pin the panel they want kept in view.                            */
+
+.section__name { flex: 0 1 auto; min-width: 0; }
+
+.section__lock {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.section__lock:hover { color: var(--text); background: var(--panel-3); }
+.section__lock:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+.section__lock[aria-pressed="true"] { color: var(--accent-strong); }
+
+/* The chevron is drawn by `.section__title::after` and has `margin-left:auto`
+   to push itself right. With a lock beside it, the lock takes that job. */
+.section__title:has(.section__lock)::after { margin-left: var(--space-2); }
 
 /* --- the stepper ------------------------------------------------------- *
  * Eight steps, all of them reachable at any time. Nothing here is unlocked
@@ -1281,7 +1313,7 @@ html:not([data-page='bench']) .sidebar { display: none; }
  * did not get it back on the way out. Hidden is enough; it also takes them out
  * of the tab order. A control disappearing must not move anything.
  */
-html:not([data-page='bench']) .chipset--modes { visibility: hidden; }
+html:not([data-page='bench']) .modebar-host { visibility: hidden; }
 
 /* -------------------------------------------------- equation triangles -- */
 
@@ -1425,4 +1457,24 @@ html:not([data-page='bench']) .chipset--modes { visibility: hidden; }
 @media (max-width: 640px) {
   .welcome { padding: var(--space-2); align-items: flex-start; }
   .welcome__card { padding: var(--space-4); gap: var(--space-3); }
+}
+
+/* --- the footer panels ------------------------------------------------- *
+ * What's new, the licence, the imprint. The same card as the welcome,
+ * because they are the same kind of thing: a short read that interrupts,
+ * and gets out of the way on a click, the backdrop or Escape.            */
+
+.panel__head {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+}
+.panel__head .welcome__title { flex: 1 1 auto; }
+.panel__head .btn--icon { flex: 0 0 auto; }
+.panel__head .btn__glyph { font-size: 18px; }
+
+.panel__item + .panel__item { margin-top: var(--space-3); }
+.panel__item-title { font-weight: 600; }
+.panel__item-text {
+  margin: var(--space-1) 0 0;
+  color: var(--text-dim);
+  line-height: 1.55;
 }

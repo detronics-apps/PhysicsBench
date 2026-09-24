@@ -36,9 +36,10 @@ import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
-import { guidePage, welcomeOverlay } from './ui/guide.js';
+import { guidePage, welcomeOverlay, panelOverlay } from './ui/guide.js';
+import { WHATS_NEW, LICENCE, IMPRINT } from './guide.js';
 import { toWorld } from './camera.js';
-import { LEVELS, shownAt } from './levels.js';
+import { LEVELS, levelById, shownAt } from './levels.js';
 import { vec, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
@@ -267,11 +268,12 @@ function renderStages() {
  */
 function renderLevels() {
   clear(dom.levels);
+  dom.levelHint.textContent = levelById(state.ui.level).note;
 
   for (const level of LEVELS) {
     const current = level.id === state.ui.level;
     dom.levels.appendChild(el('button', {
-      class: 'chip', type: 'button',
+      class: 'chip modebar__chip', type: 'button',
       'aria-pressed': String(current),
       title: `${level.note} The physics is the same at every level — this only sets how much is shown.`,
       'data-field': `level:${level.id}`,
@@ -320,6 +322,9 @@ function soloOpenSection() {
   let kept = false;
   for (const node of dom.controls.querySelectorAll('.section[data-group]')) {
     if (!node.open) continue;
+    // A pinned panel is exempt, and does not use up the one free slot either:
+    // locking one and opening another is the whole reason the lock exists.
+    if (node.dataset.locked === 'true') continue;
     if (!kept) { kept = true; continue; }
     node.open = false;
   }
@@ -350,8 +355,9 @@ const sectionKeys = () =>
 function focusNewSections(previous) {
   const nodes = [...document.querySelectorAll('#controls [data-section]')]
     // The drawing options are housekeeping rather than part of any step, and
-    // they were closed to begin with.
-    .filter((n) => n.dataset.section !== 'view');
+    // they were closed to begin with. A pinned panel is left exactly alone —
+    // that is what pinning it said to do.
+    .filter((n) => n.dataset.section !== 'view' && n.dataset.locked !== 'true');
   const newest = nodes.filter((n) => !previous.has(n.dataset.section)).pop();
 
   for (const node of nodes) {
@@ -409,17 +415,22 @@ function goToStage(id) {
  */
 function buildViewport() {
   dom.stages = el('div', { class: 'stepper', role: 'tablist', 'aria-label': 'Steps' });
-  dom.levels = el('div', { class: 'chipset chipset--modes', role: 'group', 'aria-label': 'Detail level' });
+  dom.levels = el('div', { class: 'modebar', role: 'group', 'aria-label': 'How much detail to show' });
+  dom.levelHint = el('span', { class: 'modebar__hint' });
   /*
-   * Steps on the left, detail level on the right, on one row above everything.
+   * Its own row, above the steps.
    *
    * The level governs the whole screen — the sidebar, the readouts and the
    * teaching panels all read it — and a control that governs the whole screen
-   * cannot live inside one panel of it, where it reads as a setting for that
-   * panel. It is also the first thing a newcomer needs and the first thing a
-   * returning reader changes, so it must not be somewhere you scroll to find.
+   * has to sit above the whole screen. Sharing a row with the steps made it
+   * read as a filter on them; on its own line, directly under the wordmark and
+   * directly above the bar it governs, it reads as what it is.
+   *
+   * The sentence beside it is the *current* level's, not a description of the
+   * control. A reader wants to know what they are looking at, not what the
+   * three words mean in the abstract.
    */
-  dom.workspaceBar = el('div', { class: 'workspace-bar' }, [dom.stages, dom.levels]);
+  dom.workspaceBar = el('div', { class: 'modebar-host' }, [dom.levels, dom.levelHint]);
   dom.ask = el('div', { id: 'ask' });
   dom.vectors = el('div', { id: 'vectors' });
   dom.stage = el('div', {
@@ -468,6 +479,7 @@ function buildViewport() {
    */
   dom.viewport = el('section', { class: 'viewport' }, [
     dom.workspaceBar,
+    dom.stages,
     dom.ask,
     dom.vectors,
     dom.stage,
@@ -495,20 +507,24 @@ function buildFooter() {
         + 'link keeps its data in the URL fragment, which is never sent to a server.',
     }),
     el('nav', {}, [
-      button('Share link', () => copyLink(), { small: true, title: 'Copy a link that reopens this exact experiment' }),
-      button('Print / PDF', () => printWhatIsWanted(), {
-        small: true,
-        title: 'Print, or save as PDF — choose what goes on it under "The drawing"',
+      /*
+       * What the footer is for, now that the exports have moved.
+       *
+       * Everything here is *about the app* rather than about the experiment:
+       * what changed, what you may do with it, who made it and what happens to
+       * your data, and a way back to the welcome. Sharing, printing and the
+       * downloads are things you do to an experiment, so they live beside it
+       * in the sidebar.
+       */
+      button("What's new", () => openPanel(WHATS_NEW), {
+        small: true, title: 'What changed in this version',
       }),
-      button('SVG', () => downloadSvg(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
-      button('PNG', () => downloadPng(dom.stage.querySelector('svg'), `physics-${state.stage}`), { small: true }),
-      button('CSV', () => downloadCsv(sim.recorder, channelsFor(state.stage, state.bench).flatMap((g) => g.ids), `physics-${state.stage}`), { small: true, title: 'Download the measurements as a spreadsheet' }),
-      button('Reset', () => {
-        reset();
-        rebuild();
-        render();
-        toast('Back to the start of the bench');
-      }, { small: true, title: 'Back to the default settings' }),
+      button('Licence & terms', () => openPanel(LICENCE), {
+        small: true, title: 'What you may do with this tool, and what it does not promise',
+      }),
+      button('Imprint & privacy', () => openPanel(IMPRINT), {
+        small: true, title: 'Who made it, and what happens to your data',
+      }),
       /*
        * A way back to the welcome, for anyone who is not new but wishes they
        * had read it.
@@ -523,6 +539,12 @@ function buildFooter() {
         small: true,
         title: 'Show the welcome again — what this is, and three places to start',
       }),
+      button('Reset', () => {
+        reset();
+        rebuild();
+        render();
+        toast('Back to the start of the bench');
+      }, { small: true, title: 'Back to the default settings' }),
       el('a', {
         class: 'linkish', href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer',
         text: 'Buy me a coffee',
@@ -1148,6 +1170,14 @@ function openWelcome() {
   card.querySelector('.welcome__card')?.focus();
 }
 
+/** One of the three footer panels: what's new, the licence, the imprint. */
+function openPanel(panel) {
+  if (document.querySelector('.welcome')) return;
+  const card = panelOverlay(panel);
+  document.body.appendChild(card);
+  card.querySelector('.welcome__card')?.focus();
+}
+
 /** Show the how-to page. */
 export function showGuide() {
   if (state.page === 'guide') return;
@@ -1479,6 +1509,21 @@ function context() {
     set: (key, value) => update((draft) => { draft.bench[key] = value; }),
     setMany: (patch) => update((draft) => { Object.assign(draft.bench, patch); }),
     setView: (key, value) => update((draft) => { draft.view[key] = value; }, { sim: 'none' }),
+
+    /*
+     * The exports, handed over by name.
+     *
+     * The panel that offers them sits in the sidebar with everything else you
+     * do to an experiment, and it has no business knowing where the SVG lives
+     * or which channels the CSV should carry.
+     */
+    copyLink: () => copyLink(),
+    print: () => printWhatIsWanted(),
+    downloadSvg: (name) => downloadSvg(dom.stage.querySelector('svg'), name),
+    downloadPng: (name) => downloadPng(dom.stage.querySelector('svg'), name),
+    downloadCsv: (name) => downloadCsv(
+      sim.recorder, channelsFor(state.stage, state.bench).flatMap((g) => g.ids), name,
+    ),
 
     /*
      * Change what is being recorded, without throwing away what already is.
@@ -2022,6 +2067,11 @@ function init() {
     // "the reader wants it open", and `section` needs to be able to tell.
     get: (id) => state.ui.sections[`${state.stage}:${id}`],
     set: (id, open) => { state.ui.sections[`${state.stage}:${id}`] = open; saveSoon(); },
+  }, {
+    // Locks are not per step: pinning "The object" open means you want it in
+    // view, and walking to the next step does not change that.
+    get: (id) => !!state.ui.locks[id],
+    set: (id, on) => { state.ui.locks[id] = on; saveSoon(); },
   });
 
   // The sidebar is inputs and nothing else. Every measurement lives in the

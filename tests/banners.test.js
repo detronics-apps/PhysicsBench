@@ -421,8 +421,107 @@ test('a scroll offset is re-applied after layout, not only before it', () => {
  */
 test('hiding the level chips keeps their box', () => {
   const css = read('../css/components.css');
-  const rule = css.match(/html:not\(\[data-page='bench'\]\) \.chipset--modes \{[^}]*\}/)[0];
+  const rule = css.match(/html:not\(\[data-page='bench'\]\) \.modebar-host \{[^}]*\}/)[0];
   assert.match(rule, /visibility: hidden/);
   assert.ok(!rule.includes('display: none'),
     'the chips still collapse their box, which reflows the step bar');
+});
+
+/* ------------------------------------------------- the shared furniture -- */
+
+/**
+ * The level switch sits on its own row, above the bar it governs.
+ *
+ * Sharing a row with the steps made it read as a filter on them. Directly
+ * under the wordmark and directly above the steps, it reads as what it is —
+ * and it matches where every other Detronics app puts it.
+ */
+test('the mode bar is its own row, above the steps', () => {
+  const main = read('../js/main.js');
+  assert.match(main, /class: 'modebar-host'/);
+  assert.match(main, /class: 'modebar', role: 'group'/);
+  assert.match(main, /class: 'chip modebar__chip'/);
+
+  // Order in the viewport: the mode bar, then the steps.
+  const order = main.match(/dom\.viewport = el\('section', \{ class: 'viewport' \}, \[([\s\S]*?)\]\);/)[1];
+  assert.ok(order.indexOf('dom.workspaceBar') < order.indexOf('dom.stages'),
+    'the steps come before the mode bar');
+});
+
+test('the sentence beside the chips is the current level\u2019s own', () => {
+  // Not a description of the control: a reader wants to know what they are
+  // looking at, not what the three words mean in the abstract.
+  const main = read('../js/main.js');
+  assert.match(main, /dom\.levelHint\.textContent = levelById\(state\.ui\.level\)\.note;/);
+});
+
+/**
+ * The lock is the escape hatch from the accordion.
+ *
+ * One panel at a time is right almost always and wrong exactly when somebody
+ * is comparing two things. Rather than weaken the default, let them pin one.
+ */
+test('a locked panel is exempt from every path that folds a panel', () => {
+  const widgets = read('../js/ui/widgets.js');
+  const main = read('../js/main.js');
+
+  // Opening a sibling.
+  assert.match(widgets, /other\.dataset\.locked !== 'true'/);
+  // The invariant applied after each render.
+  const solo = main.match(/function soloOpenSection\(\)[\s\S]*?\n\}\r?\n/)[0];
+  assert.match(solo, /node\.dataset\.locked === 'true'\) continue;/);
+  // And arriving at a step.
+  const focus = main.match(/function focusNewSections\([\s\S]*?\n\}\r?\n/)[0];
+  assert.match(focus, /n\.dataset\.locked !== 'true'/);
+});
+
+test('the lock renders whether or not the group was passed to section()', () => {
+  // The group is stamped on the node afterwards by `grouped()`, so gating the
+  // lock on the `group` argument rendered no locks at all.
+  const widgets = read('../js/ui/widgets.js');
+  assert.match(widgets, /const lock = lockable \? el\('button'/);
+  assert.match(widgets, /'data-locked': lockable \? String\(locked\) : null,/);
+});
+
+test('the lock survives a render, and is not filed per step', () => {
+  const main = read('../js/main.js');
+  // Pinning "The object" open means you want it in view; walking to the next
+  // step does not change that, so the key carries no stage.
+  assert.match(main, /get: \(id\) => !!state\.ui\.locks\[id\],/);
+  assert.match(main, /set: \(id, on\) => \{ state\.ui\.locks\[id\] = on; saveSoon\(\); \},/);
+  assert.match(read('../js/state.js'), /locks: sectionFlags\(incoming\.ui\?\.locks\),/);
+});
+
+/**
+ * The footer is about the app; the sidebar is about the experiment.
+ *
+ * Sharing, printing and the downloads are things you do to an experiment, so
+ * they belong in the column where everything else you do to one already is.
+ */
+test('the exports moved to the sidebar and the footer took their place', () => {
+  const bench = read('../js/ui/bench.js');
+  const main = read('../js/main.js');
+
+  // Last in the sidebar, and never lockable — an export you cannot find is an
+  // export nobody uses.
+  assert.match(bench, /exportSection\(ctx\),\r?\n\s*\]\.filter\(Boolean\), 'controls'\);/);
+  assert.match(bench, /\{ key: 'export', open: false, lockable: false \}/);
+
+  const footer = main.match(/function buildFooter\(\)[\s\S]*?\n\}\r?\n/)[0];
+  for (const label of ["What's new", 'Licence & terms', 'Imprint & privacy', 'I am new here']) {
+    assert.ok(footer.includes(label), `the footer has lost "${label}"`);
+  }
+  for (const gone of ['SVG', 'PNG', 'CSV', 'Share link']) {
+    assert.ok(!footer.includes(`button('${gone}'`), `${gone} is still in the footer`);
+  }
+});
+
+test('each footer panel says something, and none of it is invented', () => {
+  const guide = read('../js/guide.js');
+  for (const name of ['WHATS_NEW', 'LICENCE', 'IMPRINT']) {
+    assert.ok(new RegExp(`export const ${name} = \{`).test(guide), `${name} is missing`);
+  }
+  // The licence is the licence, and the privacy text is the architecture.
+  assert.match(guide, /MIT\. Use it, change it, ship it, teach with it\./);
+  assert.match(guide, /There is no server, no account, no analytics, no cookies/);
 });

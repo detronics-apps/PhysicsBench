@@ -64,7 +64,53 @@ export function controls(ctx) {
     f.has('control') ? controlSection(ctx) : null,
     viewSection(ctx),
     at('expert') ? recordingSection(ctx) : null,
+    exportSection(ctx),
   ].filter(Boolean), 'controls');
+}
+
+/**
+ * Sharing, printing and the downloads, at the foot of the panel.
+ *
+ * These used to sit in the page footer, which put the things you do *to an
+ * experiment* in the one strip of the app that is about the app rather than
+ * about the work. Everything else you do to an experiment is in this column;
+ * so is this, last, because it is what you reach for when you have finished.
+ *
+ * Never lockable and never folded away by the accordion's first pass: an
+ * export you cannot find is an export nobody uses.
+ */
+function exportSection(ctx) {
+  const name = `physics-${ctx.state.stage}`;
+  return section('Share and export', [
+    el('div', { class: 'tool-row' }, [
+      button('Copy a link', () => ctx.copyLink(), {
+        primary: true,
+        title: 'A link that reopens this exact experiment',
+      }),
+    ]),
+    el('div', {
+      class: 'field__hint',
+      text: 'The whole experiment travels in the part of the link after the "#", '
+        + 'which browsers never send to a server.',
+    }),
+
+    buttonRow([
+      button('SVG', () => ctx.downloadSvg(name), { small: true, title: 'The drawing, as a scalable vector file' }),
+      button('PNG', () => ctx.downloadPng(name), { small: true, title: 'The drawing, as an image' }),
+      button('CSV', () => ctx.downloadCsv(name), { small: true, title: 'The measurements, as a spreadsheet' }),
+      button('Print / PDF', () => ctx.print(), {
+        small: true,
+        title: 'Print, or choose "Save as PDF" in the dialog',
+      }),
+    ]),
+    el('div', {
+      class: 'field__hint',
+      text: ctx.at('advanced')
+        ? 'What goes on the printed sheet is chosen under "The drawing".'
+        : 'The sheet carries the drawing, the settings that produced it, the '
+          + 'measurements and the working.',
+    }),
+  ], { key: 'export', open: false, lockable: false });
 }
 
 /**

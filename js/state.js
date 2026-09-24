@@ -314,6 +314,14 @@ export const defaults = () => ({
   // re-render, and nowhere else does.
   ui: {
     sections: {},
+    /*
+     * Which panels the reader has pinned open, against the accordion.
+     *
+     * Kept beside `sections` and keyed the same way. A lock is a preference
+     * about how to read the app rather than part of an experiment, so it
+     * persists but says nothing about the physics.
+     */
+    locks: {},
     tool: 'none',
 
     /*
@@ -558,6 +566,7 @@ export function migrate(incoming) {
       : [],
     ui: {
       sections: sectionFlags(incoming.ui?.sections),
+      locks: sectionFlags(incoming.ui?.locks),
       tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
       level: oneOf(incoming.ui?.level, LEVEL_IDS, base.ui.level),
       /*

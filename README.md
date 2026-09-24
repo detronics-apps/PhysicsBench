@@ -59,8 +59,13 @@ control folded away keeps whatever it was set to.
 Every step of the simulation runs at every level. A control folded away keeps whatever it was set
 to, so switching levels never changes a number.
 
+The chips sit on their own row above the steps, with the chosen level's own sentence beside them.
+
 The controls are an accordion — one panel open at a time — and arriving at a step opens the panel
-that step introduces.
+that step introduces. The padlock beside a heading exempts that panel, so two can be open at once
+when you are comparing them. Sharing, printing and the downloads are the last section of that
+column, "Share and export"; the footer carries what the app itself is — what's new, the licence,
+the imprint, and a way back to the welcome.
 
 The point of building it this way is that split across separate labs, "mass", "force", "gravity",
 "friction" and "drag" look like separate subjects with separate formulas. Accumulated on one
