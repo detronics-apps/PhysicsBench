@@ -85,6 +85,21 @@ const input = {
 
 /* ---------------------------------------------------------------- theme -- */
 
+/**
+ * The level, on the root element, so CSS can reach it.
+ *
+ * Most of what a level hides is decided in JS, where the panel that would
+ * have been built simply is not. The explanatory line under a control is the
+ * exception: there are thirty of them, some built by `field()` and some
+ * written out beside it, and gating each one at its call site is thirty
+ * chances to miss one. One attribute and one rule covers every present and
+ * future hint — and unlike a JS gate it leaves them in the printed sheet,
+ * which is where a reader does want the prose.
+ */
+function applyLevel() {
+  document.documentElement.dataset.level = state.ui.level;
+}
+
 function applyTheme() {
   if (state.theme === 'system') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', state.theme);
@@ -457,8 +472,12 @@ function buildViewport() {
   dom.measurements = el('section', { class: 'measurements', id: 'measurements' }, [
     el('div', { class: 'measurements__head' }, [
       el('h2', { class: 'measurements__title', text: 'What it is doing' }),
+      /*
+       * A `field__hint`, so it goes when the rest of the prose goes: at Simple
+       * the tiles are four numbers under a heading that already names them.
+       */
       el('span', {
-        class: 'measurements__note',
+        class: 'measurements__note field__hint',
         text: 'Everything measured, in one place: how it is moving, the forces on '
           + 'it, and where it is. Nothing here is a control.',
       }),
@@ -1207,6 +1226,7 @@ export function render({ controls = true } = {}) {
   const snap = captureFocus();
   hideTooltip();
   applyTheme();
+  applyLevel();
   renderStages();
   renderLevels();
 
@@ -1343,7 +1363,18 @@ export function render({ controls = true } = {}) {
 
   clear(dom.explain);
   for (const node of bench.explains(ctx)) dom.explain.appendChild(node);
-  if (sim.scenario?.disclosure) dom.explain.appendChild(disclosurePanel(sim.scenario.disclosure));
+  /*
+   * What the simulation is doing — the reality, the model, the assumptions
+   * and the approximations, kept apart.
+   *
+   * It is the app's central promise and it is not optional, but it is a
+   * promise about the *model*, and a reader who has not yet accepted that a
+   * push makes something go faster is not yet asking which parts of that are
+   * approximated. It is the first thing Advanced adds.
+   */
+  if (sim.scenario?.disclosure && ctx.at('advanced')) {
+    dom.explain.appendChild(disclosurePanel(sim.scenario.disclosure));
+  }
 
   renderTransportBar();
   paint(true);
@@ -1443,16 +1474,28 @@ function paint(force = false) {
       }
     }
 
+    /*
+     * The full readout, every quantity at once, under the headline tiles.
+     *
+     * Not at Simple. The tiles above it already say what the object is doing
+     * in the four or five numbers the step is about; this is the same thing
+     * exhaustively, and on the first step it puts a column of velocities and
+     * momenta under an object that is not moving. Somebody meeting the
+     * subject should see the number the step is about, not every number the
+     * simulation happens to know.
+     */
     clear(dom.inspector);
-    const picker = renderBodyPicker(ctx.world, state.selectedId, (id) => {
-      state.selectedId = id;
-      saveSoon();
-      render();
-    });
-    if (picker) dom.inspector.appendChild(picker);
-    dom.inspector.appendChild(renderInspector(inspect(ctx.world, state.selectedId)));
-    if (ctx.world.bodies.filter((b) => !b.fixed).length > 1) {
-      dom.inspector.appendChild(renderTotals(totals(ctx.world)));
+    if (ctx.at('advanced')) {
+      const picker = renderBodyPicker(ctx.world, state.selectedId, (id) => {
+        state.selectedId = id;
+        saveSoon();
+        render();
+      });
+      if (picker) dom.inspector.appendChild(picker);
+      dom.inspector.appendChild(renderInspector(inspect(ctx.world, state.selectedId)));
+      if (ctx.world.bodies.filter((b) => !b.fixed).length > 1) {
+        dom.inspector.appendChild(renderTotals(totals(ctx.world)));
+      }
     }
   }
 

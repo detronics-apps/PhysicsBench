@@ -525,3 +525,48 @@ test('each footer panel says something, and none of it is invented', () => {
   assert.match(guide, /MIT\. Use it, change it, ship it, teach with it\./);
   assert.match(guide, /There is no server, no account, no analytics, no cookies/);
 });
+
+/**
+ * Simple is the controls and the result, and nothing else at all.
+ *
+ * Three things were still showing there, and each is prose rather than a
+ * number a reader is looking for: the explanatory line under every control,
+ * the exhaustive per-body readout under the headline tiles, and the panel
+ * that says which parts of the model are approximated.
+ */
+test('the explanatory lines are gone at Simple and back on paper', () => {
+  const css = read('../css/components.css');
+  assert.match(css, /html\[data-level='simple'\] \.field__hint \{ display: none; \}/);
+
+  // A printed sheet is read away from the app, so it keeps the prose whatever
+  // the level was on screen.
+  const printBlock = css.match(/@media print \{[\s\S]*?\n\}/)[0];
+  assert.match(printBlock, /html\[data-level='simple'\] \.field__hint \{ display: block; \}/);
+
+  // And the level has to reach the stylesheet for either rule to fire.
+  const main = read('../js/main.js');
+  assert.match(main, /document\.documentElement\.dataset\.level = state\.ui\.level;/);
+  assert.match(main, /applyTheme\(\);\r?\n\s*applyLevel\(\);/);
+});
+
+test('one rule covers every hint, including ones written later', () => {
+  // Thirty call sites is thirty chances to miss one, so the gate is central:
+  // `field()` builds its hint through the same helper.
+  const dom = read('../js/ui/dom.js');
+  assert.match(dom, /export const showHints = \(on\) =>/);
+  assert.match(dom, /export const hint = \(text\) => \(hintsShown && text/);
+  assert.match(dom, /hint\(hintText\),/);
+});
+
+test('the exhaustive readout and the model disclosure wait for Advanced', () => {
+  const main = read('../js/main.js');
+
+  // The tiles above it already say what the step is about; this is the same
+  // thing exhaustively, and on step one it is a column of velocities under an
+  // object that is not moving.
+  assert.match(main, /clear\(dom\.inspector\);\r?\n\s*if \(ctx\.at\('advanced'\)\) \{/);
+  assert.match(main, /if \(sim\.scenario\?\.disclosure && ctx\.at\('advanced'\)\) \{/);
+
+  // The heading's own note travels with the rest of the prose.
+  assert.match(main, /class: 'measurements__note field__hint',/);
+});

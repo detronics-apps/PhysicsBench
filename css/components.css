@@ -1478,3 +1478,20 @@ html:not([data-page='bench']) .modebar-host { visibility: hidden; }
   color: var(--text-dim);
   line-height: 1.55;
 }
+
+/* --- what Simple leaves out -------------------------------------------- *
+ * The explanatory line under a control. A newcomer needs the control and its
+ * name; a paragraph under every one of a dozen fields is what makes a panel
+ * look like a manual, and it is the first thing that stops being read. The
+ * sentences are unchanged at Advanced, where somebody is asking *why*.
+ *
+ * Done here rather than at thirty call sites, and it keeps them on the
+ * printed sheet, which is where a reader does want the prose.             */
+
+html[data-level='simple'] .field__hint { display: none; }
+
+/* Printing is not the screen: a sheet is read away from the app, so it
+   carries the explanations whatever the level was on screen. */
+@media print {
+  html[data-level='simple'] .field__hint { display: block; }
+}

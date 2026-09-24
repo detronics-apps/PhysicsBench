@@ -5,6 +5,31 @@
 Three levels of detail, a guide that answers in your own words, a world that can be made of
 water, and the shared furniture every Detronics bench carries.
 
+### Simple means Simple
+
+Three things were still on screen at Simple, and each is prose rather than a number anybody is
+looking for:
+
+- **The explanatory line under every control.** A newcomer needs the control and its name; a
+  paragraph under each of a dozen fields is what makes a panel look like a manual, and it is the
+  first thing that stops being read. Step one's sidebar is now mass, shape, size, material and
+  the button — nothing else. The sentences are unchanged at Advanced, and a printed sheet still
+  carries them whatever the level was on screen, because a sheet is read away from the app.
+- **The exhaustive readout under the headline tiles.** On step one it was a column of velocities,
+  momenta and forces under an object that is not moving. The tiles above it already said the one
+  number that screen is about.
+- **"What this simulation is doing".** It is the app's central promise and it is not optional,
+  but it is a promise about the *model* — and a reader who has not yet accepted that a push makes
+  something go faster is not yet asking which parts of that are approximated.
+
+Measured on step one: one tile, one teaching panel, no visible prose. On step two: four tiles —
+mass, velocity, acceleration, net force, which is what that step is about — and still one panel.
+Advanced restores all of it.
+
+The hint rule is one CSS rule against a `data-level` attribute on the root rather than a gate at
+each of thirty call sites, because thirty call sites is thirty chances to miss one and the next
+hint anybody adds would slip through.
+
 ### Simple, Advanced, Expert
 
 A three-way detail level on its own row above the steps. It hides and

@@ -181,14 +181,35 @@ export function infoIcon(text) {
   return icon;
 }
 
+/*
+ * Whether the explanatory lines under controls are drawn at all.
+ *
+ * At Simple they are not. A newcomer meeting the app needs the control and
+ * its name; a paragraph under every one of a dozen fields is what makes a
+ * panel look like a manual, and it is the first thing that stops being read.
+ * The same sentences are still there at Advanced, where somebody is asking
+ * *why* rather than *what*.
+ *
+ * A flag rather than a parameter threaded through thirty call sites, and it
+ * lives here rather than in widgets.js because `field` is the one place every
+ * labelled control is built.
+ */
+let hintsShown = true;
+export const showHints = (on) => { hintsShown = !!on; };
+
+/** A line of explanation under a control, or nothing when hints are off. */
+export const hint = (text) => (hintsShown && text
+  ? el('div', { class: 'field__hint', text })
+  : null);
+
 /** A labelled form field, optionally with an info icon and a hint line. */
-export function field(label, control, { info, hint } = {}) {
+export function field(label, control, { info, hint: hintText } = {}) {
   const id = control.id || `f-${Math.random().toString(36).slice(2, 9)}`;
   control.id = id;
   return el('div', { class: 'field' }, [
     el('label', { class: 'field__label', for: id }, [label, info ? infoIcon(info) : null]),
     control,
-    hint ? el('div', { class: 'field__hint', text: hint }) : null,
+    hint(hintText),
   ]);
 }
 
