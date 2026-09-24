@@ -575,7 +575,7 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.5.0',
+  version: '1.6.0',
   body: [
     ['A world made of water',
       'From step 6, "what the world is made of" can be a liquid instead of solid ground. '
@@ -592,6 +592,10 @@ export const WHATS_NEW = {
     ['How to use',
       'A guide you can search in your own words, and a welcome on the first visit that '
       + 'you can reopen any time from "I am new here".'],
+    ['Sharing and exporting moved',
+      'The link, SVG, PNG, CSV and Print are now the last section of the controls, '
+      + 'beside everything else you do to an experiment. The footer is for what the app '
+      + 'itself is — this panel, the licence, the imprint, and the way back to the welcome.'],
   ],
 };
 

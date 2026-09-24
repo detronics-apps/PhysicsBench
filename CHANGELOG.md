@@ -1,12 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
-The house chrome this app was missing, and the self-teaching shell that goes with it.
+Three levels of detail, a guide that answers in your own words, a world that can be made of
+water, and the shared furniture every Detronics bench carries.
 
 ### Simple, Advanced, Expert
 
-A three-way detail level in a workspace bar above the drawing, beside the steps. It hides and
+A three-way detail level on its own row above the steps. It hides and
 never changes a value: every step of the simulation runs at every level, every force is computed,
 and a control folded away keeps whatever it was set to.
 
@@ -143,15 +144,6 @@ A button in the footer, on every screen, that reopens the welcome. Showing it on
 "once" only works if there is an obvious way back, and the guide is not where somebody who does
 not yet know what the app is will think to look.
 
-### Fixed
-
-- **A floating body had no damping**, as above.
-- **Removing the ground removed gravity with it.** One flag meant both "there is a world with a
-  downward field" and "there is something to land on", so the first ball dropped into a lake hung
-  motionless in the air.
-- **One wrong figure in the new example's notes**: the air a 0.4 m ball displaces weighs 0.4 N,
-  not 0.04 N. 0.04 is the mass in kilograms.
-
 ### The links back to Detronics
 
 The logo is the way home. A Buy Me a Coffee button sits left of the theme disc, with a matching
@@ -160,9 +152,21 @@ link beside the version in the footer. The cup is a line drawing in `currentColo
 
 ### Fixed
 
+- **A floating body had no damping.** Its centre sits above the waterline, so it took buoyancy
+  from the water and drag from the air — a stiff restoring force with nothing opposing it.
+- **Removing the ground removed gravity with it.** One flag meant both "there is a world with a
+  downward field" and "there is something to land on", so the first ball dropped into a lake hung
+  motionless in the air.
 - **Clicking a step from the shelf or the guide did nothing.** The step changed underneath a page
   that was not showing one, so the bar highlighted a step and the screen stayed put.
 - **Two tabs read as current at once** on the shelf and the guide.
+- **Clicking anything could scroll the page out from under you.** Scrolled containers were
+  remembered by name and on one axis only, so reaching the last tab and pressing it threw the bar
+  back to the first.
+- **The section padlock rendered nowhere**, because it was gated on an argument that is filled in
+  after the fact.
+- **One wrong figure in the new example's notes**: the air a 0.4 m ball displaces weighs 0.4 N,
+  not 0.04 N — 0.04 is the mass in kilograms.
 - **The README said eight steps.** There have been seven since the surface step was folded into
   friction.
 
