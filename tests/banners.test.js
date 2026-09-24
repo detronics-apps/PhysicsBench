@@ -570,3 +570,58 @@ test('the exhaustive readout and the model disclosure wait for Advanced', () => 
   // The heading's own note travels with the rest of the prose.
   assert.match(main, /class: 'measurements__note field__hint',/);
 });
+
+/**
+ * A message you cannot close or shorten is furniture.
+ *
+ * Step three shows two at once, and written out in full they were 220 px on a
+ * phone — 27% of the screen, above the drawing the app is for. Collapsed to
+ * their first line they are 83 px, and closing one removes it.
+ */
+test('every banner can be closed, and stays closed', () => {
+  const widgets = read('../js/ui/widgets.js');
+
+  assert.match(widgets, /class: 'banner__close', type: 'button',/);
+  assert.match(widgets, /'aria-label': 'Dismiss this message',/);
+  // Closed once, gone for the session: it returns null rather than a node.
+  assert.match(widgets, /if \(dismissible && dismissed\.has\(id\)\) return null;/);
+  // So the callers have to filter rather than track state themselves.
+  assert.match(read('../js/main.js'), /for \(const node of bench\.banners\(ctx\)\) if \(node\) dom\.banners\.appendChild\(node\);/);
+  assert.match(widgets, /\.filter\(Boolean\);/);
+});
+
+test('a live figure in a banner does not resurrect it', () => {
+  // "These two masses attract with 5.46e-9 N" changes whenever a slider
+  // moves; keying the dismissal on the whole string would bring it back.
+  const widgets = read('../js/ui/widgets.js');
+  const keyLine = widgets.match(/const bannerKey = [^\n]*/)[0];
+  assert.match(keyLine, /replace\(/);
+  // The digits are flattened out, so the key names the message not its value.
+  assert.ok(keyLine.includes('#'), 'the key does not normalise numbers away');
+
+  // Dismissals are in memory, not in storage: closing one means "I have read
+  // this", not "never tell me again", and a reload is a fresh look.
+  assert.match(widgets, /const dismissed = new Set\(\);/);
+  assert.ok(!/localStorage[^\n]*dismiss/i.test(widgets), 'dismissals are being persisted');
+  // Reset is a fresh start in every sense.
+  assert.match(read('../js/main.js'), /reset\(\);\r?\n\s*clearDismissed\(\);/);
+});
+
+test('a banner is one line until it is asked for', () => {
+  const css = read('../css/components.css');
+  const rule = css.match(/\.banner__text \{[^}]*\}/)[0];
+  assert.match(rule, /-webkit-line-clamp: 1;/);
+  assert.match(css, /\.banner__text\[aria-expanded='true'\] \{ -webkit-line-clamp: unset;/);
+
+  // Keyboard-reachable, because it is a real button rather than a click handler.
+  const widgets = read('../js/ui/widgets.js');
+  assert.match(widgets, /class: 'banner__text', type: 'button',/);
+  assert.match(widgets, /'aria-expanded': 'false',/);
+});
+
+test('paper gets the whole message and no buttons', () => {
+  const css = read('../css/components.css');
+  assert.match(css, /@media print \{ \.banner__close \{ display: none; \} \}/);
+  const printBlock = css.match(/@media print \{\r?\n\s*\.banner__text \{ -webkit-line-clamp: unset;[\s\S]*?\n\}/)[0];
+  assert.match(printBlock, /line-clamp: unset/);
+});

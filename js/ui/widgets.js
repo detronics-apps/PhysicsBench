@@ -537,18 +537,91 @@ export const BANNER_LEVELS = Object.keys(BANNER_CLASS);
  * Live warnings rather than validation on submit. An experiment being set up
  * is allowed to be odd for a moment; what it must never be is silently odd.
  */
-export function banner(level, text) {
+/**
+ * Which messages the reader has closed, for as long as the page is open.
+ *
+ * In memory rather than in storage, deliberately. Every banner here says
+ * something that is true *right now*; closing one means "I have read this",
+ * not "never tell me again". A reload is a fresh look at the bench, and a
+ * warning that the model has run out should be there for it.
+ */
+const dismissed = new Set();
+
+/**
+ * What makes two banners the same banner.
+ *
+ * Not the text: half of these carry a live figure — "these two masses attract
+ * with 5.46e-9 N" — and keying on the whole string would resurrect the banner
+ * the instant a slider moved. Numbers are flattened out, so the key names the
+ * *message* rather than what it currently reads.
+ */
+const bannerKey = (text) => String(text).replace(/\d[\d.,eE+\-]*/g, '#');
+
+/**
+ * A banner, with the close button every one of them carries.
+ *
+ * A message with no way to dismiss it is furniture: it sits above the drawing
+ * for the rest of the session whether or not it has been read, and on a step
+ * with two of them it is most of the screen. Closing one is the reader saying
+ * they have taken it in.
+ *
+ * Returns `null` once closed, so a caller filters rather than tracking state.
+ */
+export function banner(level, text, { key = null, dismissible = true } = {}) {
+  const id = key || bannerKey(text);
+  if (dismissible && dismissed.has(id)) return null;
+
+  /*
+   * Collapsed to its first line, and opened by a click.
+   *
+   * These messages are written as a sentence that says the thing followed by
+   * a paragraph explaining it, and on a step with two of them the paragraphs
+   * were most of the screen above the drawing. The first line is the message;
+   * the rest is there for the reader who wants it.
+   *
+   * A real button rather than a clickable span, so it is reachable by keyboard
+   * without re-implementing what a button already does.
+   */
+  const body = el('button', {
+    class: 'banner__text', type: 'button',
+    'aria-expanded': 'false',
+    title: 'Show the whole message',
+    text,
+    on: {
+      click: (event) => {
+        const b = event.currentTarget;
+        const open = b.getAttribute('aria-expanded') !== 'true';
+        b.setAttribute('aria-expanded', String(open));
+        b.title = open ? 'Shorten this message' : 'Show the whole message';
+      },
+    },
+  });
+
   return el('div', { class: `banner ${BANNER_CLASS[level] || BANNER_CLASS.info}` }, [
     el('span', { class: 'banner__mark', text: BANNER_MARK[level] || 'i' }),
-    el('span', { text }),
+    body,
+    dismissible ? el('button', {
+      class: 'banner__close', type: 'button',
+      'aria-label': 'Dismiss this message',
+      title: 'Dismiss',
+      on: {
+        click: (event) => {
+          dismissed.add(id);
+          event.currentTarget.closest('.banner')?.remove();
+        },
+      },
+    }, el('span', { 'aria-hidden': 'true', text: '×' })) : null,
   ]);
 }
+
+/** Forget every dismissal — for a reset, which is a fresh start in every sense. */
+export const clearDismissed = () => dismissed.clear();
 
 export function bannerList(problems, { emptyText = null } = {}) {
   const order = { error: 0, danger: 0, warn: 1, ok: 2, info: 3 };
   const sorted = [...problems].sort((a, b) => (order[a.level] ?? 9) - (order[b.level] ?? 9));
-  if (!sorted.length && emptyText) return [banner('ok', emptyText)];
-  return sorted.map((problem) => banner(problem.level, problem.text));
+  if (!sorted.length && emptyText) return [banner('ok', emptyText)].filter(Boolean);
+  return sorted.map((problem) => banner(problem.level, problem.text)).filter(Boolean);
 }
 
 /* --------------------------------------------------------------- tables -- */

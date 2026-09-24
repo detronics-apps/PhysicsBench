@@ -5,6 +5,23 @@
 Three levels of detail, a guide that answers in your own words, a world that can be made of
 water, and the shared furniture every Detronics bench carries.
 
+### Banners close, and start collapsed
+
+Every notification block now carries a × on the right, and opens to its first line rather than
+its whole paragraph. Step three shows two at once; written out in full they were 220 px on a
+phone — 27% of the screen, above the drawing the app is for. Collapsed they are 83 px.
+
+These messages are written as a sentence that says the thing followed by a paragraph explaining
+it, so the first line is the message and the rest is one click away. Both controls are real
+buttons, so they work from the keyboard, and the close inherits the banner's own colour so it is
+never louder than the message it belongs to.
+
+The dismissal is keyed on the *message* rather than on the text, because half of these carry a
+live figure — "these two masses attract with 5.46e-9 N" — and keying on the string would bring
+the banner back the instant a slider moved. It is held in memory rather than storage: closing one
+means "I have read this", not "never tell me again", so a reload gives a fresh look and a reset
+clears them. A printed sheet gets the whole message and no buttons.
+
 ### Simple means Simple
 
 Three things were still on screen at Simple, and each is prose rather than a number anybody is

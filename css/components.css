@@ -1495,3 +1495,54 @@ html[data-level='simple'] .field__hint { display: none; }
 @media print {
   html[data-level='simple'] .field__hint { display: block; }
 }
+
+/* --- dismissing a banner ----------------------------------------------- *
+ * A message with no way to close it is furniture: it sits above the drawing
+ * for the rest of the session whether or not it has been read, and on a step
+ * with two of them it is most of the screen.                              */
+
+/*
+ * One line until asked.
+ *
+ * Every banner is a sentence that says the thing, then a paragraph explaining
+ * it. On a step with two of them the paragraphs were most of the screen above
+ * the drawing, which is the wrong way round: the drawing is the app.
+ */
+.banner__text {
+  flex: 1 1 auto; min-width: 0;
+  font: inherit; color: inherit; text-align: left;
+  padding: 0; border: none; background: transparent;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.banner__text[aria-expanded='true'] { -webkit-line-clamp: unset; overflow: visible; }
+.banner__text:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* Paper has no clicks and plenty of room. */
+@media print {
+  .banner__text { -webkit-line-clamp: unset; overflow: visible; }
+}
+.banner__close {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  margin: -2px -4px 0 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  font: inherit; font-size: 15px; line-height: 1;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  /* Inherits the banner's own colour, so it is never louder than the message
+     it belongs to and needs no rule per severity. */
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.banner__close:hover { opacity: 1; background: rgb(0 0 0 / 8%); }
+.banner__close:focus-visible { opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; }
+
+/* Nothing to press on paper. */
+@media print { .banner__close { display: none; } }

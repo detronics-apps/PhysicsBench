@@ -22,7 +22,7 @@
 import { load, save, saveSoon, state, reset } from './state.js';
 import { el, svg, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
-import { configureSections, button, drag, banner } from './ui/widgets.js';
+import { configureSections, button, drag, banner, clearDismissed } from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
 
 import {
@@ -560,6 +560,7 @@ function buildFooter() {
       }),
       button('Reset', () => {
         reset();
+        clearDismissed();
         rebuild();
         render();
         toast('Back to the start of the bench');
@@ -1449,11 +1450,18 @@ function paint(force = false) {
 
     clear(dom.banners);
     if (growth) {
-      // One caption, and none of the ordinary commentary: every banner the bench
-      // would otherwise show is about a simulation that is not running.
-      dom.banners.appendChild(banner('info', growthCaption(growth.frame)));
+      /*
+       * One caption, and none of the ordinary commentary: every banner the
+       * bench would otherwise show is about a simulation that is not running.
+       *
+       * Not dismissible, because it is a running commentary on a few seconds
+       * of animation rather than a message — there is nothing to take in and
+       * it goes by itself.
+       */
+      dom.banners.appendChild(banner('info', growthCaption(growth.frame), { dismissible: false }));
     } else {
-      for (const node of bench.banners(ctx)) dom.banners.appendChild(node);
+      // A banner the reader has closed comes back as null.
+      for (const node of bench.banners(ctx)) if (node) dom.banners.appendChild(node);
     }
   }
 
