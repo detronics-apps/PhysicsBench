@@ -430,7 +430,7 @@ function otherMassSection(ctx) {
 }
 
 function worldSection(ctx) {
-  const { params: p, set } = ctx;
+  const { params: p, set, at } = ctx;
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
 
   const f = ctx.features;
@@ -514,7 +514,7 @@ function worldSection(ctx) {
       info: 'Half the radius, four times the surface gravity — it goes as 1/r².',
     }),
 
-    el('div', { class: 'dims' }, [
+    !at('advanced') ? null : el('div', { class: 'dims' }, [
       el('dt', { text: 'Surface gravity' }),
       el('dd', { text: `${fmtFixed(world.g, 3)} m/s²` }),
       el('dt', { text: 'Mean density' }),
@@ -547,7 +547,7 @@ function worldSection(ctx) {
         + 'slide — which is why the normal force shrinks as the tilt grows.',
       hint: 'A positive angle rises to the right, so downhill is to the left.',
     }) : null,
-    f.has('ground') && !ctx.space ? el('div', { class: 'dims' }, [
+    at('advanced') && f.has('ground') && !ctx.space ? el('div', { class: 'dims' }, [
       el('dt', { text: 'Weight' }),
       el('dd', { text: `${fmtFixed(p.mass * world.g, 2)} N` }),
       el('dt', { text: 'Pressing into the surface' }),
@@ -562,7 +562,7 @@ function worldSection(ctx) {
 }
 
 function surfaceSection(ctx) {
-  const { params: p, set } = ctx;
+  const { params: p, set, at } = ctx;
   const f = ctx.features;
   const world = describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId });
   const rad = (p.slopeDeg * Math.PI) / 180;
@@ -602,7 +602,7 @@ function surfaceSection(ctx) {
       hint: `Cannot exceed μs — that is what the two words mean. The drop from `
         + `${fmtFixed(p.muS, 2)} to ${fmtFixed(p.muK, 2)} is why a stuck object lurches when it moves.`,
     }) : null,
-    f.has('friction') ? el('div', { class: 'dims' }, [
+    at('advanced') && f.has('friction') ? el('div', { class: 'dims' }, [
       el('dt', { text: 'This object' }),
       el('dd', { text: contactKind(p.shapeId).label }),
       el('dt', { text: 'Slides at' }),

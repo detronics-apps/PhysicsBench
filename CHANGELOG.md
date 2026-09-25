@@ -5,6 +5,30 @@
 Three levels of detail, a guide that answers in your own words, a world that can be made of
 water, and the shared furniture every Detronics bench carries.
 
+### The levels, audited across every screen
+
+Every step driven at every level and the counts tabulated. The rule "a figure that follows from
+the controls waits for Advanced" had been applied to the object and the fluid and missed on the
+world, the slope and the surface — so walking the steps at Simple gave 0, 0, 0, 1, 3, 3, 3
+read-only grids. It looked right from the first screen and fell apart at the fourth, and nobody
+reading the code would have seen it, because each panel is correct on its own.
+
+Simple is now the same shape on all seven steps: no derived grids, no explanatory lines, no
+tables, one teaching panel. What varies is the readout, and it should — mass on step one; mass,
+velocity, acceleration and net force once there is a push; height once there is a floor; buoyancy
+once there is a fluid. Every other column rises monotonically from Simple to Advanced to Expert.
+
+A test now walks the source, attributes each derived grid to the function it sits in, and fails
+by name if one is added without the gate — checked by removing a gate and watching it catch,
+because a test that has never failed has not been shown to work.
+
+### The theme control says which theme
+
+`◐ ☀ ☾` rather than `◐ ○ ●`. The brand spec has always said so, and the app was drawing the
+same shape three times: an empty circle and a filled one say nothing about which is light and
+which is dark, and the only reason a text glyph is allowed there rather than a line-drawn icon is
+that it reports the state on its own.
+
 ### Banners close, and start collapsed
 
 Every notification block now carries a × on the right, and opens to its first line rather than

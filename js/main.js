@@ -107,7 +107,16 @@ function applyTheme() {
 
 const THEME_ORDER = ['system', 'light', 'dark'];
 const THEME_LABEL = { system: 'Theme: auto', light: 'Theme: light', dark: 'Theme: dark' };
-const THEME_GLYPH = { system: '◐', light: '○', dark: '●' };
+/*
+ * The three states, as the brand spec has them.
+ *
+ * A half-filled disc for "follow the machine", then a sun and a moon. The
+ * app drew an empty and a filled circle instead, which is the same shape
+ * three times and says nothing about which is light and which is dark — the
+ * whole reason a glyph is allowed here rather than a line-drawn icon is that
+ * it reports the state on its own.
+ */
+const THEME_GLYPH = { system: '◐', light: '☀', dark: '☾' };
 
 const SITE_URL = 'https://www.detronics.co.za/';
 const COFFEE_URL = 'https://buymeacoffee.com/detronics';

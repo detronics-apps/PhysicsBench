@@ -625,3 +625,48 @@ test('paper gets the whole message and no buttons', () => {
   const printBlock = css.match(/@media print \{\r?\n\s*\.banner__text \{ -webkit-line-clamp: unset;[\s\S]*?\n\}/)[0];
   assert.match(printBlock, /line-clamp: unset/);
 });
+
+/**
+ * A level's rule has to hold on every panel, not the one that was in view.
+ *
+ * "Derived figures wait for Advanced" was applied to the object and the fluid
+ * and missed on the world, the surface and the slope, so walking the steps at
+ * Simple went 0, 0, 0, 1, 3, 3, 3 read-only grids — the rule looked right from
+ * step one and fell apart at step four.
+ *
+ * Checked over the source rather than per panel, because the failure is
+ * always the *next* panel somebody adds.
+ */
+test('every derived figure grid waits for Advanced', () => {
+  const lines = read('../js/ui/bench.js').split('\n');
+
+  // Which function each line sits in, by the nearest declaration above it.
+  let fn = '(top level)';
+  const ungated = [];
+  for (const [i, line] of lines.entries()) {
+    const declared = /^(?:export )?function (\w+)/.exec(line);
+    if (declared) fn = declared[1];
+    if (!line.includes("class: 'dims'")) continue;
+    // The recording panel is Expert in its entirety, so its grid needs no gate.
+    if (fn === 'recordingSection') continue;
+    if (!line.includes("at('advanced')")) ungated.push(`${fn} (line ${i + 1})`);
+  }
+
+  assert.deepEqual(ungated, [],
+    `read-only grids with no level gate: ${ungated.join('; ')}`);
+});
+
+test('the theme control reports its state with three different glyphs', () => {
+  const main = read('../js/main.js');
+  const line = main.match(/const THEME_GLYPH = [^\n]*/)[0];
+
+  // The brand spec: a half disc for "follow the machine", a sun, a moon. It
+  // drew an empty and a filled circle, which is the same shape three times
+  // and says nothing about which is light and which is dark.
+  assert.match(line, /system: '◐'/);
+  assert.match(line, /light: '☀'/);
+  assert.match(line, /dark: '☾'/);
+
+  const glyphs = [...line.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.equal(new Set(glyphs).size, 3, 'two states share a glyph');
+});
