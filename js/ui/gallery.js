@@ -64,7 +64,7 @@ export function galleryPage(actions) {
 
   return el('section', { class: 'gallery' }, [
     el('div', { class: 'prompt' }, [
-      el('p', { class: 'prompt__meta', text: 'Prepared experiments' }),
+      el('p', { class: 'prompt__meta', text: 'Examples' }),
       el('p', {
         class: 'prompt__ask',
         text: 'Things worth watching, already set up.',

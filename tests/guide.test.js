@@ -158,9 +158,9 @@ test('the welcome is a short numbered path, not a manual', () => {
 
 test('the guide counts the steps and the experiments correctly', () => {
   // "One bench, seven steps" and the shelf's count are both claims.
-  const concept = CONCEPTS.find((c) => c.name.includes('seven steps'));
-  assert.ok(concept, 'the seven-steps tile has been renamed — check the count still matches');
-  assert.equal(STAGES.length, 7, 'there are no longer seven steps; the guide says there are');
+  const concept = CONCEPTS.find((c) => c.name.includes('six steps'));
+  assert.ok(concept, 'the six-steps tile has been renamed — check the count still matches');
+  assert.equal(STAGES.length, 6, 'there are no longer six steps; the guide says there are');
 
   const shelf = FEATURES.find((f) => f.what.includes('Twelve scenes'));
   assert.ok(shelf, 'the prepared-experiments tile has been reworded — check the count');

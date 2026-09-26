@@ -149,7 +149,23 @@ export function guidePage(actions) {
 
     block('The ideas behind it', 'Five things that make the rest of the app obvious.',
       [el('div', { class: 'guide__grid' }, CONCEPTS.map((c) => tile(c.name, c.what)))]),
-  ]);
+
+    /*
+     * What there is left to find.
+     *
+     * Last, because it is the one section you come back to rather than arrive
+     * at: somebody who has stopped finding things needs somewhere to look for
+     * what is left, and somebody who has just found one lands here from the
+     * card that told them.
+     */
+    actions.achievements
+      ? block('Things to find',
+        'Each one marks something the bench does that you would not find from a label. '
+        + 'Nothing is locked behind them and nothing is scored \u2014 they are a way of being '
+        + 'told what you just did, at the moment you do it.',
+        [actions.achievements()])
+      : null,
+  ].filter(Boolean));
 }
 
 /* ------------------------------------------------------------ welcome -- */
@@ -246,4 +262,73 @@ export function panelOverlay(panel, onClose) {
   back.addEventListener('click', (event) => { if (event.target === back) close(); });
   back.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
   return back;
+}
+
+/* --------------------------------------------------- what you have found -- */
+
+/**
+ * The card that says you just found something.
+ *
+ * It sits where a toast sits and behaves like one, but it stays four times as
+ * long, because the point is not the badge — it is the sentence under it, and
+ * a sentence nobody had time to read is a sentence that was not written.
+ *
+ * Clicking it opens the full list; clicking the × dismisses it.
+ */
+export function achievementToast(achievement, { onOpen, onClose }) {
+  const card = el('div', {
+    class: 'unlock', role: 'status',
+  }, [
+    el('button', {
+      class: 'unlock__body', type: 'button',
+      title: 'See everything there is to find',
+      on: { click: () => { card.remove(); onOpen?.(); } },
+    }, [
+      el('div', { class: 'unlock__eyebrow', text: 'Found something' }),
+      el('div', { class: 'unlock__name', text: achievement.name }),
+      el('p', { class: 'unlock__what', text: achievement.what }),
+    ]),
+    el('button', {
+      class: 'unlock__close', type: 'button', 'aria-label': 'Dismiss', title: 'Dismiss',
+      on: { click: () => { card.remove(); onClose?.(); } },
+    }, el('span', { 'aria-hidden': 'true', text: '\u00d7' })),
+  ]);
+  return card;
+}
+
+/**
+ * Everything there is to find, held and unheld.
+ *
+ * Locked ones show their hint rather than their name, because the name gives
+ * the discovery away and the hint is the invitation. Nothing here is a spoiler
+ * and nothing is a chore: the list exists so somebody who has stopped finding
+ * things has somewhere to look for what is left.
+ */
+export function achievementsPanel(held, groupsOf, all) {
+  const earned = all.filter((a) => held[a.id]).length;
+
+  return el('section', { class: 'found' }, [
+    el('p', {
+      class: 'found__count',
+      text: `${earned} of ${all.length} found`,
+    }),
+    el('div', {
+      class: 'found__bar', role: 'img',
+      'aria-label': `${earned} of ${all.length} found`,
+    }, el('div', {
+      class: 'found__bar-fill',
+      style: { width: `${Math.round((earned / all.length) * 100)}%` },
+    })),
+
+    ...groupsOf().map((group) => el('div', { class: 'found__group' }, [
+      el('h3', { class: 'guide__heading', text: group }),
+      el('div', { class: 'found__grid' }, all.filter((a) => a.group === group).map((a) => {
+        const got = !!held[a.id];
+        return el('div', { class: `found__item${got ? ' is-found' : ''}` }, [
+          el('div', { class: 'found__name', text: got ? a.name : 'Not found yet' }),
+          el('p', { class: 'found__text', text: got ? a.what : a.hint }),
+        ]);
+      })),
+    ])),
+  ]);
 }

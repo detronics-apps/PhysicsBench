@@ -137,9 +137,9 @@ export function renderScene(world, {
   for (const planet of planets) root.appendChild(drawPlanet(cam, planet));
   if (view.showGrid !== false) root.appendChild(drawGrid(cam, view.grid));
   if (world.ground) root.appendChild(drawGround(cam, world.ground));
-  // A world made of liquid has no ground to draw, and drawing nothing would
-  // leave an object apparently sinking through empty air.
-  if (world.env?.surfaceFluid) root.appendChild(drawLiquid(cam, world.env));
+  // The water goes on after the bed, so the strip sits between the surface
+  // and the ground rather than over it.
+  if (world.env?.surfaceFluid) root.appendChild(drawLiquid(cam, world.env, world.ground));
   if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
   if (drawing) root.appendChild(drawPending(cam, drawing));
   if (world.cannons?.length) root.appendChild(drawCannons(cam, world.cannons));
@@ -500,12 +500,19 @@ function drawGrid(cam, override = 'auto') {
  * heavier than the ground's, since a liquid is something you are *in* rather
  * than something you are on.
  */
-function drawLiquid(cam, env) {
+function drawLiquid(cam, env, ground) {
   const group = svg('g', { class: 'scene__liquid' });
   const y = clampY(toScreen(cam, { x: 0, y: env.surfaceY ?? 0 }).y);
+  /*
+   * Down to the bed, not to the bottom of the picture.
+   *
+   * A lake has a floor, and painting the water past it would put water over
+   * the ground the object is resting on.
+   */
+  const bed = ground ? clampY(toScreen(cam, { x: 0, y: ground.y }).y) : VIEW_H;
 
   group.appendChild(svg('rect', {
-    x: 0, y: r(y), width: VIEW_W, height: r(Math.max(0, VIEW_H - y)),
+    x: 0, y: r(y), width: VIEW_W, height: r(Math.max(0, bed - y)),
     fill: 'var(--force-drag)', 'fill-opacity': 0.16,
   }));
   group.appendChild(svg('line', {

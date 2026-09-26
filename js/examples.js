@@ -108,46 +108,41 @@ export const EXAMPLES = [
     },
   },
   {
-    id: 'five-densities',
-    title: 'Five densities, one fluid',
-    blurb: 'The same five balls sort themselves differently in air, in water and in honey.',
-    watch: 'Five spheres the same size, differing only in what they are made of, '
-      + 'and the fluid decides which way each one goes. In water three rise and '
-      + 'two sink. Switch to honey and the rubber one joins them — nothing about '
-      + 'the ball changed, the fluid got denser than it is. Switch to air and '
-      + 'every one of them falls, because air is eight hundred times thinner than '
-      + 'water and nothing here is that light. Buoyancy is the weight of the '
-      + 'fluid pushed aside, so the only question is which is denser.',
+    id: 'two-weights-two-shapes',
+    title: 'Two weights, two shapes',
+    blurb: 'Four objects, two of each weight and two of each shape. The fluid decides which way they go; the shape decides how fast.',
+    watch: 'A sphere and a flat plate of the same weight and the same volume '
+      + 'answer the question the same way — they are the same density, and '
+      + 'density is the whole of floating. What differs is how long they take: '
+      + 'the plate pushes ten times as much fluid out of the way to move the '
+      + 'same distance. Change the fluid and both pairs re-sort together.',
     stage: 'fluid',
     /*
-     * Same shape, same size, five densities — so the only thing that differs
-     * between them is the one thing the demonstration is about. Give them
-     * different sizes as well and every result has two explanations.
+     * Two variables, one at a time, which is the only way a comparison
+     * teaches anything.
      *
-     * The masses are each material's density times the volume of a 0.4 m
-     * sphere, which is what makes the balls actually *be* pine and rubber
-     * rather than merely labelled as such.
+     * All four displace the same 0.0335 m³. A plate of 0.695 m has exactly the
+     * volume of a 0.4 m sphere — so within a pair the *density* is identical
+     * and the only difference is shape, and across pairs the shape is repeated
+     * and the only difference is density. Whatever happens, there is one thing
+     * it can be blamed on.
      *
-     * Rubber is the one to watch and the one selected: at 1100 kg/m³ it sits
-     * between water and honey, so it is the only ball that changes its mind
-     * between the two.
+     * The masses are each material’s density times that volume, so the objects
+     * genuinely are pine and clay rather than merely labelled as such. Pine at
+     * 500 kg/m³ floats in water at 997 with half of itself under; clay at 1700
+     * sinks. Neither is close enough to the water to be ambiguous, and neither
+     * is so far from it that the drag has nothing to work against.
      *
-     * The lightest ball is polystyrene and not helium, and that is a limit of
-     * the solver rather than a choice. Helium against water is a density ratio
-     * of one to six thousand: the buoyant force gives it 59,000 m/s² and a
-     * single 1/120 s step hands it 491 m/s against a terminal velocity of
-     * three. The drag correction that follows overshoots, and it diverges —
-     * seven million metres a second, in a fixed-step explicit integrator that
-     * cannot resolve something that stiff. Polystyrene is one to fifty and
-     * perfectly stable. Arranging an example so the solver cannot cope would
-     * be teaching the reader about our timestep instead of about buoyancy.
+     * The plate is the one to watch and the one selected: face-on it is the
+     * draggiest shape on the bench, C_d 1.28 against the sphere’s 0.47, over
+     * 3.8 times the frontal area.
      */
     params: {
       shapeId: 'sphere',
       size: 0.4,
-      materialId: 'polystyrene',
-      mass: 0.67021,
-      x0: -3,
+      materialId: 'pine',
+      mass: 16.75516,
+      x0: -2.4,
       dropHeight: 2,
       v0: 0,
       pushForce: 0,
@@ -156,46 +151,53 @@ export const EXAMPLES = [
       fluidId: 'water',
       worldMode: 'planet',
       objects: [
-        { id: 'o2', shapeId: 'sphere', size: 0.4, materialId: 'balsa', mass: 5.36165, x: -1.5, y: 2, vx: 0, vy: 0 },
-        { id: 'o3', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 16.75516, x: 0, y: 2, vx: 0, vy: 0 },
-        { id: 'o4', shapeId: 'sphere', size: 0.4, materialId: 'rubber', mass: 36.86135, x: 1.5, y: 2, vx: 0, vy: 0 },
-        { id: 'o5', shapeId: 'sphere', size: 0.4, materialId: 'steel', mass: 263.05602, x: 3, y: 2, vx: 0, vy: 0 },
+        { id: 'o2', shapeId: 'plate', size: 0.69459, materialId: 'pine', mass: 16.75516, x: -0.8, y: 2, vx: 0, vy: 0 },
+        { id: 'o3', shapeId: 'sphere', size: 0.4, materialId: 'clay', mass: 56.96754, x: 0.8, y: 2, vx: 0, vy: 0 },
+        { id: 'o4', shapeId: 'plate', size: 0.69459, materialId: 'clay', mass: 56.96754, x: 2.4, y: 2, vx: 0, vy: 0 },
       ],
       walls: [],
       cannons: [],
     },
-    select: 'o4',
+    select: 'o2',
     arrows: ['weight', 'buoyancy', 'drag', 'net'],
     teach: {
-      how: 'Every one of these balls displaces the same 0.0335 m³ of fluid, '
-        + 'because they are the same size. So they all feel the same buoyant '
-        + 'force — the weight of that much fluid, pushing up. What differs is '
-        + 'their own weight. Rise or sink is that one comparison and nothing '
-        + 'else: is the ball heavier than the fluid it shoved out of the way?',
+      how: 'Four objects, and every one of them displaces the same 0.0335 m³. '
+        + 'So the buoyant force — the weight of that much fluid — is identical '
+        + 'on all four. The two on the left weigh 16.8 kg, the two on the right '
+        + '57.0 kg, and each weight comes as a sphere and as a flat plate. Rise '
+        + 'or sink is the weight against the buoyancy and nothing else, so the '
+        + 'pairs answer together. The shape cannot change the answer; it can '
+        + 'only change how long the answer takes.',
       tryThis: [
-        'Press Play. In water, three rise and two sink.',
-        'Switch the fluid to honey and run it again. The rubber ball changes '
-        + 'sides — nothing about the ball changed, the fluid got denser than it '
-        + 'is.',
-        'Switch to air. Now every one of them falls — air is eight hundred times '
-        + 'thinner than water, and nothing here is that light. Watch how '
-        + 'differently they fall, though.',
-        'Click each ball to put the readouts on it, and compare its density with '
-        + 'the fluid density in the panel.',
+        'Press Play. The two pine objects rise, the two clay ones sink — by '
+        + 'pair, not by shape.',
+        'Watch the plates. Same answer as their spheres, far more slowly: '
+        + 'face-on a plate has 3.8 times the frontal area and nearly three '
+        + 'times the drag coefficient.',
+        'Switch the fluid to honey. Everything slows by a factor of ten '
+        + 'thousand in viscosity, and the clay still sinks — honey at 1420 '
+        + 'kg/m³ is still lighter than clay.',
+        'Switch to air. Now all four fall, because air is eight hundred times '
+        + 'thinner than water and nothing here is that light. The spheres get '
+        + 'well ahead of the plates.',
+        'Set the two clay objects to pine in "The object" and "Other objects" '
+        + 'and run it again — four identical densities, two shapes, and the '
+        + 'only thing left to see is drag.',
       ],
       watch: [
-        'The buoyancy arrows are all the same length. Same volume, same fluid, '
-        + 'same push — the differences are entirely in the weight arrows.',
-        'The rubber ball at 1100 kg/m³ sits between water at 997 and honey at '
-        + '1420. It is the only one that answers differently in the two.',
-        'In air the sinking balls keep accelerating for a long time; in honey '
-        + 'everything reaches a steady speed almost at once. That is drag, and '
-        + 'it is a separate effect from buoyancy.',
+        'All four buoyancy arrows are the same length, always. Same volume, '
+        + 'same fluid, same push — every difference is in the weight arrows.',
+        'Within a pair the drag arrows are wildly different and the answer is '
+        + 'the same. Across pairs the drag arrows match and the answer flips.',
+        'The plates wobble less than you might expect: this bench holds a '
+        + 'shape face-on to its motion rather than letting it tumble, which is '
+        + 'a simplification and is declared as one.',
       ],
-      learn: 'Floating is a comparison of two densities and nothing more. It has '
-        + 'nothing to do with how heavy a thing is on its own — a steel ship '
-        + 'floats and a steel ball does not, because what counts is the density '
-        + 'of the whole object including the air inside it.',
+      learn: 'Whether a thing floats is a comparison of two densities, and '
+        + 'nothing else — not its weight, not its size, not its shape. What '
+        + 'the shape decides is how quickly it gets where it was always going. '
+        + 'Confusing the two is why a sheet of steel seems like it should '
+        + 'behave differently from a steel ball, and why a ship floats.',
     },
   },
   {
@@ -1257,13 +1259,15 @@ export const EXAMPLES = [
      * rather than what the answer is.
      */
     arrows: ['weight', 'buoyancy', 'net'],
-    view: { camera: { mode: 'manual', cx: 0, cy: -0.2, span: 9 } },
+    // Framed to hold the whole strip: the drop, the surface, and the bed.
+    view: { camera: { mode: 'manual', cx: 0, cy: -0.75, span: 9 } },
     teach: {
       how: 'A world does not have to be solid. This one is made of water: '
         + 'everything above the line is air, everything below it is water, and '
         + 'there is nothing to land on. Each ball falls through the air almost '
         + 'unaffected — air is 1.2 kg/m\u00b3 against water at 997 — and then '
-        + 'meets a fluid eight hundred times denser. Buoyancy is the weight of '
+        + 'meets a fluid eight hundred times denser, three and a half metres of '
+        + 'it with a bed underneath. Buoyancy is the weight of '
         + 'the fluid pushed aside, so at the surface it goes up by the same '
         + 'factor, and how far each ball sinks before that stops it is the '
         + 'whole demonstration.',
@@ -1274,7 +1278,7 @@ export const EXAMPLES = [
         + 'it arrives with speed, and the water has to take that away first.',
         'In "The fluid it moves through", change what the world is made of back '
         + 'to solid ground and run it again — now all three bounce off the '
-        + 'same floor and nothing sorts itself.',
+        + 'same floor at the surface and nothing sorts itself.',
         'Try honey instead of water. Even the steel ball slows to a crawl, '
         + 'because honey is ten thousand times more viscous.',
       ],
@@ -1286,9 +1290,10 @@ export const EXAMPLES = [
         'Balsa settles with about a sixth of itself under the surface, and pine '
         + 'with about half. That fraction is the ball\u2019s density divided by '
         + 'the water\u2019s: 160/997 and 500/997.',
-        'The steel ball never reaches a floor, because there is not one. It '
-        + 'falls until drag balances its weight and then sinks at that speed '
-        + 'for ever.',
+        'The steel ball falls until drag balances its weight, sinks at that '
+        + 'steady speed, and lands on the bed. The lake is three and a half '
+        + 'metres deep — deep enough to reach a steady speed in, shallow enough '
+        + 'to watch the whole thing happen on one screen.',
       ],
       learn: 'Whether something floats is a comparison of two densities, and '
         + 'how much of it sits under the surface is the same comparison as a '

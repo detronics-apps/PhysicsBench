@@ -36,11 +36,16 @@ import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
-import { guidePage, welcomeOverlay, panelOverlay } from './ui/guide.js';
+import {
+  guidePage, welcomeOverlay, panelOverlay, achievementToast, achievementsPanel,
+} from './ui/guide.js';
 import { WHATS_NEW, LICENCE, IMPRINT } from './guide.js';
 import { toWorld } from './camera.js';
 import { LEVELS, levelById, shownAt } from './levels.js';
-import { vec, ZERO } from './vec.js';
+import {
+  ACHIEVEMENTS, newlyEarned, byId as achievementById, groups as achievementGroups,
+} from './achievements.js';
+import { vec, len, ZERO } from './vec.js';
 import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime, trailAt } from './recorder.js';
@@ -248,11 +253,11 @@ function renderStages() {
     type: 'button',
     role: 'tab',
     'aria-selected': String(state.page === 'examples'),
-    title: 'Experiments already set up, with a note on what to watch',
+    title: 'Scenes already set up, with a note on what to watch',
     'data-field': 'page:examples',
     on: { click: () => showExamples() },
   }, [
-    el('span', { class: 'stepper__label tab-label--long', text: 'Prepared experiments' }),
+    el('span', { class: 'stepper__label tab-label--long', text: 'Examples' }),
     el('span', { class: 'stepper__label tab-label--short', text: 'Examples' }),
   ]));
 
@@ -1277,7 +1282,11 @@ export function render({ controls = true } = {}) {
      * place to find out. Each page needs a couple of functions and says so.
      */
     dom.ask.appendChild(state.page === 'guide'
-      ? guidePage({ showBench, showWelcome: () => openWelcome() })
+      ? guidePage({
+        showBench,
+        showWelcome: () => openWelcome(),
+        achievements: () => achievementsPanel(state.ui.found, achievementGroups, ACHIEVEMENTS),
+      })
       : galleryPage({ loadExample, showBench }));
     for (const host of [dom.vectors, dom.stage, dom.legend, dom.transportHost,
       dom.banners, dom.graphs, dom.measurements, dom.summary, dom.explain,
@@ -1303,7 +1312,7 @@ export function render({ controls = true } = {}) {
         ? button(`Next: ${STAGES[here + 1].label} →`, () => goToStage(STAGES[here + 1].id), { small: true, primary: true })
         // Past the last step there is nowhere further to walk, so the shelf of
         // prepared experiments is what comes next.
-        : button('Prepared experiments →', () => showExamples(), { small: true, primary: true }),
+        : button('Examples →', () => showExamples(), { small: true, primary: true }),
     ].filter(Boolean)),
   ]));
 
@@ -1389,6 +1398,7 @@ export function render({ controls = true } = {}) {
   renderTransportBar();
   paint(true);
   restoreFocus(snap);
+  checkAchievements(true);
   startClock();
 }
 
@@ -1882,6 +1892,86 @@ function applyControl(world) {
   };
 }
 
+/* -------------------------------------------------------- achievements -- */
+
+/**
+ * What has happened that the achievement conditions can see.
+ *
+ * Two of them are about moments rather than states — an object bursting, a
+ * panel being opened — and a moment is gone by the time anything looks. So
+ * those are recorded here as they occur and the set is read alongside the
+ * live world.
+ */
+const seen = { events: [], opened: [] };
+
+/** Note a moment an achievement might be watching for. */
+export function noteMoment(kind, what) {
+  const list = seen[kind];
+  if (list && !list.includes(what)) list.push(what);
+}
+
+/**
+ * Check the conditions, and tell the reader what they just found.
+ *
+ * Throttled, because this runs off the animation loop and the conditions read
+ * the live world: at sixty frames a second it would be sixteen list walks per
+ * second to answer a question whose answer changes a handful of times in a
+ * session. Quarter-second is far below noticing and far above the cost.
+ *
+ * One at a time, too. Two badges arriving together means the second one is
+ * never read, and the sentence on it is the entire reason it exists.
+ */
+let lastCheck = 0;
+function checkAchievements(force = false) {
+  const now = performance.now();
+  /*
+   * The throttle is for the animation loop. A render happens because
+   * something actually changed, and there are never enough of those to be
+   * worth rationing — nor may one be dropped, since several conditions are
+   * about a setting rather than about motion and a paused bench never ticks.
+   */
+  if (!force && now - lastCheck < 250) return;
+  lastCheck = now;
+
+  const world = shownWorld();
+  const main = world ? inspect(world, state.selectedId) : null;
+  const found = newlyEarned({
+    main: main ? { ...main, accelerationMagnitude: len(main.acceleration) } : null,
+    forces: main?.forces,
+    totals: world ? totals(world) : null,
+    world,
+    params: state.bench,
+    state,
+    g: sim.scenario?.world?.env?.g ?? 0,
+    events: seen.events,
+    opened: seen.opened,
+  }, state.ui.found);
+
+  if (!found.length) return;
+  const id = found[0];
+  state.ui.found[id] = new Date().toISOString();
+  save();
+  announceAchievement(id);
+}
+
+/**
+ * Tell the reader what they just found, once, without interrupting them.
+ *
+ * Deliberately not a modal. Whatever they were doing when they found it is
+ * the thing that found it, and stopping the bench to hand out a badge would
+ * take them out of exactly the moment the badge is about.
+ */
+function announceAchievement(id) {
+  const achievement = achievementById(id);
+  if (!achievement) return;
+
+  document.querySelector('.unlock')?.remove();
+  const card = achievementToast(achievement, { onOpen: () => showGuide() });
+  document.body.appendChild(card);
+  // Long enough to read three lines, and it can be dismissed sooner.
+  setTimeout(() => card.remove(), 11000);
+}
+
 function stepSimulation(seconds) {
   // The push is re-applied before every step, because it stops after its
   // duration — and what happens after it stops is the whole point of step two.
@@ -1890,6 +1980,7 @@ function stepSimulation(seconds) {
   sim.world = applyPush(sim.world, state.bench, sim.scenario.features);
   sim.world = applyControl(sim.world);
   sim.world = advance(sim.world, seconds);
+  if (sim.world.events?.some((e) => e.type === 'burst')) noteMoment('events', 'burst');
   sim.recorder = record(sim.recorder, sim.world, { bodyId: state.selectedId });
 }
 
@@ -1906,6 +1997,7 @@ function startClock() {
     clock.frame += 1;
     stepSimulation(elapsed * state.transport.speed);
     paint();
+    checkAchievements();
     clock.raf = requestAnimationFrame(tick);
   };
   clock.raf = requestAnimationFrame(tick);

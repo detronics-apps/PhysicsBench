@@ -791,7 +791,7 @@ export const EQUATIONS = {
       + 'the part that matters.',
     misreads: 'Pressure is not what decides sliding friction. Spreading the same '
       + 'weight over twice the area halves the pressure and leaves the friction '
-      + 'exactly where it was, which is the surprising result step five is about.',
+      + 'exactly where it was, which is the surprising result step four is about.',
   },
   'buoyancy': {
     id: 'buoyancy',

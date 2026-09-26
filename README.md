@@ -2,39 +2,40 @@
 
 **Live: https://detronics-apps.github.io/PhysicsBench/**
 
-One object on one bench, built up in seven steps. Change something, watch what happens, measure
+One object on one bench, built up in six steps. Change something, watch what happens, measure
 it, and only then see the equation that describes it. A single static page — no backend, no build
 step, no dependencies, no network requests once it has loaded.
 
-## The seven steps
+## The six steps
 
-This is one experiment, not seven. Every step adds one thing to the same object, and everything
-from the earlier steps stays — the mass you set in step one is still the mass in step seven, and
+This is one experiment, not six. Every step adds one thing to the same object, and everything
+from the earlier steps stays — the mass you set in step one is still the mass in step six, and
 its slider is still where you left it.
 
 | | | The question it opens with |
 |---|---|---|
-| 1 | **A mass** | What is a mass, before anything happens to it? |
-| 2 | **Push it** | What happens if I push harder, or make it heavier? |
-| 3 | **A second mass** | Do two masses pull on each other? |
-| 4 | **Grow it into a planet** | What has to change before that pull turns into weight? |
-| 5 | **Friction** | Now there is a floor. What holds the object up, and what holds it back? |
-| 6 | **Fluids and objects** | Air, water, honey — what actually changes? |
-| 7 | **Playground** | Everything at once — what survives a collision, and what does not? |
+| 1 | **Push it** | What happens if I push harder, or make it heavier? |
+| 2 | **A second mass** | Do two masses pull on each other? |
+| 3 | **Grow it into a planet** | What has to change before that pull turns into weight? |
+| 4 | **Friction** | Now there is a floor. What holds the object up, and what holds it back? |
+| 5 | **Fluids and objects** | Air, water, honey — what actually changes? |
+| 6 | **Playground** | Everything at once — what survives a collision, and what does not? |
 
-Beside them sit two things that are not steps: **Prepared experiments**, a shelf of eleven scenes
-already set up, and **How to use**, which is searchable in whatever words you would use yourself.
+Beside them sit two things that are not steps: **Examples**, a shelf of twelve scenes already set
+up, and **How to use**, which is searchable in whatever words you would use yourself — and which
+holds the list of things there are to find.
 
-From step four the bench can also be moved to **deep space**, which removes the floor and the
+From step three the bench can also be moved to **deep space**, which removes the floor and the
 gravitational field together — the honest pairing, since there is no such thing as a world with
-gravity and nothing to stand on. From step seven it becomes a sandbox: draw walls and ramps, add
+gravity and nothing to stand on. From step six it becomes a sandbox: draw walls and ramps, add
 cannons, put up to twenty objects on it, take the controls and drive one.
 
 ## A world made of liquid
 
-From step six the ground does not have to be solid. Set **what the world is made of** to water
-and the floor goes away: everything above the line is whatever the fluid is set to, everything
-below it is water, and an object falls *into* it rather than onto it. A ball settles with the
+From step five the ground does not have to be solid. Set **what the world is made of** to water
+and the floor becomes a surface: everything above the line is whatever the fluid is set to, and
+below it is three and a half metres of water with a bed underneath. An object falls *into* it
+rather than onto it, and comes to rest either at the surface or on the bottom. A ball settles with the
 fraction of itself under the surface that its density says — pine at 500 kg/m³ in water at 997
 floats half submerged, balsa at 160 with a sixth of itself under.
 
@@ -275,7 +276,7 @@ js/models.js          reality / model / assumption / approximation, and the equa
 js/integrator.js      RK4 and semi-implicit Euler
 js/forces.js          weight, normal, friction, drag — each named, never just a net
 js/world.js           bodies, contact, collisions, the energy ledger, one step of time
-js/stages.js          the seven steps, and what each one turns on
+js/stages.js          the six steps, and what each one turns on
 js/kinematics.js      the constant-acceleration relations and a solver
 js/collide.js         one-dimensional and planar impacts at any restitution
 js/energy.js          an energy audit that relocates rather than loses
@@ -284,6 +285,7 @@ js/camera.js          metres to pixels, arrow rules, and keeping labels off each
 js/graph.js           graph geometry: ticks, scales, axis labels that miss each other
 js/recorder.js        the recording the animation and the graphs both read
 js/levels.js          Simple / Advanced / Expert, and which of them shows what
+js/achievements.js    things worth finding, and how the app knows you found them
 js/immersion.js       how much of a body is under a surface, and what that is worth
 js/guide.js           the how-tos, the FAQs, and the everyday-words search
 js/state.js           one parameter object, localStorage, URL-hash sharing

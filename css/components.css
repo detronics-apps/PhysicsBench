@@ -1546,3 +1546,87 @@ html[data-level='simple'] .field__hint { display: none; }
 
 /* Nothing to press on paper. */
 @media print { .banner__close { display: none; } }
+
+/* --- what you have found ----------------------------------------------- *
+ * The card that says you found something, and the list of what is left.
+ *
+ * The card is not a modal on purpose: whatever the reader was doing when they
+ * found it is the thing that found it, and stopping the bench to hand out a
+ * badge takes them out of the moment the badge is about.                   */
+
+.unlock {
+  position: fixed;
+  left: var(--space-4); bottom: var(--space-4);
+  z-index: 55;
+  width: min(360px, calc(100vw - var(--space-5)));
+  display: flex; align-items: flex-start; gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--accent-strong);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.unlock__body {
+  flex: 1 1 auto; min-width: 0;
+  font: inherit; color: inherit; text-align: left;
+  padding: 0; border: none; background: transparent; cursor: pointer;
+}
+.unlock__eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent-strong);
+}
+.unlock__name { margin-top: 2px; font-weight: 600; }
+.unlock__what {
+  margin: var(--space-1) 0 0;
+  font-size: 0.9rem; line-height: 1.5;
+  color: var(--text-dim);
+}
+.unlock__close {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; font-size: 15px; line-height: 1;
+  border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-faint);
+  cursor: pointer;
+}
+.unlock__close:hover { color: var(--text); background: var(--panel-3); }
+
+@media (max-width: 640px) {
+  .unlock { left: var(--space-2); right: var(--space-2); bottom: var(--space-2); width: auto; }
+}
+@media print { .unlock { display: none; } }
+
+.found { display: flex; flex-direction: column; gap: var(--space-4); }
+.found__count { margin: 0; font-size: 12px; color: var(--text-faint); }
+.found__bar {
+  height: 6px;
+  background: var(--panel-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.found__bar-fill { height: 100%; background: var(--accent-strong); }
+
+.found__group { display: flex; flex-direction: column; gap: var(--space-3); }
+.found__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+.found__item {
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* Unfound ones are quiet rather than hidden: the hint is the invitation. */
+  opacity: 0.6;
+}
+.found__item.is-found { opacity: 1; border-color: var(--accent-strong); }
+.found__name { font-weight: 600; }
+.found__item:not(.is-found) .found__name { color: var(--text-faint); font-weight: 400; font-style: italic; }
+.found__text {
+  margin: var(--space-2) 0 0;
+  font-size: 0.9rem; line-height: 1.5;
+  color: var(--text-dim);
+}

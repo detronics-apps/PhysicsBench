@@ -1,9 +1,9 @@
 /**
- * The bench, and the eight steps it grows through. Pure.
+ * The bench, and the six steps it grows through. Pure.
  *
  * This is one experiment, not eight. Every step adds one thing to the same
  * object on the same bench, and everything from the earlier steps stays: the
- * mass you set in step one is still the mass in step eight, and the controls
+ * mass you set in step one is still the mass in step six, and the controls
  * for it are still there.
  *
  * That matters more than it sounds. Split across separate labs, "mass",
@@ -48,22 +48,17 @@ export const MAX_OBJECTS = 10;
 
 /* ------------------------------------------------------------- the steps -- */
 
+/**
+ * How deep a world made of liquid is, in metres.
+ *
+ * Deep enough that a dense object visibly falls through it and reaches a
+ * steady speed before it lands, shallow enough that the whole thing — sky,
+ * surface, water, bed — fits on one screen at the zoom a half-metre ball is
+ * still a ball at.
+ */
+export const WATER_DEPTH = 3.5;
+
 export const STAGES = [
-  {
-    id: 'mass',
-    label: 'A mass',
-    short: 'Mass',
-    features: ['shape'],
-    ask: 'What is a mass, before anything happens to it?',
-    discover: 'On its own, nothing happens. No forces act, so it stays exactly '
-      + 'as it is — and that stubbornness is the only thing mass does until '
-      + 'something tries to change it.',
-    watch: 'Change the mass. Nothing moves, and nothing will, until you push it. '
-      + 'Change the shape too, and notice that nothing happens then either — with '
-      + 'no surface to rest on and no fluid to push through, a shape has nothing '
-      + 'to act on. It starts mattering in step five, and you will be able to see '
-      + 'exactly when.',
-  },
   {
     id: 'push',
     label: 'Push it',
@@ -164,7 +159,7 @@ export const STAGES = [
     watch: 'Change the bounciness and watch which of the two totals moves. Then '
       + 'take the controls yourself and drive one object into the others — the '
       + 'steering is a force like any other, so it appears as an arrow and its '
-      + 'work is on the same books. Everything from the first seven steps is '
+      + 'work is on the same books. Everything from the first five steps is '
       + 'still here and still switched on; this is the same bench with nothing '
       + 'held back.',
   },
@@ -469,7 +464,20 @@ export function build(stageId, p) {
    * dropped into a lake hung motionless in the air.
    */
   const hasGround = f.has('ground') && !space;
-  const solidGround = hasGround && !surfaceFluid;
+  /*
+   * A lake has a bed.
+   *
+   * Without one the water was an ocean of unbounded depth: a stone dropped
+   * into it sank past 500 m and out of the scene, still accelerating, and
+   * there was nothing to watch. A bed at WATER_DEPTH makes it a strip — the
+   * object falls through air, enters the water, slows, and either settles at
+   * the surface or comes to rest on the bottom, all of it on one screen.
+   *
+   * The ground is still ground: it collides, it has friction, and anything
+   * that reaches it rests on it. The only difference is where it sits.
+   */
+  const groundY = surfaceFluid ? -WATER_DEPTH : 0;
+  const solidGround = hasGround;
   const gravityMode = hasGround ? 'uniform' : (f.has('mutual-gravity') && !space ? 'mutual' : 'none');
   const g = planet ? planet.g : 0;
 
@@ -550,8 +558,10 @@ export function build(stageId, p) {
     surfaceY: 0,
     ground: solidGround
       ? {
-        y: 0,
-        slopeDeg: p.slopeDeg,
+        y: groundY,
+        // A tilted lake bed is a different scene from the one on offer, and
+        // the slope control belongs to the surface step rather than this one.
+        slopeDeg: surfaceFluid ? 0 : p.slopeDeg,
         muS: p.muS,
         muK: p.muK,
         rolling: rollingFor(matchSurface(p.muS, p.muK)),
@@ -678,7 +688,20 @@ export function applyLive(world, p, features, { stageId } = {}) {
    * dropped into a lake hung motionless in the air.
    */
   const hasGround = f.has('ground') && !space;
-  const solidGround = hasGround && !surfaceFluid;
+  /*
+   * A lake has a bed.
+   *
+   * Without one the water was an ocean of unbounded depth: a stone dropped
+   * into it sank past 500 m and out of the scene, still accelerating, and
+   * there was nothing to watch. A bed at WATER_DEPTH makes it a strip — the
+   * object falls through air, enters the water, slows, and either settles at
+   * the surface or comes to rest on the bottom, all of it on one screen.
+   *
+   * The ground is still ground: it collides, it has friction, and anything
+   * that reaches it rests on it. The only difference is where it sits.
+   */
+  const groundY = surfaceFluid ? -WATER_DEPTH : 0;
+  const solidGround = hasGround;
   const planet = onWorld ? describeWorld({ mass: p.planetMass, radius: p.planetRadius, id: p.planetId }) : null;
   const gravityMode = hasGround ? 'uniform' : (f.has('mutual-gravity') && !space ? 'mutual' : 'none');
   const g = planet ? planet.g : 0;
@@ -755,8 +778,10 @@ export function applyLive(world, p, features, { stageId } = {}) {
     },
     ground: solidGround
       ? {
-        y: 0,
-        slopeDeg: p.slopeDeg,
+        y: groundY,
+        // A tilted lake bed is a different scene from the one on offer, and
+        // the slope control belongs to the surface step rather than this one.
+        slopeDeg: surfaceFluid ? 0 : p.slopeDeg,
         muS: p.muS,
         muK: p.muK,
         rolling: rollingFor(matchSurface(p.muS, p.muK)),

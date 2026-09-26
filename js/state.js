@@ -10,7 +10,7 @@
  * someone this exact experiment" a private operation.
  *
  * There is one parameter object, not one per step. The mass set in step one is
- * the mass in step eight; walking forward through the stages adds controls
+ * the mass in step six; walking forward through the stages adds controls
  * without resetting anything, and walking back hides them without losing them.
  *
  * Everything arriving from any of those three routes is older than the code
@@ -27,6 +27,7 @@ import { SHAPES, MATERIALS } from './shapes.js';
 import { FLUIDS } from './drag.js';
 import { CHANNELS } from './recorder.js';
 import { LEVEL_IDS } from './levels.js';
+import { ACHIEVEMENTS } from './achievements.js';
 
 const KEY = 'physics-bench';
 export const STATE_VERSION = 3;
@@ -34,7 +35,15 @@ export const STATE_VERSION = 3;
 export const STAGE_IDS = STAGES.map((s) => s.id);
 
 /** Steps that have been folded into others, and where their readers go now. */
-const RETIRED_STAGES = { surface: 'friction' };
+/*
+ * Steps that have been folded into others, and where their readers go now.
+ *
+ * 'mass' was a screen with one object on it and nothing you could do: the
+ * only honest thing it taught was that nothing happens until something
+ * pushes, which is what the push step opens by saying. A saved session or a
+ * share link pointing at it lands there.
+ */
+const RETIRED_STAGES = { surface: 'friction', mass: 'push' };
 const SHAPE_IDS = SHAPES.map((s) => s.id);
 const FLUID_IDS = FLUIDS.map((f) => f.id);
 const WORLD_IDS = [...WORLDS.map((w) => w.id), 'custom'];
@@ -51,7 +60,7 @@ export const VECTOR_IDS = ['velocity', 'acceleration', 'momentum', 'applied', 'c
 
 export const defaults = () => ({
   version: STATE_VERSION,
-  stage: 'mass',
+  stage: 'push',
   theme: 'system',
   selectedId: 'main',
   /*
@@ -344,6 +353,15 @@ export const defaults = () => ({
     onboardedAt: null,
 
     /*
+     * Which discoveries have been made, as `{ id: whenISO }`.
+     *
+     * Persisted, unlike a banner dismissal, because finding a thing is a fact
+     * about this reader rather than about this session — and being told twice
+     * that you have discovered something is being told you have not.
+     */
+    found: {},
+
+    /*
      * How the run is recorded, and what that costs.
      *
      * Every number here is a real trade rather than a preference, which is why
@@ -579,6 +597,7 @@ export function migrate(incoming) {
       onboardedAt: typeof incoming.ui?.onboardedAt === 'string'
         ? incoming.ui.onboardedAt.slice(0, 40)
         : null,
+      found: foundFlags(incoming.ui?.found),
       recording: recordingFrom(incoming.ui?.recording, base.ui.recording),
     },
   };
@@ -658,6 +677,24 @@ function cannonsFrom(incoming) {
 }
 
 /** Only `stage:section -> boolean` survives; anything else in there is noise. */
+/**
+ * Which achievements are held, coerced.
+ *
+ * Only ids this build knows, so a share link cannot inject entries, and the
+ * value is kept as a short string because it is a date to show, not data to
+ * compute with.
+ */
+function foundFlags(incoming) {
+  const out = {};
+  if (!incoming || typeof incoming !== 'object') return out;
+  for (const a of ACHIEVEMENTS) {
+    const at = incoming[a.id];
+    if (typeof at === 'string') out[a.id] = at.slice(0, 40);
+    else if (at === true) out[a.id] = '';
+  }
+  return out;
+}
+
 function sectionFlags(incoming) {
   const out = {};
   if (!incoming || typeof incoming !== 'object') return out;

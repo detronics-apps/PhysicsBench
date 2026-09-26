@@ -36,7 +36,7 @@ export const CONTROL_MODES = [
     id: 'keyboard',
     label: 'Arrow keys or WASD',
     note: 'A steady force in whichever direction is held, exactly like the push '
-      + 'in step two but under your hand. Nothing stops when you let go — the '
+      + 'in step one but under your hand. Nothing stops when you let go — the '
       + 'object keeps whatever velocity it had reached, and only friction, drag '
       + 'or a wall will change that.',
   },

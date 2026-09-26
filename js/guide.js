@@ -43,7 +43,7 @@ export const SEARCH_ALIASES = {
   buoyancy: ['float', 'sink', 'floats', 'why things float', 'displacement', 'archimedes'],
   gravity: ['falling', 'fall', 'drop', 'weight', 'planet', 'moon', 'orbit', 'space'],
   world: ['planet', 'moon', 'mars', 'earth', 'gravity', 'where it is'],
-  // No `step` key: nearly every entry says "go to step 7", so aliasing it to
+  // No `step` key: nearly every entry says "go to step 6", so aliasing it to
   // "page" or "lesson" made those words match half the guide.
   level: ['simple', 'advanced', 'expert', 'detail', 'too much', 'too busy', 'more detail'],
   timeline: ['rewind', 'scrub', 'replay', 'go back', 'history', 'earlier'],
@@ -54,7 +54,7 @@ export const SEARCH_ALIASES = {
   walls: ['obstacles', 'ramp', 'platform', 'barrier', 'track', 'maze'],
   cannon: ['shoot', 'fire', 'projectile', 'launcher', 'aim'],
   bounce: ['crash', 'hit', 'impact', 'bouncy', 'restitution', 'collision'],
-  prepared: ['demo', 'preset', 'sample', 'ready made', 'show me', 'example'],
+  examples: ['demo', 'preset', 'sample', 'ready made', 'show me', 'prepared'],
   share: ['link', 'send', 'url', 'give to someone'],
   save: ['keep', 'file', 'local save', 'store it', 'come back to it'],
   print: ['pdf', 'paper', 'hand out', 'worksheet'],
@@ -114,8 +114,7 @@ export const HOWTOS = [
     title: 'Make something happen, from a standing start',
     category: 'Getting going',
     steps: [
-      'You are on step 1, "A mass", with an object already on the bench.',
-      'Press "Next: Push it →" under the question at the top.',
+      'You are on step 1, "Push it", with an object already on the bench.',
       'Open "The push" in the panel on the right and drag "How hard".',
       'Press Play on the bar under the drawing.',
       'Watch the velocity climb while the push lasts, then hold steady.',
@@ -123,10 +122,10 @@ export const HOWTOS = [
   },
   {
     id: 'load-example',
-    title: 'Load a prepared experiment',
+    title: 'Load an example',
     category: 'Getting going',
     steps: [
-      'Click "Prepared experiments" at the right-hand end of the step bar.',
+      'Click "Examples" at the right-hand end of the step bar.',
       'Each card shows the scene as it will look, with a line on what it shows.',
       'Press "Load this".',
       'Read the note at the bottom of the page: what to try, what to watch, and the point of it.',
@@ -162,7 +161,7 @@ export const HOWTOS = [
     title: 'Push harder, or for longer',
     category: 'The push',
     steps: [
-      'Go to step 2, "Push it".',
+      'You are on step 1, "Push it".',
       'Open "The push". "How hard" is the force in newtons; "For how long" is the time it lasts.',
       'The slider range follows the object, so the same drag feels the same on a gram and on a tonne.',
       'Press Play. The push stops when its time is up and the object carries on at whatever speed it reached.',
@@ -173,7 +172,7 @@ export const HOWTOS = [
     title: 'Make something fall',
     category: 'Gravity',
     steps: [
-      'Go to step 4, "Grow it into a planet".',
+      'Go to step 3, "Grow it into a planet".',
       'Open "The world it is on" and choose a world — Earth, the Moon, Mars.',
       'Set how high it starts with the placement slider.',
       'Press Play and watch the height fall and the speed climb.',
@@ -185,7 +184,7 @@ export const HOWTOS = [
     title: 'Make it slide, or make it grip',
     category: 'Friction',
     steps: [
-      'Go to step 5, "Friction". There is a floor now.',
+      'Go to step 4, "Friction". There is a floor now.',
       'Open "The surface" and pick one — ice, wood, rubber.',
       'Push the object along and watch how far it travels before it stops.',
       'The energy it loses does not vanish: at Advanced, "Gone to heat" counts it.',
@@ -206,10 +205,10 @@ export const HOWTOS = [
     title: 'Drop something into water instead of onto the ground',
     category: 'Fluids',
     steps: [
-      'Go to step 6, "Fluids and objects".',
+      'Go to step 5, "Fluids and objects".',
       'Open "The fluid it moves through". Leave the fluid as air.',
       'Change "What the world is made of" from solid ground to water.',
-      'The floor is gone: everything below the line is water now.',
+      'The floor moves down: three and a half metres of water, with a bed under it.',
       'Set a drop height and press Play. The object falls through the air, hits '
         + 'the water, and settles where its own density puts it.',
       'A ball half as dense as the liquid floats half submerged — try balsa, '
@@ -221,7 +220,7 @@ export const HOWTOS = [
     title: 'Move it through air, water or honey',
     category: 'Fluids',
     steps: [
-      'Go to step 6, "Fluids and objects".',
+      'Go to step 5, "Fluids and objects".',
       'Open "The fluid it moves through" and choose one.',
       'Watch the drag arrow grow with speed, and the object settle at a terminal speed.',
       'A light object in honey barely moves; the same object in vacuum never slows at all.',
@@ -252,7 +251,7 @@ export const HOWTOS = [
     title: 'Drive the object yourself',
     category: 'Playground',
     steps: [
-      'Go to step 7, "Playground".',
+      'Go to step 6, "Playground".',
       'Open "Take the controls" and choose how the keys should push it.',
       'Click the drawing once to hand the arrow keys to the object rather than the page.',
       'Hold an arrow key, or W A S D.',
@@ -263,7 +262,7 @@ export const HOWTOS = [
     title: 'Draw walls, ramps and obstacles',
     category: 'Playground',
     steps: [
-      'Go to step 7, "Playground".',
+      'Go to step 6, "Playground".',
       'Open "Walls and obstacles" and arm the wall tool.',
       'Drag on the drawing to lay a wall down; the curved tool lays an arc.',
       'Drop an object above it and press Play.',
@@ -274,7 +273,7 @@ export const HOWTOS = [
     title: 'Fire something at a target',
     category: 'Playground',
     steps: [
-      'Go to step 7, "Playground".',
+      'Go to step 6, "Playground".',
       'Open "Cannons" and add one.',
       'Set the angle and the speed it leaves at.',
       'Build a wall to aim at, then press Play.',
@@ -286,11 +285,23 @@ export const HOWTOS = [
     title: 'Make things bounce off each other, or not',
     category: 'Playground',
     steps: [
-      'Go to step 6 or 7, where there is more than one object.',
+      'Go to step 5 or 6, where there is more than one object.',
       'Open "Collisions" — it is there from Advanced.',
       'Bounciness of 1 keeps all the energy; 0 means they stop dead together.',
       'Either way the total momentum is unchanged through the impact. Watch the '
         + '"Total momentum" tile as they hit.',
+    ],
+  },
+  {
+    id: 'achievements',
+    title: 'See what there is left to find',
+    category: 'Getting going',
+    steps: [
+      'Open "How to use" at the right-hand end of the step bar.',
+      'Scroll to "Things to find" at the bottom.',
+      'Anything already found shows what it was; anything not shows a hint.',
+      'Nothing is locked behind them and nothing is scored \u2014 they are a way of being '
+        + 'told what a thing is for at the moment you do it.',
     ],
   },
   {
@@ -367,7 +378,7 @@ export const FAQS = [
   {
     q: 'Why does a heavy object fall at the same rate as a light one?',
     a: 'Because the object\'s own mass cancels: the pull is G·m₁·m₂/r², and dividing by m₁ to '
-      + 'get the acceleration removes it. The equation panel at step 4 shows that line by line.',
+      + 'get the acceleration removes it. The equation panel at step 3 shows that line by line.',
   },
   {
     q: 'How far back can I scrub, and does the recording lose anything?',
@@ -388,11 +399,13 @@ export const FAQS = [
       + 'any project file you have saved.',
   },
   {
-    q: 'Why has my floor disappeared?',
+    q: 'Why has my floor moved?',
     a: 'Because the world has been set to a liquid rather than to solid ground, in '
-      + '"The fluid it moves through". A lake has no floor to land on — an object '
-      + 'falls into it and settles where its density puts it. Set "What the world is '
-      + 'made of" back to solid ground to get the floor back.',
+      + '"The fluid it moves through". That turns the floor into a *surface*, with three '
+      + 'and a half metres of water below it and a bed under that. Things fall into it '
+      + 'rather than onto it, and come to rest either at the surface or on the bottom, '
+      + 'depending on their density. Set it back to solid ground to put the floor back '
+      + 'at the top.',
   },
   {
     q: 'How far under the surface should something float?',
@@ -414,9 +427,9 @@ export const FAQS = [
 /** The handful of ideas that make the rest of the app obvious. */
 export const CONCEPTS = [
   {
-    name: 'One bench, seven steps',
-    what: 'Not seven topics. Each step adds something to the same object, and nothing resets — '
-      + 'the mass you set in step 1 is still the mass in step 7.',
+    name: 'One bench, six steps',
+    what: 'Not six topics. Each step adds something to the same object, and nothing resets — '
+      + 'the mass you set in step 1 is still the mass in step 6.',
   },
   {
     name: 'Three levels of detail',
@@ -484,21 +497,28 @@ export const FEATURES = [
       + 'with why it is there and what would happen without it.',
   },
   {
+    name: 'Things to find',
+    where: 'How to use \u00b7 the bottom of the page',
+    what: 'Sixteen of them, each marking something the bench does that you would not find '
+      + 'from a label. They fire once, when you do the thing, and carry a sentence saying '
+      + 'what you just found.',
+  },
+  {
     name: 'The world can be made of water',
-    where: 'Step 6 · "The fluid it moves through"',
+    where: 'Step 5 · "The fluid it moves through"',
     what: 'Set what the world is made of to a liquid and the floor goes away. Things '
       + 'fall into it rather than onto it, and you can watch buoyancy arrive at the '
       + 'surface instead of starting out already applied.',
   },
   {
     name: 'The drawing takes the keyboard',
-    where: 'Step 7 · "Take the controls"',
+    where: 'Step 6 · "Take the controls"',
     what: 'Click the drawing and the arrow keys drive the object instead of scrolling the page. '
       + 'Click away and they belong to the page again.',
   },
   {
     name: 'Draw your own track',
-    where: 'Step 7 · "Walls and obstacles"',
+    where: 'Step 6 · "Walls and obstacles"',
     what: 'Arm the wall or arc tool and drag on the drawing. Up to a few dozen pieces, straight '
       + 'and curved.',
   },
@@ -515,8 +535,8 @@ export const FEATURES = [
       + 'working — a result without its settings is not something anyone can repeat.',
   },
   {
-    name: 'Prepared experiments explain themselves',
-    where: 'The step bar · "Prepared experiments"',
+    name: 'Examples explain themselves',
+    where: 'The step bar · "Examples"',
     what: 'Twelve scenes already set up, each with what to try, what to watch and the point of '
       + 'it. Every number in those notes is pinned by a test.',
   },
@@ -539,7 +559,7 @@ export const WELCOME = [
   },
   {
     title: 'Try one that is already set up',
-    what: 'Twelve prepared experiments — a marble run, a rocket to orbit, a ball dropped into a lake — '
+    what: 'Twelve examples — a marble run, a rocket to orbit, a ball dropped into a lake — '
       + 'each with a note on what to look for.',
     go: { page: 'examples' },
     label: 'Show me the shelf',
@@ -578,9 +598,9 @@ export const WHATS_NEW = {
   version: '1.6.0',
   body: [
     ['A world made of water',
-      'From step 6, "what the world is made of" can be a liquid instead of solid ground. '
+      'From step 5, "what the world is made of" can be a liquid instead of solid ground. '
       + 'The floor goes away and an object falls into it, settling with the fraction of '
-      + 'itself under the surface that its density says. A twelfth prepared experiment, '
+      + 'itself under the surface that its density says. A twelfth example, '
       + '"Dropped into the water", shows three balls doing exactly that.'],
     ['Simple, Advanced, Expert',
       'A detail level above the steps. It never changes a number — every step of the '

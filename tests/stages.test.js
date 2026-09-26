@@ -34,7 +34,7 @@ function run(stageId, patch = {}, seconds = 0, frame = 1 / 120) {
 /* ------------------------------------------------------------ the shape -- */
 
 test('the steps accumulate — nothing is ever taken away', () => {
-  assert.equal(STAGES.length, 7);
+  assert.equal(STAGES.length, 6);
   for (let i = 1; i < STAGES.length; i += 1) {
     const before = featuresAt(STAGES[i - 1].id);
     const after = featuresAt(STAGES[i].id);
@@ -71,14 +71,7 @@ test('every step builds a world with the object in it', () => {
 
 /* ----------------------------------------------------------- the physics -- */
 
-test('step 1: nothing acts on a lone mass, so nothing happens', () => {
-  const { world } = run('mass', {}, 3);
-  const main = findBody(world, 'main');
-  close(len(main.vel), 0, 1e-12);
-  close(len(forcesFor(world, main).net.vec), 0, 1e-12);
-});
-
-test('step 2: the push gives a = F/m, then stops and leaves the velocity alone', () => {
+test('step 1: the push gives a = F/m, then stops and leaves the velocity alone', () => {
   const patch = { mass: 2, pushForce: 10, pushAngleDeg: 0, pushSeconds: 2, v0: 0 };
   const during = run('push', patch, 1);
   close(inspect(during.world, 'main').acceleration.x, 5, 1e-9);
@@ -93,7 +86,7 @@ test('step 2: the push gives a = F/m, then stops and leaves the velocity alone',
   close(inspect(after.world, 'main').vel.x, 10, 1e-6);
 });
 
-test('step 2: the impulse is the momentum, and the work is the kinetic energy', () => {
+test('step 1: the impulse is the momentum, and the work is the kinetic energy', () => {
   const patch = { mass: 2, pushForce: 10, pushSeconds: 2, v0: 0 };
   const { world } = run('push', patch, 4);
   const main = inspect(world, 'main');
@@ -104,7 +97,7 @@ test('step 2: the impulse is the momentum, and the work is the kinetic energy', 
   close(sums.balance, 0, 1e-6);                      // and the books balance
 });
 
-test('step 2: the push works in any direction', () => {
+test('step 1: the push works in any direction', () => {
   const up = run('push', { mass: 1, pushForce: 10, pushAngleDeg: 90, pushSeconds: 1 }, 1);
   close(inspect(up.world, 'main').vel.y, 10, 1e-6);
   close(inspect(up.world, 'main').vel.x, 0, 1e-9);
@@ -113,7 +106,7 @@ test('step 2: the push works in any direction', () => {
   close(inspect(back.world, 'main').vel.x, -10, 1e-6);
 });
 
-test('step 3: two masses attract by G·m₁·m₂/r², towards each other', () => {
+test('step 2: two masses attract by G·m₁·m₂/r², towards each other', () => {
   const { world } = run('two-masses', { mass: 1, otherMass: 1000, otherX: 4, pushForce: 0, pushSeconds: 0 });
   const pull = inspect(world, 'main').forces.find((f) => f.id === 'weight');
   close(pull.magnitude, (G * 1 * 1000) / 16, 1e-18);
@@ -122,7 +115,7 @@ test('step 3: two masses attract by G·m₁·m₂/r², towards each other', () =
   assert.ok(pull.magnitude < 1e-7);
 });
 
-test('step 4: g comes out of the mass and the radius, never a lookup', () => {
+test('step 3: g comes out of the mass and the radius, never a lookup', () => {
   for (const [id, mass, radius] of [
     ['earth', 5.9722e24, 6.371e6],
     ['moon', 7.346e22, 1.7374e6],
@@ -144,7 +137,7 @@ test('step 4: g comes out of the mass and the radius, never a lookup', () => {
   }
 });
 
-test('step 4: ten times the mass is ten times the weight and the same fall', () => {
+test('step 3: ten times the mass is ten times the weight and the same fall', () => {
   const at = (mass) => inspect(run('planet', {
     mass, planetId: 'earth', pushForce: 0, pushSeconds: 0,
   }).world, 'main');
@@ -155,7 +148,7 @@ test('step 4: ten times the mass is ten times the weight and the same fall', () 
   close(len(heavy.acceleration) / len(light.acceleration), 1, 1e-12);
 });
 
-test('step 4: only one weight arrow, whatever is doing the pulling', () => {
+test('step 3: only one weight arrow, whatever is doing the pulling', () => {
   // Two forces sharing an id would put a "Weight 0.00 N" row above the real
   // one, and hide a real gravitational pull behind a zero.
   const { world } = run('planet', { pushForce: 0, pushSeconds: 0 });
@@ -189,7 +182,7 @@ test('a tilted surface splits the weight, and the two parts add back up', () => 
   }
 });
 
-test('step 6: friction holds up to μs·N, then drops to μk·N', () => {
+test('step 4: friction holds up to μs·N, then drops to μk·N', () => {
   const g = surfaceGravity(P.planetMass, P.planetRadius);
   // A cube, because this is about *sliding* friction. A sphere on the same
   // surface meets rolling resistance instead, which is a different mechanism
@@ -210,7 +203,7 @@ test('step 6: friction holds up to μs·N, then drops to μk·N', () => {
   close(broken.forces.find((f) => f.id === 'friction').magnitude, 0.35 * broken.weight, 1e-9);
 });
 
-test('step 7: the fluid decides the regime, not the object', () => {
+test('step 5: the fluid decides the regime, not the object', () => {
   const base = { mass: 4, size: 0.3, shapeId: 'sphere', pushForce: 40, pushSeconds: 2, muS: 0, muK: 0, slopeDeg: 0 };
   const flowIn = (fluidId) => {
     const { world } = run('fluid', { ...base, fluidId }, 4);
@@ -224,7 +217,7 @@ test('step 7: the fluid decides the regime, not the object', () => {
   assert.ok(honey.viscousShare > air.viscousShare * 50);
 });
 
-test('step 7: energy lost to the fluid is on the books, not missing', () => {
+test('step 5: energy lost to the fluid is on the books, not missing', () => {
   const base = { mass: 4, size: 0.3, pushForce: 40, pushSeconds: 2, muS: 0, muK: 0, slopeDeg: 0 };
   for (const fluidId of ['air', 'water', 'honey']) {
     const start = run('fluid', { ...base, fluidId });
@@ -236,7 +229,7 @@ test('step 7: energy lost to the fluid is on the books, not missing', () => {
   }
 });
 
-test('step 8: momentum survives the collision and kinetic energy does not', () => {
+test('step 6: momentum survives the collision and kinetic energy does not', () => {
   const base = {
     mass: 1, mass2: 3, x0: 0, x2: 4, v0: 0, v2: 0,
     pushForce: 40, pushSeconds: 1, fluidId: 'vacuum', muS: 0, muK: 0, slopeDeg: 0,
@@ -300,7 +293,6 @@ test('every graph channel a step asks for actually exists', () => {
 
 test('momentum and energy are offered everywhere anything can move', () => {
   for (const stage of STAGES) {
-    if (stage.id === 'mass') continue;
     const ids = channelsFor(stage.id).flatMap((g) => g.ids);
     assert.ok(ids.some((id) => ['px', 'py', 'sys-p'].includes(id)), `${stage.id} has no momentum graph`);
     assert.ok(ids.some((id) => ['ke', 'pe', 'etotal', 'sys-ke', 'sys-e'].includes(id)), `${stage.id} has no energy graph`);
@@ -315,11 +307,13 @@ test('pushState reports what the push is doing', () => {
   close(at.remaining, 2, 1e-12);
   assert.equal(pushState({ t: 5, bodies: [] }, { pushSeconds: 3 }, f).active, false);
   assert.equal(pushState(world, { pushSeconds: 0 }, f).active, false);
-  assert.equal(pushState(world, { pushSeconds: 3 }, featuresAt('mass')).active, false);
+  // A step with no `applied` feature never has a push running. There is no
+  // such step on the bench any more, so this asks the question directly.
+  assert.equal(pushState(world, { pushSeconds: 3 }, new Set(['shape'])).active, false);
 });
 
 test('stage lookups fall back rather than throwing', () => {
-  assert.equal(stageById('nonsense').id, 'mass');
+  assert.equal(stageById('nonsense').id, 'push');
   assert.equal(stageIndex('nonsense'), 0);
   assert.equal(stageIndex('collide'), STAGES.length - 1);
 });
@@ -1122,8 +1116,9 @@ test('an equation only appears once the step can actually do it', () => {
     if (ids.has('buoyancy') || ids.has('drag')) assert.ok(f(stage.id).has('fluid'), stage.id);
     // Nor weight before there is a world to be pulled towards.
     if (ids.has('weight')) assert.ok(f(stage.id).has('planet'), stage.id);
-    // And the first step, where nothing happens, offers only what a thing *is*.
-    if (stage.id === 'mass') assert.deepEqual(equationsAt('mass'), ['density']);
+    // What a thing *is* comes before anything happens to it, so density is
+    // offered from the first step on.
+    assert.ok(equationsAt(stage.id).includes('density'), stage.id);
   }
 });
 

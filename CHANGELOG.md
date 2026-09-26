@@ -1,5 +1,65 @@
 # Changelog
 
+## Unreleased
+
+### Six steps, not seven
+
+"A mass" is gone. It was a screen with one object on it and nothing you could do to it — the only
+honest thing it taught was that nothing happens until something pushes, which is what the push
+step opens by saying. The bench now starts where you can act on it. A saved session or a share
+link pointing at the old step lands on the push.
+
+Everything the removed step carried is still there: density is still offered as an equation from
+the first step on, and the shape and material controls are unchanged.
+
+### "Prepared experiments" is now "Examples"
+
+The shelf, the button that reaches it and the guide entries.
+
+### Two weights, two shapes
+
+The five-densities example is now four objects: a sphere and a flat plate at 16.8 kg, and a
+sphere and a flat plate at 57.0 kg. A plate of 0.695 m has exactly the volume of a 0.4 m sphere,
+so all four displace the same 0.0335 m³ and feel the same buoyant force — within a pair the
+density is identical and the only difference is shape, across pairs the shape repeats and the only
+difference is density. Whatever happens, there is one thing it can be blamed on.
+
+Measured over fifteen seconds in water: the pine pair rises and the clay pair sinks, *by pair, not
+by shape*; and the pine sphere covers 34.7 m to its plate's 10.8 m, because face-on the plate has
+3.8 times the frontal area and 2.7 times the drag coefficient. The shape cannot change the answer,
+only how long the answer takes.
+
+### A lake has a bed
+
+A world made of liquid is now a three-and-a-half-metre strip with ground under it, rather than an
+ocean of unbounded depth. A stone used to sink past 500 m and out of the scene, still
+accelerating, which is nothing to watch. Now it falls through the air, enters the water, reaches a
+steady speed and lands — all of it on one screen. The bed is ordinary ground: it collides, it has
+friction, and it is drawn flat, because a tilted lake bed is a different scene from the one on
+offer.
+
+### Things to find
+
+Sixteen achievements, each marking a discovery rather than a reward for grinding. They exist
+because the guide's list of non-obvious features is something you read once, and this is the same
+information delivered at the moment it means something: you did the thing, and the app tells you
+what you just did. The badge is the excuse to read the sentence.
+
+The rules they are held to, and tested against:
+
+- **Every one is reachable by using the app**, never by waiting — a test rejects any condition
+  that looks at the clock.
+- **Nothing is hidden behind one.** No feature is gated and nothing is scored; the app is exactly
+  as capable before as after.
+- **The condition is checked, not claimed.** Each one reads the live world, so it cannot fire for
+  something that did not happen — and a test proves a bench nobody has touched earns nothing.
+- **One at a time.** Two arriving together means the second is never read.
+
+They appear as a card at the corner rather than a modal: whatever you were doing when you found it
+is the thing that found it, and stopping the bench to hand out a badge takes you out of the moment
+the badge is about. The full list lives at the bottom of "How to use", with a hint against
+everything not yet found.
+
 ## 1.6.0
 
 Three levels of detail, a guide that answers in your own words, a world that can be made of

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { EXAMPLES, exampleById, exampleState } from '../js/examples.js';
 import { STAGE_IDS, defaults } from '../js/state.js';
-import { build, applyPush, featuresAt } from '../js/stages.js';
+import { build, applyPush, featuresAt, WATER_DEPTH } from '../js/stages.js';
 import { MAX_WALLS } from '../js/segments.js';
 import { advance, inspect, totals, findBody, forcesFor } from '../js/world.js';
 import { slipAngle, ROLLING_DEFAULT } from '../js/friction.js';
@@ -241,60 +241,94 @@ test('the example travels with the state, and is dropped on leaving it', () => {
 /* -------------------------------------------- five densities, one fluid -- */
 
 /**
- * The whole demonstration is that the fluid, not the ball, decides.
+ * Two variables, changed one at a time.
  *
- * Five spheres the same size, so they displace the same volume and feel the
- * same buoyant force; the only difference between them is their own weight. If
- * the masses drift away from their materials' densities the ladder collapses
- * and the example stops making its point.
+ * All four objects displace the same volume, so the buoyant force on them is
+ * identical and rise-or-sink is their own weight and nothing else. Within a
+ * pair the density matches and only the shape differs; across pairs the shape
+ * repeats and only the density differs. If any of that drifts, the example
+ * stops being able to blame a result on one thing.
  */
-test('the five balls really are the materials they claim to be', () => {
-  const state = exampleState('five-densities');
+test('the four objects are two densities and two shapes, and one volume', () => {
+  const state = exampleState('two-weights-two-shapes');
   const world = build('fluid', state.bench).world;
-  const wanted = { polystyrene: 20, balsa: 160, pine: 500, rubber: 1100, steel: 7850 };
-
   const movable = world.bodies.filter((b) => !b.fixed);
-  assert.equal(movable.length, 5, 'five balls');
+
+  assert.equal(movable.length, 4, 'four objects');
+
+  // One volume, so one buoyant force.
+  for (const b of movable) close(b.volume, movable[0].volume, 1e-6);
+
+  // Two shapes, two of each.
+  const shapes = movable.map((b) => b.shapeId).sort();
+  assert.deepEqual(shapes, ['plate', 'plate', 'sphere', 'sphere']);
+
+  // Two densities, two of each, and each one really is its material.
+  const wanted = { pine: 500, clay: 1700 };
+  const byDensity = {};
   for (const b of movable) {
     const density = b.mass / b.volume;
     assert.ok(Math.abs(density / wanted[b.materialId] - 1) < 0.005,
       `${b.materialId} came out at ${density.toFixed(1)} kg/m³`);
-    // Same size, so the same volume, so the same push from the fluid.
-    close(b.volume, movable[0].volume, 1e-9);
+    byDensity[b.materialId] = (byDensity[b.materialId] || 0) + 1;
+  }
+  assert.deepEqual(byDensity, { pine: 2, clay: 2 });
+
+  // And each density comes as both shapes, or the pairing means nothing.
+  for (const material of ['pine', 'clay']) {
+    const pair = movable.filter((b) => b.materialId === material).map((b) => b.shapeId).sort();
+    assert.deepEqual(pair, ['plate', 'sphere'], `${material} is not one of each shape`);
   }
 });
 
-test('switching the fluid re-sorts them, and rubber is the one that changes', () => {
-  const state = exampleState('five-densities');
+test('the pairs answer by weight, and the shape only sets how fast', () => {
+  const state = exampleState('two-weights-two-shapes');
+
   /*
-   * Which way each ball is pushed, read off the forces rather than off the
-   * motion a second later.
-   *
-   * Watching velocities looked simpler and was wrong: in air the heavy balls
-   * reach the floor in under a second and *bounce*, so they come back reading
-   * as rising. The net force at the start has no such ambiguity, and it is the
-   * thing the example is actually about — weight against the weight of the
-   * fluid pushed aside.
+   * Which way each object is pushed, read off the forces rather than off the
+   * motion a second later — in air the heavy ones reach the floor and bounce,
+   * so they come back reading as rising.
    */
   const rising = (fluidId) => {
-    const p = { ...state.bench, fluidId };
-    const w = build('fluid', p).world;
+    const w = build('fluid', { ...state.bench, fluidId }).world;
     return w.bodies
       .filter((b) => !b.fixed && inspect(w, b.id).net.vec.y > 0)
-      .map((b) => b.materialId)
+      .map((b) => `${b.materialId}/${b.shapeId}`)
       .sort();
   };
 
-  // The ladder the example is built on.
+  // In water the pine pair rises and the clay pair does not — by pair, which
+  // is the whole claim. Shape does not appear in the answer.
+  assert.deepEqual(rising('water'), ['pine/plate', 'pine/sphere']);
+  // In air nothing is lighter than air, so nothing rises.
   assert.deepEqual(rising('air'), []);
-  assert.deepEqual(rising('water'), ['balsa', 'pine', 'polystyrene']);
-  assert.deepEqual(rising('honey'), ['balsa', 'pine', 'polystyrene', 'rubber']);
+  // Honey at 1420 is denser than pine and lighter than clay, so the answer is
+  // unchanged — which is worth pinning, because it is what the note claims.
+  assert.deepEqual(rising('honey'), ['pine/plate', 'pine/sphere']);
+});
 
-  // Rubber is the one that answers differently between water and honey, which
-  // is why it is the ball the readouts follow.
-  assert.equal(state.selectedId, 'o4');
-  const rubber = build('fluid', state.bench).world.bodies.find((b) => b.id === 'o4');
-  assert.equal(rubber.materialId, 'rubber');
+/**
+ * The shape changes how long, not what.
+ *
+ * A plate face-on has 3.8x the frontal area of the equal-volume sphere and
+ * nearly three times the drag coefficient, so it goes the same way far more
+ * slowly. Measured over fifteen seconds in water: the sphere rises 34.7 m and
+ * its plate 10.8 m.
+ */
+test('the plate goes the same way as its sphere, and much slower', () => {
+  const { world } = play('two-weights-two-shapes', 15, 1 / 120);
+
+  const sphere = inspect(world, 'main');    // pine sphere
+  const plate = inspect(world, 'o2');       // pine plate, same mass and volume
+  assert.ok(sphere.pos.y > 2 && plate.pos.y > 2, 'the pine pair should both be rising');
+  assert.ok(sphere.pos.y > plate.pos.y * 2,
+    `the sphere should be well ahead: ${sphere.pos.y.toFixed(1)} against ${plate.pos.y.toFixed(1)}`);
+
+  // And the clay pair is on the floor, both of them, whatever their shape.
+  for (const id of ['o3', 'o4']) {
+    const b = inspect(world, id);
+    assert.ok(Math.abs(b.vel.y) < 0.05, `${id} has not settled: ${b.vel.y.toFixed(3)} m/s`);
+  }
 });
 
 /* -------------------------------------- a ball and a box on the same slope -- */
@@ -1045,12 +1079,25 @@ test('nothing in the slalom removes speed', () => {
  * fraction has to come out as the density ratio, and it has to come out of the
  * simulation rather than out of the sentence.
  */
-test('a world can be made of water, and then there is nothing to land on', () => {
+test('a world made of water is a strip with a bed under it', () => {
   const { scenario } = play('into-the-water', 0.1);
-  assert.equal(scenario.world.ground, null, 'a lake still has a floor to bounce off');
-  assert.equal(scenario.world.env.surfaceFluid.density, 997);
-  // And the air above it is still air, or the fall through it means nothing.
-  assert.equal(scenario.world.env.fluidDensity, 1.225);
+  const { world } = scenario;
+
+  assert.equal(world.env.surfaceFluid.density, 997);
+  // The air above it is still air, or the fall through it means nothing.
+  assert.equal(world.env.fluidDensity, 1.225);
+
+  /*
+   * A lake has a floor. Without one the water was an ocean of unbounded
+   * depth and a stone sank out of the scene still accelerating, which is
+   * nothing to watch.
+   */
+  assert.ok(world.ground, 'the lake has no bed');
+  assert.equal(world.ground.y, -WATER_DEPTH);
+  assert.equal(world.env.surfaceY, 0);
+  // Flat, whatever the slope control says: a tilted lake bed is a different
+  // scene from the one on offer.
+  assert.equal(world.ground.slopeDeg, 0);
 });
 
 test('each ball settles at the fraction its density says, or does not settle', () => {
@@ -1074,11 +1121,15 @@ test('each ball settles at the fraction its density says, or does not settle', (
     assert.ok(Math.abs(b.vel.y) < 0.15, `${id} is still bobbing at ${b.vel.y.toFixed(2)} m/s`);
   }
 
-  // Steel is denser than water by eight times: there is no depth at which it
-  // stops, and the example says so.
+  /*
+   * Steel is eight times denser than water, so nothing in the water stops it
+   * — the bed does. It should be down there, at rest, sitting on it.
+   */
   const steel = inspect(world, 'o3');
-  assert.ok(steel.pos.y < -30, `steel only reached ${steel.pos.y.toFixed(1)} m`);
-  assert.ok(steel.vel.y < -1, 'steel should still be sinking, at its terminal speed');
+  const restsAt = -WATER_DEPTH + 0.2;           // the bed, plus its radius
+  assert.ok(Math.abs(steel.pos.y - restsAt) < 0.05,
+    `steel came to rest at ${steel.pos.y.toFixed(3)}, not on the bed at ${restsAt}`);
+  assert.ok(Math.abs(steel.vel.y) < 0.05, `steel is still moving at ${steel.vel.y.toFixed(3)} m/s`);
 });
 
 test('the balsa ball goes under before it comes back up', () => {
