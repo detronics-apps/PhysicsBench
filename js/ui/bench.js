@@ -11,7 +11,9 @@ import {
   section, subsection, numberField, sliderField, selectField, toggleField, stat, banner, table,
   buttonRow, button, grouped,
 } from './widgets.js';
-import { explain as explainSpec, equationPanel as equationFor, equationTriangle } from './explain.js';
+import {
+  explain as explainSpec, equationPanel as equationFor, equationTriangle, quizPanel,
+} from './explain.js';
 import { equation, EQUATIONS, triangleFor } from '../models.js';
 import { stageById, featuresAt, pushState, pushRange, equationsAt, MAX_OBJECTS } from '../stages.js';
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
@@ -34,6 +36,7 @@ import { inspect, totals, findBody, elevation } from '../world.js';
 import { len } from '../vec.js';
 import { fmtFixed, fmtDirectionWords, fmtLength } from '../format.js';
 import { G, G_STANDARD } from '../constants.js';
+import { layerAt, passedLandmark } from '../atmosphere.js';
 
 /* ---------------------------------------------------------- the controls -- */
 
@@ -1303,7 +1306,26 @@ export function readouts(ctx) {
   }
 
   if (f.has('ground')) {
-    tiles.push(stat('Height', `${fmtFixed(main.heightAboveGround, 2)} m`, {}));
+    /*
+     * How high, and — once that is a long way — where that is.
+     *
+     * "412,000 m" tells a reader nothing they can picture. The layer names
+     * it, the range says how far it runs, and the landmark is the thing they
+     * have heard of that they have just gone past. Only once the number has
+     * stopped being an everyday one, because on a two-metre drop the answer
+     * is always "troposphere" and that is noise.
+     */
+    const high = main.heightAboveGround > 2000 && !ctx.space;
+    const layer = high ? layerAt(main.heightAboveGround) : null;
+    const passed = high ? passedLandmark(main.heightAboveGround) : null;
+    tiles.push(stat('Height', fmtLength(main.heightAboveGround), {
+      note: layer
+        ? `${layer.name} · ${fmtLength(layer.from)} to ${fmtLength(layer.to)}`
+          // Only the leading article is lowered: "Past the Kármán line",
+          // not "past the kármán line", which unmakes a proper noun.
+          + (passed ? `. Past ${passed.name.replace(/^The /, 'the ')}.` : '')
+        : undefined,
+    }));
     add('advanced', stat('Potential energy', `${fmtFixed(sums.potential, 2)} J`, {
       swatch: '--force-weight',
       note: 'm·g·h from the ground',
@@ -1587,6 +1609,14 @@ export function explains(ctx) {
       ].filter(Boolean),
       open: true,
     }));
+    /*
+     * And its questions, right under it.
+     *
+     * Beside the example's own note rather than at the bottom of the stack,
+     * because the two are the same thought: here is what this shows, and here
+     * is how you would know.
+     */
+    if (example.quiz?.length) out.push(quizPanel(example.quiz));
   }
 
   out.push(explain({

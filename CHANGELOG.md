@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased
+
+### Things to find, on their own page
+
+The achievements moved out of the foot of the guide onto their own tab beside How to use, with
+the count on the label. Somebody who has just found one arrives from the card that told them and
+should not land in the middle of the FAQs, and the one question anybody has about a list like this
+is how much of it is left.
+
+### Questions on every example
+
+Two or three multiple-choice questions per example, twenty-five in all, each answered by *using*
+the scene rather than by remembering anything — "set the fluid to vacuum and drop all four", "tilt
+the slope until it slips", "fly it, then let go of the keys".
+
+Guess first, then read: the options are live until one is pressed and the reasoning only appears
+afterwards, because a reader handed the explanation has no reason to go and look. A wrong guess
+gets the same reasoning as a right one plus which option was right. There is no score and nothing
+is recorded — a wrong guess that sends somebody back to the bench has done more work than a right
+one.
+
+Two things my own tests caught while writing them. **Nineteen of the twenty-five correct answers
+were in the same slot**, which makes a quiz answerable without reading it — the one failure that
+renders the whole feature pointless; they are spread 7/6/6/6 now. And two "questions" were
+statements with no question mark and no verb, so they tested recall rather than sending anybody
+anywhere.
+
+### The atmosphere, on the way up
+
+The height readout now names the layer, says how far it runs, and names the last landmark passed:
+*"176.146 km · Thermosphere · 85 km to 600 km. Past the Kármán line, the conventional edge of
+space."* Only once the number has stopped being an everyday one, because on a two-metre drop the
+answer is always "troposphere" and that is noise.
+
+The rocket scene draws the altitudes worth knowing — Everest, the airliners, the Armstrong limit,
+the Kármán line — and **the ISS at 408 km, which is exactly the height this rocket reaches**. The
+station is drawn larger than scale and says so in its own label: at a zoom that holds 400 km, its
+real 109 m span is a third of a pixel, and a picture that silently lies about scale is worse than
+one that admits it. The altitude is true; the symbol is a symbol.
+
+### One fewer example
+
+"Four dropped at once" has gone. "Two weights, two shapes" is the same 2×2 comparison done more
+carefully — equal volumes as well as equal masses — and the vacuum question it existed to raise is
+now the first question on that example.
+
 ## 1.7.0
 
 Sixteen things to find, a shorter walk to the first one, and a lake you can see the bottom of.

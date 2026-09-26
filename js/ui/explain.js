@@ -262,3 +262,62 @@ export function promptPanel(concept, { mode = 'learn' } = {}) {
     ]),
   ]);
 }
+
+/* ------------------------------------------------------------ questions -- */
+
+/**
+ * The questions an example asks, and the answers it reveals once you guess.
+ *
+ * The order matters: **guess first, then read**. A reader who is handed the
+ * explanation has no reason to go and look, and looking is the entire point —
+ * every question here names a setting to change, so the way to answer it is to
+ * go and do the thing.
+ *
+ * So the options are live until one is pressed, and the reasoning only appears
+ * afterwards. Getting it wrong shows the same reasoning as getting it right:
+ * this is not a test, it has no score, and nothing is recorded. A wrong guess
+ * that leads somebody back to the bench has done more work than a right one.
+ */
+export function quizPanel(questions, { open = false } = {}) {
+  return el('details', { class: 'explain quiz', open: open || null }, [
+    el('summary', { text: `Questions to try (${questions.length})` }),
+    el('div', { class: 'explain__body' }, [
+      el('p', {
+        class: 'muted',
+        text: 'Each one is answered by using this scene rather than by remembering '
+          + 'anything. Have a guess, then go and check it.',
+      }),
+      ...questions.map((q, i) => question(q, i)),
+    ]),
+  ]);
+}
+
+function question(q, index) {
+  const feedback = el('p', { class: 'quiz__why' });
+  const options = el('div', { class: 'quiz__options' });
+
+  const answer = (chosen) => {
+    const right = chosen === q.answer;
+    for (const [i, button] of [...options.children].entries()) {
+      button.disabled = true;
+      button.classList.toggle('is-right', i === q.answer);
+      button.classList.toggle('is-wrong', i === chosen && !right);
+      if (i === chosen) button.setAttribute('aria-pressed', 'true');
+    }
+    feedback.textContent = (right ? '' : `The answer is "${q.options[q.answer]}". `) + q.why;
+    feedback.classList.add('is-shown');
+  };
+
+  q.options.forEach((text, i) => {
+    options.appendChild(el('button', {
+      class: 'quiz__option', type: 'button', 'aria-pressed': 'false',
+      on: { click: () => answer(i) },
+    }, text));
+  });
+
+  return el('div', { class: 'quiz__q' }, [
+    el('p', { class: 'quiz__ask', text: `${index + 1}. ${q.ask}` }),
+    options,
+    feedback,
+  ]);
+}

@@ -147,7 +147,7 @@ test('every step a how-to sends someone to exists', () => {
 
 test('the pages the welcome deep-links to are pages the app has', () => {
   for (const item of WELCOME) {
-    assert.ok(['bench', 'examples', 'guide'].includes(item.go.page), `no such page: ${item.go.page}`);
+    assert.ok(['bench', 'examples', 'guide', 'achievements'].includes(item.go.page), `no such page: ${item.go.page}`);
     assert.ok(item.label.length > 3, `${item.title}: no button label`);
   }
 });
@@ -162,9 +162,9 @@ test('the guide counts the steps and the experiments correctly', () => {
   assert.ok(concept, 'the six-steps tile has been renamed — check the count still matches');
   assert.equal(STAGES.length, 6, 'there are no longer six steps; the guide says there are');
 
-  const shelf = FEATURES.find((f) => f.what.includes('Twelve scenes'));
+  const shelf = FEATURES.find((f) => f.what.includes('Eleven scenes'));
   assert.ok(shelf, 'the prepared-experiments tile has been reworded — check the count');
-  assert.equal(EXAMPLES.length, 12, 'the shelf no longer holds twelve; the guide says it does');
+  assert.equal(EXAMPLES.length, 11, 'the shelf no longer holds eleven; the guide says it does');
 });
 
 test('an alias entry keys on a word the content actually uses', () => {

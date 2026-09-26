@@ -150,22 +150,41 @@ export function guidePage(actions) {
     block('The ideas behind it', 'Five things that make the rest of the app obvious.',
       [el('div', { class: 'guide__grid' }, CONCEPTS.map((c) => tile(c.name, c.what)))]),
 
-    /*
-     * What there is left to find.
-     *
-     * Last, because it is the one section you come back to rather than arrive
-     * at: somebody who has stopped finding things needs somewhere to look for
-     * what is left, and somebody who has just found one lands here from the
-     * card that told them.
-     */
-    actions.achievements
-      ? block('Things to find',
-        'Each one marks something the bench does that you would not find from a label. '
-        + 'Nothing is locked behind them and nothing is scored \u2014 they are a way of being '
-        + 'told what you just did, at the moment you do it.',
-        [actions.achievements()])
-      : null,
   ].filter(Boolean));
+}
+
+/**
+ * Things to find, as a page of its own.
+ *
+ * It was a section at the foot of the guide, which is the wrong place twice
+ * over: somebody who has just found one arrives from the card that told them
+ * and should not have to scroll past the FAQs, and somebody browsing for what
+ * is left is not looking for help. It is its own thing, so it gets its own
+ * tab.
+ */
+export function achievementsPage(actions, held, groupsOf, all) {
+  return el('section', { class: 'guide' }, [
+    el('div', { class: 'prompt' }, [
+      el('p', { class: 'prompt__meta', text: 'Things to find' }),
+      el('p', {
+        class: 'prompt__ask',
+        text: 'Everything this bench does that you would never find from a label.',
+      }),
+      el('div', { class: 'prompt__nav' }, [
+        button('\u2190 Back to the bench', () => actions.showBench(), { small: true }),
+        button('How to use', () => actions.showGuide(), { small: true }),
+      ]),
+    ]),
+
+    el('p', { class: 'guide__note' }, [
+      'Each one fires once, at the moment you do the thing, and says what you just '
+      + 'found. Nothing is locked behind them, nothing is scored, and there is nobody '
+      + 'to compete with \u2014 they are a way of being told what a thing is for while it is '
+      + 'still in front of you. Anything not yet found shows a hint instead.',
+    ]),
+
+    achievementsPanel(held, groupsOf, all),
+  ]);
 }
 
 /* ------------------------------------------------------------ welcome -- */

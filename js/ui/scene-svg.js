@@ -33,6 +33,7 @@ import {
 import { FORCE_STYLE } from '../forces.js';
 import { forcesFor } from '../world.js';
 import { horizonSag } from '../gravitation.js';
+import { LANDMARKS, ISS_ALTITUDE } from '../atmosphere.js';
 import { outline, outlineParts, outlineFront, detail, detailFront, wheelPivot } from '../shapes.js';
 import { wallBounds, alongWall, arcOf } from '../segments.js';
 import { elevation } from '../world.js';
@@ -140,6 +141,18 @@ export function renderScene(world, {
   // The water goes on after the bed, so the strip sits between the surface
   // and the ground rather than over it.
   if (world.env?.surfaceFluid) root.appendChild(drawLiquid(cam, world.env, world.ground));
+  /*
+   * The altitudes worth knowing, when the view is tall enough to hold them.
+   *
+   * A rocket climbing four hundred kilometres passes Everest, the airliners,
+   * the edge of space and the ISS, and without them the screen is a dot going
+   * up an empty gradient. Only drawn when the scene is high enough for them to
+   * mean something — on a two-metre drop they are noise.
+   */
+  if (view.showMarks !== false && world.ground) {
+    const marks = drawAltitudeMarks(cam, world.ground.y);
+    if (marks) root.appendChild(marks);
+  }
   if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
   if (drawing) root.appendChild(drawPending(cam, drawing));
   if (world.cannons?.length) root.appendChild(drawCannons(cam, world.cannons));
@@ -520,6 +533,77 @@ function drawLiquid(cam, env, ground) {
     stroke: 'var(--force-drag)', 'stroke-width': 2.5,
   }));
   return group;
+}
+
+/**
+ * Altitude lines, and the ISS at the height it actually flies.
+ *
+ * The station is drawn to scale, which for a 109 m truss at a zoom that holds
+ * 400 km is about a third of a pixel — so it is drawn at a legible minimum
+ * and *labelled with its real size*, because a picture that silently lies
+ * about scale is worse than one that admits it. The line it sits on is at the
+ * true altitude, and that is the part a reader is reading off.
+ */
+function drawAltitudeMarks(cam, groundY) {
+  const box = visibleWorld(cam);
+  const top = box.maxY - groundY;
+  // Nothing to say until the view is taller than the weather.
+  if (!(top > 9000)) return null;
+
+  const group = svg('g', { class: 'scene__marks' });
+  const showing = LANDMARKS.filter((m) => m.at > box.minY - groundY && m.at < top);
+  // A screen full of lines teaches less than four of them.
+  const step = Math.max(1, Math.ceil(showing.length / 5));
+  const picked = showing.filter((m, i) => i % step === 0 || m.at === ISS_ALTITUDE);
+
+  for (const mark of picked) {
+    const y = toScreen(cam, { x: 0, y: groundY + mark.at }).y;
+    if (y < 10 || y > VIEW_H - 10) continue;
+
+    group.appendChild(svg('line', {
+      x1: 0, y1: r(y), x2: VIEW_W, y2: r(y),
+      stroke: 'var(--text-faint)', 'stroke-width': 1,
+      'stroke-dasharray': '4 6', 'stroke-opacity': 0.5,
+    }));
+    group.appendChild(svg('text', {
+      x: 8, y: r(y - 4), fill: 'var(--text-faint)', 'font-size': 10,
+    }, `${fmtLength(mark.at)} \u00b7 ${mark.name}`));
+
+    if (mark.at === ISS_ALTITUDE) group.appendChild(drawStation(cam, y));
+  }
+  return group;
+}
+
+/**
+ * The station, side on: a truss with two pairs of solar wings.
+ *
+ * Its real span is 109 m across the arrays. At any zoom that shows the whole
+ * climb that is far under a pixel, so it is drawn at a readable size with the
+ * true figure in the label beside it — the altitude is to scale, the station
+ * is a symbol, and the label says which is which.
+ */
+function drawStation(cam, y) {
+  const g = svg('g', { class: 'scene__iss' });
+  const x = VIEW_W * 0.72;
+  const stroke = { stroke: 'var(--text-dim)', 'stroke-width': 1.4, fill: 'none' };
+
+  // The truss, and the modules along it.
+  g.appendChild(svg('line', { x1: r(x - 26), y1: r(y), x2: r(x + 26), y2: r(y), ...stroke }));
+  g.appendChild(svg('rect', {
+    x: r(x - 7), y: r(y - 3), width: 14, height: 6, rx: 2,
+    fill: 'var(--panel-3)', stroke: 'var(--text-dim)', 'stroke-width': 1.2,
+  }));
+  // Four arrays, in the two pairs they actually come in.
+  for (const dx of [-20, -12, 12, 20]) {
+    g.appendChild(svg('rect', {
+      x: r(x + dx - 3), y: r(y - 9), width: 6, height: 18,
+      fill: 'var(--accent-soft)', stroke: 'var(--accent-strong)', 'stroke-width': 1,
+    }));
+  }
+  g.appendChild(svg('text', {
+    x: r(x + 32), y: r(y + 4), fill: 'var(--text-faint)', 'font-size': 9,
+  }, '109 m across \u2014 drawn larger to be visible'));
+  return g;
 }
 
 function drawGround(cam, ground) {

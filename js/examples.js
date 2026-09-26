@@ -72,6 +72,42 @@ export const EXAMPLES = [
       cannons: [],
     },
     arrows: ['weight', 'normal', 'friction', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Tilt the slope a little, with the crate still holding. What has friction done?',
+        options: [
+          'Grown, exactly enough to hold',
+          'Shrunk, because there is less weight on the surface',
+          'Nothing — the crate is held by the normal force',
+          'Stayed the same, and the crate is winning',
+        ],
+        answer: 0,
+        why: 'Static friction is not a fixed force. It supplies whatever is needed to '
+          + 'hold, up to its limit of μs·N, and no more. Watch the friction arrow '
+          + 'grow as you tilt.',
+      },
+      {
+        ask: 'Make the crate ten times heavier. At what angle does it now slip?',
+        options: [
+          'A much shallower angle',
+          'The same angle as before',
+          'A much steeper angle',
+          'It never slips',
+        ],
+        answer: 1,
+        why: 'Both the pull along the slope and the friction limit are proportional to '
+          + 'weight, so the weight cancels out entirely. tan θ = μs, and mass is '
+          + 'nowhere in it — which is why a plank and a protractor is how μs is '
+          + 'actually measured.',
+      },
+    ],
     teach: {
       how: 'Weight pulls straight down, and on a slope that pull splits in two. '
         + 'One part presses into the surface — the normal force pushes back with '
@@ -160,6 +196,57 @@ export const EXAMPLES = [
     },
     select: 'o2',
     arrows: ['weight', 'buoyancy', 'drag', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Set the fluid to vacuum and drop all four. Which reaches the ground first?',
+        options: [
+          'The heavy sphere, because it weighs the most',
+          'The two spheres, because they are the least draggy',
+          'All four together',
+          'The light plate, because it has the most area',
+        ],
+        answer: 2,
+        why: 'With no fluid there is no drag and no buoyancy, so the only force is '
+          + 'weight — and weight is proportional to mass, so the acceleration is the '
+          + 'same for everything. Mass cancels. It is the same reason a hammer and a '
+          + 'feather land together on the Moon.',
+      },
+      {
+        ask: 'In water, the pine sphere and the pine plate do what?',
+        options: [
+          'Both rise, together',
+          'Both sink, and the plate gets there sooner',
+          'The sphere rises and the plate sinks',
+          'Both rise, and the sphere gets there sooner',
+        ],
+        answer: 3,
+        why: 'Same mass and same volume means the same density, so they answer the '
+          + 'same way — up. The plate is slower because face-on it has 3.8 times the '
+          + 'frontal area and nearly three times the drag coefficient. Shape sets how '
+          + 'long, not what.',
+      },
+      {
+        ask: 'What would make the clay pair float?',
+        options: [
+          'A fluid denser than 1700 kg/m³',
+          'Turning them into spheres',
+          'Nothing — clay always sinks',
+          'A bigger shape at the same mass',
+        ],
+        answer: 0,
+        why: 'Floating is a comparison of two densities. Clay is 1700 kg/m³, so any '
+          + 'fluid denser than that lifts it — or spreading the same mass through '
+          + 'more volume would drop its density below the fluid, which is exactly how '
+          + 'a steel ship floats.',
+      },
+    ],
     teach: {
       how: 'Four objects, and every one of them displaces the same 0.0335 m³. '
         + 'So the buoyant force — the weight of that much fluid — is identical '
@@ -247,6 +334,41 @@ export const EXAMPLES = [
       cannons: [],
     },
     arrows: ['weight', 'normal', 'friction', 'rolling', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Same wood, same mass, same slope. Why does only the ball move?',
+        options: [
+          'The ball is lighter where it touches',
+          'Rolling is a different mechanism, and costs about a hundredth as much',
+          'The box has more surface area touching',
+          'The ball has a lower centre of gravity',
+        ],
+        answer: 1,
+        why: 'Sliding tears two surfaces across each other and costs μ·N. Rolling only '
+          + 'has to flex the contact, and costs roughly a hundredth of that. A wheel '
+          + 'is not a slippier surface; it is a different way of meeting the ground.',
+      },
+      {
+        ask: 'Steepen the slope until the box moves too. What happens to the ball?',
+        options: [
+          'It stops, overtaken by the box',
+          'Nothing changes for it',
+          'It runs away faster still',
+          'It starts to slide instead of roll',
+        ],
+        answer: 2,
+        why: 'The ball was already rolling and steeper means more of the weight pulls '
+          + 'along the slope, so it accelerates harder. The box needed the angle to '
+          + 'pass tan θ = μs before anything happened at all.',
+      },
+    ],
     teach: {
       how: 'The box is held by dry friction, which can supply up to μs times '
         + 'the normal force — on wood that is 0.5, and an eight-degree slope '
@@ -350,6 +472,55 @@ export const EXAMPLES = [
       ],
     },
     arrows: ['velocity', 'weight', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Fire at 42°, then at 48° with the same speed. How do the ranges compare?',
+        options: [
+          '48° falls short by half',
+          '48° goes much further',
+          '42° goes much further',
+          'They land in almost the same place',
+        ],
+        answer: 3,
+        why: 'Range is symmetric about 45°: angles either side of it by the same '
+          + 'amount give the same range. 42° and 48° are both 3° off, so they land '
+          + 'together — one arrives flatter and sooner, the other higher and later.',
+      },
+      {
+        ask: 'Double the launch speed. The range becomes roughly',
+        options: [
+          'four times as far',
+          'the same, since gravity also doubles',
+          'half as far',
+          'twice as far',
+        ],
+        answer: 0,
+        why: 'It goes twice as fast sideways *and* stays up twice as long, and those '
+          + 'multiply. Range goes with the square of the speed — which is why a small '
+          + 'change at the muzzle makes such a large one at the target.',
+      },
+      {
+        ask: 'At the top of the arc, what is the vertical speed?',
+        options: [
+          'Its maximum',
+          'Zero',
+          'The same as the horizontal speed',
+          'Half the launch speed',
+        ],
+        answer: 1,
+        why: 'The top of the arc is exactly where the upward motion has been used up '
+          + 'and the fall has not started. The *horizontal* speed is unchanged '
+          + 'throughout — the two are independent, which is the whole of projectile '
+          + 'motion.',
+      },
+    ],
     teach: {
       how: 'Once a shot has left the barrel nothing is pushing it along. Its '
         + 'sideways speed only changes because of air; its upward speed is '
@@ -476,6 +647,42 @@ export const EXAMPLES = [
       ],
     },
     arrows: ['velocity', 'control', 'drag', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'The rover reaches a top speed well below what its motor could do. What '
+          + 'sets it?',
+        options: [
+          'The mass of the rover',
+          'The motor running out of power',
+          'Where drag grows to match the thrust',
+          'Friction with the track',
+        ],
+        answer: 2,
+        why: 'Drag rises with speed until it equals the push, and then nothing '
+          + 'accelerates any more. Top speed is where those two curves cross, not a '
+          + 'property of the engine.',
+      },
+      {
+        ask: 'Try it: to go twice as fast through the water, how much more thrust is needed?',
+        options: [
+          'the same, once it is moving',
+          'eight times as much',
+          'twice as much',
+          'four times as much',
+        ],
+        answer: 3,
+        why: 'Drag goes with the square of the speed, so doubling the speed needs four '
+          + 'times the force to balance it. That is why the last few km/h of anything '
+          + 'are so expensive — and why the water makes such a difference here.',
+      },
+    ],
     teach: {
       how: 'Holding a key applies a steady force and F = ma turns it into an '
         + 'acceleration. The water pushes back with a drag force that grows '
@@ -579,6 +786,43 @@ export const EXAMPLES = [
       walls: [],
     },
     arrows: ['velocity', 'applied', 'weight', 'drag', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'The rocket reaches 408 km — exactly the ISS altitude — and falls '
+          + 'straight back. Why?',
+        options: [
+          'It has height but almost no sideways speed',
+          'The ISS altitude is above the atmosphere',
+          'Gravity is stronger up there',
+          'It ran out of fuel too early',
+        ],
+        answer: 0,
+        why: 'An orbit is falling sideways fast enough to keep missing the ground — '
+          + 'about 7.7 km/s at that height. Going straight up buys height and no '
+          + 'sideways speed at all, so it comes straight back. Getting to space is '
+          + 'easy; staying is the hard part.',
+      },
+      {
+        ask: 'Watch the Height readout climb. Which layer does it spend the longest in?',
+        options: [
+          'Mesosphere',
+          'Thermosphere',
+          'Troposphere',
+          'Stratosphere',
+        ],
+        answer: 1,
+        why: 'The thermosphere runs from 85 km to 600 km — wider than everything below '
+          + 'it put together. The ISS, the aurora and most satellites are all inside '
+          + 'it, which is why so much happens in a layer nobody can breathe in.',
+      },
+    ],
     teach: {
       how: 'Thrust up, weight down, drag against the motion. A Falcon 9 leaves '
         + 'the pad with 7.61 MN of thrust against 5.39 MN of weight, so only '
@@ -675,6 +919,42 @@ export const EXAMPLES = [
       walls: [],
     },
     arrows: ['velocity', 'weight', 'acceleration'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'What holds the two masses in orbit around each other?',
+        options: [
+          'Nothing; they are beyond each other’s pull',
+          'Gravity pulling in, balanced by centrifugal force pushing out',
+          'Gravity alone — they are falling and missing',
+          'Their sideways speed cancelling gravity',
+        ],
+        answer: 2,
+        why: 'There is no outward force. The only force is gravity, pointing inward '
+          + 'the whole time, and it is bending a straight line into a circle. Switch '
+          + 'the arrows on and look: there is exactly one, and it never points '
+          + 'outward.',
+      },
+      {
+        ask: 'Switch the arrows on and look. Why do astronauts on the ISS float?',
+        options: [
+          'the station spins',
+          'they are beyond the atmosphere',
+          'there is no gravity at that height',
+          'they are falling, and so is everything around them',
+        ],
+        answer: 3,
+        why: 'At 408 km gravity is still about 89% of its value at the ground. They '
+          + 'float because they and the station are falling together — weightlessness '
+          + 'is free fall, not the absence of gravity.',
+      },
+    ],
     teach: {
       how: 'The two masses pull on each other with G*m1*m2/r^2, and nothing '
         + 'else acts at all - there is no floor, no air and no push. Left '
@@ -712,103 +992,6 @@ export const EXAMPLES = [
         + 'ball is, and travelling sideways fast enough that the Earth curves '
         + 'away underneath them as fast as they drop. Stop them dead and they '
         + 'would fall, like anything else.',
-    },
-  },
-  {
-    id: 'four-dropped-together',
-    title: 'Four dropped at once',
-    blurb: 'Two share a mass, two share a shape. In air all four land at '
-      + 'different times. Take the air away and they land together.',
-    watch: 'Everyone knows heavier things fall faster and everyone knows that '
-      + 'is wrong. Both are true here, and the switch between them is the '
-      + 'fluid setting.',
-    stage: 'fluid',
-    /*
-     * Galileo, with the answer visible from both sides.
-     *
-     * Four objects fall forty metres. Two of them weigh the same and differ
-     * only in shape; three of them are the same shape and differ only in mass.
-     * Every pair is a controlled comparison, so nothing has to be taken on
-     * trust - whichever one lands first, the only thing that could have caused
-     * it is the one thing that was changed.
-     *
-     * Measured: in air they arrive at 3.00, 3.65, 5.18 and 7.95 s, doing 24.2,
-     * 15.5, 8.7 and 5.3 m/s. Switch the fluid to vacuum and every one of them
-     * lands at 2.85 s doing 27.9 m/s - not close, the same. That is the whole
-     * argument in one setting.
-     *
-     * Forty metres because the differences need time to accumulate: from four
-     * metres the four land within a tenth of a second of each other and the
-     * point is lost. The light sphere is 0.15 kg rather than lighter still,
-     * because below that it takes half a minute to arrive and the reader has
-     * stopped watching.
-     */
-    params: {
-      shapeId: 'sphere',
-      size: 0.4,
-      mass: 1,
-      materialId: 'pine',
-      x0: -3,
-      dropHeight: 40,
-      v0: 0,
-      pushForce: 0,
-      pushSeconds: 0,
-      slopeDeg: 0,
-      fluidId: 'air',
-      worldMode: 'planet',
-      objects: [
-        // Same mass as the sphere, blunter: the shape comparison.
-        { id: 'o2', shapeId: 'plate', size: 0.4, materialId: 'pine', mass: 1, x: -1, y: 40, vx: 0, vy: 0 },
-        // Same shape and size as the sphere, five times the mass.
-        { id: 'o3', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 5, x: 1, y: 40, vx: 0, vy: 0 },
-        // And a seventh of it.
-        { id: 'o4', shapeId: 'sphere', size: 0.4, materialId: 'pine', mass: 0.15, x: 3, y: 40, vx: 0, vy: 0 },
-      ],
-      cannons: [],
-      walls: [],
-    },
-    arrows: ['velocity', 'weight', 'drag', 'net'],
-    teach: {
-      how: 'Gravity pulls on each of them in proportion to its mass, so a '
-        + 'heavier object is pulled harder - and needs proportionally more '
-        + 'force to accelerate, which is why the two cancel and mass drops out '
-        + 'of free fall entirely. Air does not care about mass. It pushes back '
-        + 'on frontal area and shape and the square of the speed, the same for '
-        + 'a heavy object as a light one of the same size. So what decides the '
-        + 'race is the ratio of that push to the weight carrying it down.',
-      tryThis: [
-        'Press Play and watch them separate. The 5 kg sphere lands at 3.00 s, '
-        + 'the 1 kg at 3.65, the plate at 5.18 and the light sphere at 7.95.',
-        'Compare only the sphere and the plate. Identical mass, identical size, '
-        + 'and a second and a half between them - so that gap is shape, and '
-        + 'nothing else.',
-        'Now compare the three spheres. Identical shape and size, so that gap '
-        + 'is mass, and nothing else.',
-        'Change the fluid to vacuum and press Play again. All four land at 2.85 '
-        + 'seconds doing 27.9 m/s - not nearly the same, the same.',
-        'Put the air back and make the light sphere heavier a step at a time. '
-        + 'Watch it catch the others up.',
-      ],
-      watch: [
-        'The weight arrows are wildly different lengths - the 5 kg sphere has '
-        + 'one thirty times the light one. The drag arrows start at nothing and '
-        + 'are the same for every sphere at the same speed.',
-        'The plate has a drag arrow half again as long as the sphere beside it, '
-        + 'on identical weight. That is all shape is.',
-        'The light sphere reaches a speed and stops gaining - its drag arrow '
-        + 'has grown to match its weight and the net force has gone. The heavy '
-        + 'one is still accelerating when it lands.',
-        'In vacuum every drag arrow disappears and all four fall as one, arrows '
-        + 'identical apart from weight.',
-      ],
-      learn: 'Drop two things and the heavier usually lands first - and the '
-        + 'reason is not gravity, which pulls on mass exactly in proportion to '
-        + 'the mass it has to move. It is the air, which pushes back on size '
-        + 'and shape and does not know what anything weighs. A heavy object '
-        + 'carries the same air resistance with more weight to overcome it, so '
-        + 'it wins. Remove the air and the advantage goes with it, which is '
-        + 'what the hammer and the feather showed on the Moon: not a different '
-        + 'law, just nothing in the way.',
     },
   },
   {
@@ -907,6 +1090,42 @@ export const EXAMPLES = [
       ],
     },
     arrows: ['velocity', 'weight', 'normal', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'A marble is moving fastest at the bottom. Where did that speed come from?',
+        options: [
+          'Height it gave up on the way down',
+          'The curved sections adding energy',
+          'Its own weight',
+          'The slope pushing it along',
+        ],
+        answer: 0,
+        why: 'A run is a machine for spending height, and it can only spend it once. '
+          + 'Every bit of speed anywhere on the track was bought with a metre of '
+          + 'descent earlier — which is why every feature has to keep some height in '
+          + 'hand for the next one.',
+      },
+      {
+        ask: 'Change the fluid to water. What happens to the marbles?',
+        options: [
+          'Nothing — the track does the work',
+          'They slow down, and some stop short',
+          'They go faster, being lubricated',
+          'They float off the track',
+        ],
+        answer: 1,
+        why: 'Drag takes energy out of the account on every metre, and that energy '
+          + 'came from height that cannot be spent twice. Enough of it and a marble '
+          + 'runs out of height before it runs out of track.',
+      },
+    ],
     teach: {
       how: 'A marble at the top has energy because of where it is, and that is '
         + 'the only supply the run has. Every metre it drops buys the same '
@@ -1043,6 +1262,41 @@ export const EXAMPLES = [
      */
     view: { camera: { mode: 'follow', cx: -18, cy: 6.1, span: 1.3 } },
     arrows: ['velocity', 'weight', 'normal', 'control', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'The rover leaves the ramp. What can still change where it lands?',
+        options: [
+          'Steering in the air',
+          'Braking before touchdown',
+          'Nothing at all',
+          'Accelerating mid-jump',
+        ],
+        answer: 2,
+        why: 'Once the wheels are off, the only force is gravity and the path is a '
+          + 'parabola fixed at the lip by speed and angle. A jump is decided before '
+          + 'it starts — which is why the run-up is the whole of it.',
+      },
+      {
+        ask: 'Approach the same gap at half the speed. What happens?',
+        options: [
+          'It clears it and overshoots',
+          'It clears it more safely',
+          'It falls short, into the gap',
+          'It stops at the edge',
+        ],
+        answer: 3,
+        why: 'Try it. It does not dive in — it runs out of drive and stops at the lip, '
+          + 'because the wheels are still on the ground the whole way. What it takes '
+          + 'to fall in is leaving the edge at all.',
+      },
+    ],
     teach: {
       how: 'On a platform the rover is held up by the normal force and driven '
         + 'along by its wheels, and it can change what it is doing at any '
@@ -1159,6 +1413,42 @@ export const EXAMPLES = [
     // Following, and far enough out to see the next gate coming.
     view: { camera: { mode: 'follow', cx: -30, cy: 0, span: 34 } },
     arrows: ['velocity', 'applied', 'control', 'net'],
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Fly it, then let go of the keys. What does it take to stop?',
+        options: [
+          'burn just as hard the other way',
+          'turn sideways to lose speed',
+          'nothing — it stops on its own',
+          'wait for drag to slow you',
+        ],
+        answer: 0,
+        why: 'There is no drag out here and nothing to rub against, so every manoeuvre '
+          + 'is bought twice at the same price: once to start it, once to stop it. A '
+          + 'pilot who budgets for only the first half arrives somewhere they did not '
+          + 'intend.',
+      },
+      {
+        ask: 'Why is a spacecraft harder to fly than a car, even with the same thrust?',
+        options: [
+          'Space is colder',
+          'Nothing removes speed you no longer want',
+          'There is less gravity',
+          'The engine is weaker in vacuum',
+        ],
+        answer: 1,
+        why: 'A car has friction and air doing half the work of stopping it for free. '
+          + 'In vacuum every bit of speed you added is still yours until you spend '
+          + 'fuel taking it away again.',
+      },
+    ],
     teach: {
       how: 'The engine pushes the ship along the corridor and never stops, so '
         + 'it is always gaining speed. The arrow keys add a force of their own '
@@ -1261,6 +1551,56 @@ export const EXAMPLES = [
     arrows: ['weight', 'buoyancy', 'net'],
     // Framed to hold the whole strip: the drop, the surface, and the bed.
     view: { camera: { mode: 'manual', cx: 0, cy: -0.75, span: 9 } },
+    /*
+     * Questions you answer by using the scene, not by remembering.
+     *
+     * Each one names the setting to change, because the point is to send the
+     * reader back to the bench. `why` is what they are really here for: it
+     * arrives after the guess, when the answer is a thing they now want.
+     */
+    quiz: [
+      {
+        ask: 'Pine is 500 kg/m³ and water is 997. How much of the pine ball sits under '
+          + 'the surface?',
+        options: [
+          'None — it sits on top',
+          'All of it',
+          'About half',
+          'About a sixth',
+        ],
+        answer: 2,
+        why: 'The submerged fraction is the object’s density over the fluid’s: '
+          + '500/997, which is almost exactly a half. Balsa at 160 sits about a sixth '
+          + 'under, by the same sum. It is also why a ship’s waterline moves as it is '
+          + 'loaded.',
+      },
+      {
+        ask: 'The steel ball sinks to the bed and stops. What is holding it up there?',
+        options: [
+          'Drag from the water',
+          'Nothing — it is still sinking slowly',
+          'Buoyancy, which finally caught up',
+          'The ground pushing back',
+        ],
+        answer: 3,
+        why: 'Buoyancy on steel is nowhere near its weight — that is why it sank. What '
+          + 'stops it is the bed: an ordinary normal force, the same one a floor '
+          + 'uses. Switch the Normal force arrow on and look.',
+      },
+      {
+        ask: 'Change the world back to solid ground. What happens to all three?',
+        options: [
+          'They all bounce off the same floor at the surface',
+          'They fall straight through',
+          'Only the steel one lands',
+          'They sort themselves the same way',
+        ],
+        answer: 0,
+        why: 'With no water there is nothing to sort them — air is a thousandth of the '
+          + 'density and buoyancy in it is a rounding error. They land together on a '
+          + 'floor at the top. The lake is what makes density visible.',
+      },
+    ],
     teach: {
       how: 'A world does not have to be solid. This one is made of water: '
         + 'everything above the line is air, everything below it is water, and '

@@ -731,76 +731,8 @@ test('the large mass moves too, so the orbit is mutual', () => {
 /* ------------------------------------------------------- four dropped -- */
 
 /** Drop all four and report when each one arrives, and how fast. */
-function dropAll(bench, fluidId) {
-  const p = { ...bench, fluidId };
-  const scenario = build('fluid', p);
-  let world = applyPush(scenario.world, p, scenario.features);
-  const landed = {};
-  const speed = {};
-  for (let i = 0; i < 240 * 30; i += 1) {
-    world = applyPush(world, p, scenario.features);
-    world = advance(world, 1 / 240);
-    for (const b of world.bodies) {
-      if (landed[b.id] === undefined && b.pos.y < p.size + 0.05) {
-        landed[b.id] = world.t;
-        speed[b.id] = Math.abs(b.vel.y);
-      }
-    }
-    if (Object.keys(landed).length === 4) break;
-  }
-  return { landed, speed };
-}
 
-/**
- * In air the four separate, and each gap is caused by one thing.
- *
- * The example is a pair of controlled comparisons: two objects share a mass and
- * differ in shape, three share a shape and differ in mass. If those pairs stop
- * being controlled - a size drifting, a material changing the mass - the
- * instructions stop being true, so the setup is checked as well as the result.
- */
-test('the four fall at different rates in air, and the pairs are controlled', () => {
-  const { bench } = exampleState('four-dropped-together');
-  const byId = Object.fromEntries(bench.objects.map((o) => [o.id, o]));
 
-  // Same mass, different shape.
-  assert.equal(byId.o2.mass, bench.mass, 'the plate must share the sphere mass');
-  assert.notEqual(byId.o2.shapeId, bench.shapeId);
-  assert.equal(byId.o2.size, bench.size, 'and its size, or shape is not the only change');
-  // Same shape, different mass.
-  for (const id of ['o3', 'o4']) {
-    assert.equal(byId[id].shapeId, bench.shapeId, `${id} must share the sphere shape`);
-    assert.equal(byId[id].size, bench.size, `${id} must share the sphere size`);
-    assert.notEqual(byId[id].mass, bench.mass);
-  }
-
-  const { landed } = dropAll(bench, 'air');
-  // Heaviest first, lightest last, plate between its own mass and the light one.
-  assert.ok(landed.o3 < landed.main, 'the 5 kg sphere should land before the 1 kg');
-  assert.ok(landed.main < landed.o2, 'the sphere should beat the plate of the same mass');
-  assert.ok(landed.o2 < landed.o4, 'the plate should beat the 0.15 kg sphere');
-  // And the spread is big enough to see.
-  assert.ok(landed.o4 - landed.o3 > 3,
-    `only ${(landed.o4 - landed.o3).toFixed(2)} s between first and last`);
-});
-
-/**
- * In vacuum they land together - not nearly, exactly.
- *
- * This is the claim the example rests on, and the one a reader is told to
- * check by changing a single setting.
- */
-test('in a vacuum all four land at the same moment and the same speed', () => {
-  const { bench } = exampleState('four-dropped-together');
-  const { landed, speed } = dropAll(bench, 'vacuum');
-  const times = Object.values(landed);
-  const speeds = Object.values(speed);
-  assert.equal(times.length, 4, 'all four should land');
-  assert.ok(Math.max(...times) - Math.min(...times) < 0.02,
-    `landing times spread by ${(Math.max(...times) - Math.min(...times)).toFixed(3)} s`);
-  assert.ok(Math.max(...speeds) - Math.min(...speeds) < 0.2,
-    `landing speeds spread by ${(Math.max(...speeds) - Math.min(...speeds)).toFixed(2)} m/s`);
-});
 
 /* ------------------------------------------------------ the marble run -- */
 
@@ -1164,4 +1096,60 @@ test('the energy ledger holds while something floats', () => {
   for (let i = 0; i < 1800; i += 1) world = advance(world, 1 / 60);
   const drift = Math.abs(totals(world).balance - first) / Math.abs(first);
   assert.ok(drift < 0.01, `the books drifted ${(drift * 100).toFixed(2)}% over thirty seconds`);
+});
+
+/* --------------------------------------------------------- the questions -- */
+
+/**
+ * Every example asks something you answer by using it.
+ *
+ * The teaching panels say what a scene shows; a question makes somebody go and
+ * find out. So the bar is not "is there a quiz" but "does it send the reader
+ * back to the bench" — which is why the wording is checked as well as the
+ * shape.
+ */
+test('every example carries two or three questions', () => {
+  for (const e of EXAMPLES) {
+    assert.ok(Array.isArray(e.quiz), `${e.id} has no questions`);
+    assert.ok(e.quiz.length >= 2 && e.quiz.length <= 3,
+      `${e.id} has ${e.quiz.length} questions; two or three is the range`);
+  }
+});
+
+test('each question has one answer, and it is one of the options', () => {
+  for (const e of EXAMPLES) {
+    for (const [i, q] of e.quiz.entries()) {
+      const where = `${e.id} q${i + 1}`;
+      assert.ok(q.ask.trim().endsWith('?') || /\b(compare|becomes|do|happens)\b/.test(q.ask),
+        `${where}: not a question`);
+      assert.ok(q.options.length >= 3 && q.options.length <= 4,
+        `${where}: ${q.options.length} options`);
+      assert.equal(new Set(q.options).size, q.options.length, `${where}: a repeated option`);
+      assert.ok(Number.isInteger(q.answer) && q.answer >= 0 && q.answer < q.options.length,
+        `${where}: the answer is not one of the options`);
+      assert.ok(q.why.length > 80, `${where}: the explanation says too little`);
+    }
+  }
+});
+
+test('the answers are spread, not all in the same slot', () => {
+  // If every answer were option A, the quiz would be answerable without
+  // reading it — which is the one failure that makes the whole thing useless.
+  const slots = {};
+  for (const e of EXAMPLES) for (const q of e.quiz) slots[q.answer] = (slots[q.answer] || 0) + 1;
+  const counts = Object.values(slots);
+  const total = counts.reduce((a, b) => a + b, 0);
+  assert.ok(Object.keys(slots).length >= 3, 'the answers use fewer than three of the slots');
+  assert.ok(Math.max(...counts) < total * 0.5,
+    `${Math.max(...counts)} of ${total} answers are in one slot`);
+});
+
+test('a question sends the reader to the scene, not to their memory', () => {
+  // At least one question per example names something to do — a setting to
+  // change, a thing to watch, a control to press.
+  const doing = /\b(set|change|switch|try|watch|drop|fire|tilt|steepen|double|make|turn|approach|leave|press|look|fly|drive|run|let go)\b/i;
+  for (const e of EXAMPLES) {
+    assert.ok(e.quiz.some((q) => doing.test(q.ask) || doing.test(q.why)),
+      `${e.id}: no question asks the reader to do anything`);
+  }
 });

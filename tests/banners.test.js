@@ -221,12 +221,12 @@ test('paint does nothing while the shelf is showing', () => {
   assert.ok(guardAt > 0 && guardAt < workAt, 'the guard must come before the drawing');
 });
 
-test('the gallery and the guide are pages, not extra steps', () => {
+test('the gallery, the guide and the found list are pages, not extra steps', () => {
   const state = read('../js/state.js');
   // `page` is its own field, and the stepper is left alone.
-  assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples', 'guide'\], 'bench'\)/);
+  assert.match(state, /page: oneOf\(incoming\.page, \['bench', 'examples', 'guide', 'achievements'\], 'bench'\)/);
   const stages = read('../js/stages.js');
-  for (const id of ['examples', 'guide']) {
+  for (const id of ['examples', 'guide', 'achievements']) {
     assert.ok(!new RegExp(`id: '${id}'`).test(stages), `${id} must not be a stage`);
   }
 });

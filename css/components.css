@@ -1630,3 +1630,41 @@ html[data-level='simple'] .field__hint { display: none; }
   font-size: 0.9rem; line-height: 1.5;
   color: var(--text-dim);
 }
+
+/* --- the questions ----------------------------------------------------- *
+ * Guess first, then read. The options are live until one is pressed and the
+ * reasoning only appears afterwards, because a reader handed the explanation
+ * has no reason to go and look — and looking is the whole point.          */
+
+.quiz__q + .quiz__q { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.quiz__ask { margin: 0 0 var(--space-2); font-weight: 600; }
+
+.quiz__options { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.quiz__option {
+  font: inherit; text-align: left;
+  max-width: 62ch;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.quiz__option:hover:not(:disabled) { background: var(--panel-3); }
+.quiz__option:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+.quiz__option:disabled { cursor: default; }
+
+/* Once answered: the right one is marked whether or not it was chosen, so a
+   wrong guess still ends up looking at the right answer. */
+.quiz__option.is-right { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.quiz__option.is-wrong { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.quiz__option:disabled:not(.is-right):not(.is-wrong) { opacity: 0.55; }
+
+.quiz__why {
+  display: none;
+  margin: var(--space-3) 0 0;
+  max-width: 68ch;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.quiz__why.is-shown { display: block; }

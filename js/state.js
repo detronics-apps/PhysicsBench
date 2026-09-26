@@ -478,7 +478,7 @@ export function migrate(incoming) {
     theme: oneOf(incoming.theme, ['system', 'light', 'dark'], base.theme),
     selectedId: typeof incoming.selectedId === 'string' ? incoming.selectedId : 'main',
     exampleId: typeof incoming.exampleId === 'string' ? incoming.exampleId : null,
-    page: oneOf(incoming.page, ['bench', 'examples', 'guide'], 'bench'),
+    page: oneOf(incoming.page, ['bench', 'examples', 'guide', 'achievements'], 'bench'),
 
     transport: {
       playing: bool(incoming.transport?.playing, false),

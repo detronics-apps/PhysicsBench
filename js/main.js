@@ -37,7 +37,7 @@ import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
 import {
-  guidePage, welcomeOverlay, panelOverlay, achievementToast, achievementsPanel,
+  guidePage, welcomeOverlay, panelOverlay, achievementToast, achievementsPage,
 } from './ui/guide.js';
 import { WHATS_NEW, LICENCE, IMPRINT } from './guide.js';
 import { toWorld } from './camera.js';
@@ -284,6 +284,31 @@ function renderStages() {
   }, [
     el('span', { class: 'stepper__label tab-label--long', text: 'How to use' }),
     el('span', { class: 'stepper__label tab-label--short', text: 'Guide' }),
+  ]));
+
+  /*
+   * And the things there are to find, beside it.
+   *
+   * Its own tab rather than a section of the guide: somebody who has just
+   * found one arrives from the card that told them, and should not land in
+   * the middle of the FAQs. The count rides on the label, because the one
+   * question anybody has about a list like this is how much of it is left.
+   */
+  const found = Object.keys(state.ui.found || {}).length;
+  dom.stages.appendChild(el('button', {
+    class: `stepper__step stepper__step--aside${state.page === 'achievements' ? ' is-current' : ''}`,
+    type: 'button',
+    role: 'tab',
+    'aria-selected': String(state.page === 'achievements'),
+    title: 'Everything this bench does that you would never find from a label',
+    'data-field': 'page:achievements',
+    on: { click: () => showAchievements() },
+  }, [
+    el('span', {
+      class: 'stepper__label tab-label--long',
+      text: `Things to find (${found}/${ACHIEVEMENTS.length})`,
+    }),
+    el('span', { class: 'stepper__label tab-label--short', text: `Find ${found}/${ACHIEVEMENTS.length}` }),
   ]));
 }
 
@@ -1212,6 +1237,16 @@ function openPanel(panel) {
   card.querySelector('.welcome__card')?.focus();
 }
 
+/** Show the list of things there are to find. */
+export function showAchievements() {
+  if (state.page === 'achievements') return;
+  state.transport.playing = false;
+  cancelAnimationFrame(clock.raf);
+  state.page = 'achievements';
+  saveSoon();
+  render();
+}
+
 /** Show the how-to page. */
 export function showGuide() {
   if (state.page === 'guide') return;
@@ -1281,13 +1316,13 @@ export function render({ controls = true } = {}) {
      * passing it here compiled fine and failed at the click, which is the worst
      * place to find out. Each page needs a couple of functions and says so.
      */
-    dom.ask.appendChild(state.page === 'guide'
-      ? guidePage({
-        showBench,
-        showWelcome: () => openWelcome(),
-        achievements: () => achievementsPanel(state.ui.found, achievementGroups, ACHIEVEMENTS),
-      })
-      : galleryPage({ loadExample, showBench }));
+    const page = state.page === 'guide'
+      ? guidePage({ showBench, showWelcome: () => openWelcome() })
+      : state.page === 'achievements'
+        ? achievementsPage({ showBench, showGuide },
+          state.ui.found, achievementGroups, ACHIEVEMENTS)
+        : galleryPage({ loadExample, showBench });
+    dom.ask.appendChild(page);
     for (const host of [dom.vectors, dom.stage, dom.legend, dom.transportHost,
       dom.banners, dom.graphs, dom.measurements, dom.summary, dom.explain,
       dom.controls]) {
@@ -1966,7 +2001,7 @@ function announceAchievement(id) {
   if (!achievement) return;
 
   document.querySelector('.unlock')?.remove();
-  const card = achievementToast(achievement, { onOpen: () => showGuide() });
+  const card = achievementToast(achievement, { onOpen: () => showAchievements() });
   document.body.appendChild(card);
   // Long enough to read three lines, and it can be dismissed sooner.
   setTimeout(() => card.remove(), 11000);

@@ -537,7 +537,7 @@ export const FEATURES = [
   {
     name: 'Examples explain themselves',
     where: 'The step bar · "Examples"',
-    what: 'Twelve scenes already set up, each with what to try, what to watch and the point of '
+    what: 'Eleven scenes already set up, each with what to try, what to watch and the point of '
       + 'it. Every number in those notes is pinned by a test.',
   },
 ];
@@ -559,7 +559,7 @@ export const WELCOME = [
   },
   {
     title: 'Try one that is already set up',
-    what: 'Twelve examples — a marble run, a rocket to orbit, a ball dropped into a lake — '
+    what: 'Eleven examples — a marble run, a rocket to orbit, a ball dropped into a lake — '
       + 'each with a note on what to look for.',
     go: { page: 'examples' },
     label: 'Show me the shelf',
