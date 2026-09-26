@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
+
+Sixteen things to find, a shorter walk to the first one, and a lake you can see the bottom of.
 
 ### Six steps, not seven
 

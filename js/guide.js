@@ -595,27 +595,30 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.6.0',
+  version: '1.7.0',
   body: [
-    ['A world made of water',
-      'From step 5, "what the world is made of" can be a liquid instead of solid ground. '
-      + 'The floor goes away and an object falls into it, settling with the fraction of '
-      + 'itself under the surface that its density says. A twelfth example, '
-      + '"Dropped into the water", shows three balls doing exactly that.'],
-    ['Simple, Advanced, Expert',
-      'A detail level above the steps. It never changes a number — every step of the '
-      + 'simulation runs at every level — it sets how much is on screen. Simple is the '
-      + 'inputs and nothing derived.'],
-    ['One panel at a time, unless you pin it',
-      'The controls are an accordion, and the padlock beside a heading keeps that panel '
-      + 'open when you open another.'],
-    ['How to use',
-      'A guide you can search in your own words, and a welcome on the first visit that '
-      + 'you can reopen any time from "I am new here".'],
-    ['Sharing and exporting moved',
-      'The link, SVG, PNG, CSV and Print are now the last section of the controls, '
-      + 'beside everything else you do to an experiment. The footer is for what the app '
-      + 'itself is — this panel, the licence, the imprint, and the way back to the welcome.'],
+    ['Things to find',
+      'Sixteen of them, each marking something the bench does that you would never find from '
+      + 'a label — that a world can be made of water, that slowing the playback records '
+      + 'finer, that an object can be crushed. They fire once, when you do the thing, and say '
+      + 'what you just found. Nothing is locked behind them and nothing is scored. The full '
+      + 'list is at the bottom of this page.'],
+    ['Six steps, not seven',
+      '"A mass" has gone. It was a screen with one object on it and nothing you could do to '
+      + 'it, and the only honest thing it taught was that nothing happens until something '
+      + 'pushes — which is what the push step opens by saying. The bench starts where you '
+      + 'can act on it.'],
+    ['Two weights, two shapes',
+      'The densities example is now four objects: a sphere and a flat plate at each of two '
+      + 'weights, all four displacing exactly the same volume. Within a pair only the shape '
+      + 'differs, across pairs only the density — so the pairs rise or sink together, and '
+      + 'all the shape decides is how long it takes.'],
+    ['A lake has a bed',
+      'A world made of liquid is three and a half metres of water with ground under it, '
+      + 'rather than an ocean. A stone used to sink out of the scene still speeding up; now '
+      + 'it reaches a steady speed and lands, all of it on one screen.'],
+    ['Examples',
+      '"Prepared experiments" is now just Examples.'],
   ],
 };
 
