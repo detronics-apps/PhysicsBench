@@ -122,7 +122,17 @@ export const STAGES = [
     label: 'Grow it into a planet',
     short: 'Gravity',
     features: ['applied', 'shape', 'second-mass', 'mutual-gravity', 'planet'],
-    done: ({ main }) => !!main && main.speed > 1,
+    /*
+     * Moving, *or* no longer where it was put.
+     *
+     * "It is falling" alone was a momentary state: from ten metres it lands in
+     * about 1.4 s, and a check that happens to run after that sees a resting
+     * object and decides nothing has been done. Having left the start line
+     * cannot un-happen.
+     */
+    done: ({ main, params }) => !!main
+      && (main.speed > 1
+        || main.heightAboveGround < Math.max(0, params.dropHeight ?? 0) - 0.5),
     hint: 'Pick a world in “The world it is on”, set how high it starts, and '
       + 'press Play. Then change the world and drop it again: same object, '
       + 'same height, and a different answer every time — because g came out '
@@ -201,8 +211,15 @@ export const STAGES = [
     label: 'Playground',
     short: 'Playground',
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction', 'fluid', 'objects', 'obstacles', 'collide', 'control'],
-    done: ({ params, forces }) => (params.walls?.length ?? 0) > 0
-      || (params.cannons?.length ?? 0) > 0
+    /*
+     * One *more* than the scene came with, not one at all.
+     *
+     * The playground opens with a wall and a cannon already on it, so "there
+     * is a wall" was true before the reader had done anything and the hint
+     * never appeared at all.
+     */
+    done: ({ params, forces }) => (params.walls?.length ?? 0) > 1
+      || (params.cannons?.length ?? 0) > 1
       || !!forces?.find((f) => f.id === 'control' && f.magnitude > 0),
     hint: 'Arm the wall tool in “Walls and obstacles” and drag a ramp onto the '
       + 'drawing, then drop something onto it. Or open “Take the controls”, '

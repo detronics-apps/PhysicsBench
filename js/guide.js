@@ -595,30 +595,27 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.7.0',
+  version: '1.8.0',
   body: [
+    ['Somewhere to start',
+      'Every step now opens with a hint under its question — the first thing to actually do, '
+      + 'naming the panel and the control rather than leaving you to find them. It takes '
+      + 'itself away once you have done it.'],
     ['Things to find',
-      'Sixteen of them, each marking something the bench does that you would never find from '
-      + 'a label — that a world can be made of water, that slowing the playback records '
-      + 'finer, that an object can be crushed. They fire once, when you do the thing, and say '
-      + 'what you just found. Nothing is locked behind them and nothing is scored. The full '
-      + 'list is at the bottom of this page.'],
-    ['Six steps, not seven',
-      '"A mass" has gone. It was a screen with one object on it and nothing you could do to '
-      + 'it, and the only honest thing it taught was that nothing happens until something '
-      + 'pushes — which is what the push step opens by saying. The bench starts where you '
-      + 'can act on it.'],
-    ['Two weights, two shapes',
-      'The densities example is now four objects: a sphere and a flat plate at each of two '
-      + 'weights, all four displacing exactly the same volume. Within a pair only the shape '
-      + 'differs, across pairs only the density — so the pairs rise or sink together, and '
-      + 'all the shape decides is how long it takes.'],
-    ['A lake has a bed',
-      'A world made of liquid is three and a half metres of water with ground under it, '
-      + 'rather than an ocean. A stone used to sink out of the scene still speeding up; now '
-      + 'it reaches a steady speed and lands, all of it on one screen.'],
-    ['Examples',
-      '"Prepared experiments" is now just Examples.'],
+      'Sixteen of them, on their own page beside How to use, marking the things this bench '
+      + 'does that you would never find from a label. They fire once, when you do the thing, '
+      + 'and say what you just found. Nothing is locked behind them and nothing is scored.'],
+    ['Questions on every example',
+      'Two or three each, answered by using the scene rather than by remembering anything. '
+      + 'Guess first: the reasoning only appears afterwards, because an explanation handed '
+      + 'over in advance gives you no reason to go and look.'],
+    ['The atmosphere on the way up',
+      'The height readout names the layer you are in, how far it runs, and the last landmark '
+      + 'you passed. The rocket scene draws them, and the ISS at 408 km — which is exactly '
+      + 'the height that rocket reaches.'],
+    ['Growing the planet',
+      'Pressing "Next: Grow it into a planet" now plays the same animation the sidebar '
+      + 'button always did, instead of arriving there with no explanation.'],
   ],
 };
 

@@ -1,6 +1,38 @@
 # Changelog
 
-## Unreleased
+## 1.8.0
+
+Somewhere to start on every step, questions on every example, and a page for the things there are
+to find.
+
+### A hint on every step
+
+One per step, under the question it opens with: the first thing to actually *do*. `ask` says what
+the step is about and `discover` says what it comes to, and neither tells a reader which of a
+dozen panels to touch — which is the gap a newcomer falls into. The hint names the panel, the
+control and roughly the value.
+
+It takes itself away once its action is done, because a hint still on screen afterwards is clutter
+that says the app is not watching. The bars are deliberately low: a hint gets somebody moving, and
+the achievements are what keep them exploring.
+
+Two of the six conditions were wrong when first written, and both were found by driving every step
+rather than by reading them. The planet step's was "it is falling", which is a *momentary* state —
+from ten metres it lands in 1.4 s and a check that ran after that decided nothing had happened. The
+playground's was "there is a wall", and the playground opens with one, so the hint never appeared
+at all.
+
+The number in the second step's hint is measured: at 5 × 10⁹ kg each the two masses close a metre
+and a half in ten seconds, and at 1 × 10¹⁰ they meet.
+
+### The planet grows from either door
+
+The animation of the second mass swelling and sinking until it *is* the ground has always been
+behind "Make it a planet" in the sidebar. The reader who presses "Next: Grow it into a planet" —
+most of them, since it is the primary button right under the question — got the same destination
+with none of the explanation. Both doors lead through it now, and only from a step that has the
+second mass on screen: arriving from the push step would animate the growth of something the
+reader has never seen.
 
 ### Things to find, on their own page
 
