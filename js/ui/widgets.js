@@ -567,7 +567,7 @@ const bannerKey = (text) => String(text).replace(/\d[\d.,eE+\-]*/g, '#');
  *
  * Returns `null` once closed, so a caller filters rather than tracking state.
  */
-export function banner(level, text, { key = null, dismissible = true } = {}) {
+export function banner(level, text, { key = null, dismissible = true, open = false } = {}) {
   const id = key || bannerKey(text);
   if (dismissible && dismissed.has(id)) return null;
 
@@ -584,8 +584,14 @@ export function banner(level, text, { key = null, dismissible = true } = {}) {
    */
   const body = el('button', {
     class: 'banner__text', type: 'button',
-    'aria-expanded': 'false',
-    title: 'Show the whole message',
+    /*
+     * Collapsed by default, because most of these are commentary on a running
+     * scene. A hint is the exception: it is the first thing to *do* on a step
+     * and arrives before anything has happened, so it is worth its four lines
+     * until the reader folds or closes it.
+     */
+    'aria-expanded': String(open),
+    title: open ? 'Shorten this message' : 'Show the whole message',
     text,
     on: {
       click: (event) => {
@@ -597,7 +603,10 @@ export function banner(level, text, { key = null, dismissible = true } = {}) {
     },
   });
 
-  return el('div', { class: `banner ${BANNER_CLASS[level] || BANNER_CLASS.info}` }, [
+  return el('div', {
+    class: `banner ${BANNER_CLASS[level] || BANNER_CLASS.info}`,
+    'data-key': id,
+  }, [
     el('span', { class: 'banner__mark', text: BANNER_MARK[level] || 'i' }),
     body,
     dismissible ? el('button', {
@@ -612,6 +621,22 @@ export function banner(level, text, { key = null, dismissible = true } = {}) {
       },
     }, el('span', { 'aria-hidden': 'true', text: '×' })) : null,
   ]);
+}
+
+/**
+ * Retire a banner the reader has effectively answered.
+ *
+ * A hint that is still on screen after its action has been done is clutter
+ * that says the app is not watching, so the app closes it the way the reader
+ * would have.
+ */
+export function dismissBanner(key) {
+  if (dismissed.has(key)) return false;
+  dismissed.add(key);
+  for (const node of document.querySelectorAll('.banner')) {
+    if (node.dataset.key === key) node.remove();
+  }
+  return true;
 }
 
 /** Forget every dismissal — for a reset, which is a fresh start in every sense. */

@@ -22,7 +22,9 @@
 import { load, save, saveSoon, state, reset } from './state.js';
 import { el, svg, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
-import { configureSections, button, drag, banner, clearDismissed } from './ui/widgets.js';
+import {
+  configureSections, button, drag, banner, clearDismissed, dismissBanner,
+} from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
 
 import {
@@ -841,7 +843,29 @@ function growthCaption(frame) {
 }
 
 /**
- * Run the growth, then hand over to the fourth step.
+ * Walk to the next step, running whatever that arrival is supposed to look like.
+ *
+ * Arriving at the planet step is the one that has something to show: the
+ * second mass swelling and sinking until it *is* the ground. That animation
+ * has always existed behind the "Make it a planet" button in the sidebar, and
+ * the reader who simply presses "Next" — which is most of them, since it is
+ * the primary button right under the question — got the same destination with
+ * none of the explanation. Both doors now lead through it.
+ *
+ * Only from a step that actually has the second mass on screen, though.
+ * Jumping there from the push step would animate the growth of something the
+ * reader has never seen.
+ */
+function walkTo(id) {
+  if (id === 'planet' && featuresAt(state.stage).has('second-mass')) {
+    growPlanet();
+    return;
+  }
+  goToStage(id);
+}
+
+/**
+ * Run the growth, then hand over to the planet step.
  *
  * It drives its own animation frames rather than the simulation clock, because
  * nothing here is being simulated: this is one continuous illustration of a
@@ -1344,12 +1368,27 @@ export function render({ controls = true } = {}) {
     el('div', { class: 'prompt__nav' }, [
       here > 0 ? button('← Back', () => goToStage(STAGES[here - 1].id), { small: true }) : null,
       here < STAGES.length - 1
-        ? button(`Next: ${STAGES[here + 1].label} →`, () => goToStage(STAGES[here + 1].id), { small: true, primary: true })
+        ? button(`Next: ${STAGES[here + 1].label} →`, () => walkTo(STAGES[here + 1].id), { small: true, primary: true })
         // Past the last step there is nowhere further to walk, so the shelf of
         // prepared experiments is what comes next.
         : button('Examples →', () => showExamples(), { small: true, primary: true }),
     ].filter(Boolean)),
   ]));
+
+  /*
+   * The first thing to actually do on this step, under the question it opens
+   * with.
+   *
+   * `ask` and `discover` say what the step is about and what it comes to;
+   * neither says which of a dozen panels to touch, and that is the gap a
+   * newcomer falls into — they understand the question perfectly and have no
+   * idea where to start. It is a banner, so it folds to one line and closes
+   * like any other message, and a closed one stays closed for the session.
+   */
+  if (stage.hint) {
+    const hint = banner('info', stage.hint, { key: `hint:${stage.id}`, open: true });
+    if (hint) dom.ask.appendChild(hint);
+  }
 
   clear(dom.vectors);
   const available = vectorsFor(state.stage, state.bench);
@@ -1970,8 +2009,10 @@ function checkAchievements(force = false) {
 
   const world = shownWorld();
   const main = world ? inspect(world, state.selectedId) : null;
-  const found = newlyEarned({
+  const snap = {
     main: main ? { ...main, accelerationMagnitude: len(main.acceleration) } : null,
+    // The second mass, for the step whose hint is about the two of them.
+    other: world ? inspect(world, 'other') : null,
     forces: main?.forces,
     totals: world ? totals(world) : null,
     world,
@@ -1980,7 +2021,22 @@ function checkAchievements(force = false) {
     g: sim.scenario?.world?.env?.g ?? 0,
     events: seen.events,
     opened: seen.opened,
-  }, state.ui.found);
+  };
+  const found = newlyEarned(snap, state.ui.found);
+
+  /*
+   * The step's hint, once its action has been done.
+   *
+   * Checked here because this is where the live snapshot already exists, and
+   * because the conditions are the same shape: something the reader did that
+   * the app can see.
+   */
+  const stage = stageById(state.stage);
+  if (stage?.done && stage.hint) {
+    let started = false;
+    try { started = !!stage.done(snap); } catch { started = false; }
+    if (started) dismissBanner(`hint:${state.stage}`);
+  }
 
   if (!found.length) return;
   const id = found[0];

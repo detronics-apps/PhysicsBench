@@ -616,7 +616,9 @@ test('a banner is one line until it is asked for', () => {
   // Keyboard-reachable, because it is a real button rather than a click handler.
   const widgets = read('../js/ui/widgets.js');
   assert.match(widgets, /class: 'banner__text', type: 'button',/);
-  assert.match(widgets, /'aria-expanded': 'false',/);
+  // Collapsed unless the caller asks otherwise — a hint arrives readable.
+  assert.match(widgets, /'aria-expanded': String\(open\),/);
+  assert.match(widgets, /open = false \} = \{\}\) \{/);
 });
 
 test('paper gets the whole message and no buttons', () => {
