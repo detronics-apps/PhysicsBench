@@ -598,9 +598,9 @@ export const WHATS_NEW = {
   version: '1.8.0',
   body: [
     ['Somewhere to start',
-      'Every step now opens with a hint under its question — the first thing to actually do, '
-      + 'naming the panel and the control rather than leaving you to find them. It takes '
-      + 'itself away once you have done it.'],
+      'Every step now opens with a hint under its question: which panel to open and what to '
+      + 'turn, and then it stops — it points rather than answering, so what the setting '
+      + 'should be is still yours to find. It takes itself away once you have done it.'],
     ['Things to find',
       'Sixteen of them, on their own page beside How to use, marking the things this bench '
       + 'does that you would never find from a label. They fire once, when you do the thing, '

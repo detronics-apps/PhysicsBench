@@ -1170,3 +1170,53 @@ test('deep space gives no buoyancy, however dense the fluid', () => {
     assert.ok(Math.abs(b.vel.y) < 1e-9, `${fluidId}: picked up vy = ${b.vel.y}`);
   }
 });
+
+/* ------------------------------------------------------------- the hints -- */
+
+/**
+ * A hint points; it does not answer.
+ *
+ * "Set both masses to about 5 x 10^9 kg - type 5e9 into each" told the reader
+ * the answer and left nothing to find out. "Wind both masses up until the two
+ * of them visibly start moving towards each other" sends them to discover the
+ * same thing. The second is a hint; the first is a solution.
+ *
+ * The rule is enforceable because giving the answer nearly always means
+ * quoting a value.
+ */
+test('every step has a hint, and it names a control', () => {
+  for (const stage of STAGES) {
+    assert.ok(stage.hint, `${stage.id} has no hint`);
+    assert.ok(stage.hint.length > 60, `${stage.id}: the hint says too little to act on`);
+    // It has to point somewhere: a panel in quotes, or a named control.
+    assert.ok(/[\u201c"']|Play|slope|masses|shape/.test(stage.hint),
+      `${stage.id}: the hint names nothing to touch`);
+  }
+});
+
+test('no hint hands over a value', () => {
+  // Any figure with a unit, an exponent, or engineering notation is the answer
+  // rather than a direction.
+  const value = /\d\s*(kg|m\/s|N\b|m\b|s\b|°|%)|\d\s*[x\u00d7]\s*10|\b\d+e\d+\b|10[\u2070-\u2079\u00b2\u00b3\u00b9]/i;
+  for (const stage of STAGES) {
+    assert.ok(!value.test(stage.hint),
+      `${stage.id}: the hint quotes a value, which is the answer — "${stage.hint}"`);
+  }
+});
+
+test('every hint can be finished, and is not finished on arrival', () => {
+  // Two ways a hint fails silently: a condition that is already true when the
+  // reader lands (so it never shows), and one that is momentary (so it flicks
+  // off and the hint outlives its own action).
+  for (const stage of STAGES) {
+    assert.equal(typeof stage.done, 'function', `${stage.id} has no way to be finished`);
+    const fresh = {
+      main: { speed: 0, heightAboveGround: 0, pos: { x: 0, y: 0 } },
+      other: { pos: { x: 4, y: 0 } },
+      params: { ...defaults().bench, ...(stage.id === 'collide' ? {} : {}) },
+      forces: [],
+    };
+    assert.equal(stage.done(fresh), false,
+      `${stage.id}: the hint is already finished before the reader does anything`);
+  }
+});

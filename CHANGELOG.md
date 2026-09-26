@@ -22,8 +22,12 @@ from ten metres it lands in 1.4 s and a check that ran after that decided nothin
 playground's was "there is a wall", and the playground opens with one, so the hint never appeared
 at all.
 
-The number in the second step's hint is measured: at 5 × 10⁹ kg each the two masses close a metre
-and a half in ten seconds, and at 1 × 10¹⁰ they meet.
+A hint points; it does not answer. The second step's first read *"set both masses to about
+5 × 10⁹ kg — type 5e9 into each"*, which is the solution rather than a hint: a reader who follows
+it has discovered nothing. It now says to wind both masses up, further than anything real, and
+keep going until the two of them visibly start moving towards each other — the control, the
+direction, and a condition to stop at, with the value still theirs to find. A test rejects any
+hint containing a figure with a unit or an exponent, and names the step.
 
 ### The planet grows from either door
 

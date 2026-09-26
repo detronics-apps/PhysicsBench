@@ -65,8 +65,10 @@ export const WATER_DEPTH = 3.5;
  * comes to. Neither tells a reader which control to touch, and on a screen
  * with a dozen panels that is the gap somebody falls into — they understand
  * the question perfectly and have no idea where to start. The hint names the
- * panel, the control and roughly the value, and where it names a number that
- * number is a promise like any other and is measured.
+ * panel and the control, and then stops. It must not hand over the answer:
+ * "wind both masses up until they visibly move towards each other" sends
+ * somebody to find out, where "type 5e9 into each" has already told them and
+ * left nothing to discover. Direction, never the value.
  *
  * `done` is what makes it a hint rather than a caption: it says what counts as
  * having *started*, and the moment that is true the hint takes itself away. A
@@ -81,10 +83,9 @@ export const STAGES = [
     short: 'Push',
     features: ['applied', 'shape'],
     done: ({ main }) => !!main && main.speed > 0.5,
-    hint: 'Open “The push” on the right, drag “How hard” up to about 10 N, and '
-      + 'press Play. Watch the speed climb while the push lasts — and keep '
-      + 'climbing at the same rate, not faster — then hold steady the moment '
-      + 'it stops.',
+    hint: 'Open “The push” on the right and turn “How hard” up from zero, then '
+      + 'press Play. Watch what the speed does while the push lasts, and what '
+      + 'it does the moment the push stops.',
     ask: 'What happens if I push harder, or make it heavier?',
     discover: 'A push produces an acceleration, and the same push produces less '
       + 'acceleration on more mass. Acceleration piles up into velocity, and '
@@ -106,10 +107,10 @@ export const STAGES = [
      */
     done: ({ main, other }) => !!main && !!other
       && Math.abs(main.pos.x - other.pos.x) < 3.5,
-    hint: 'Gravity between everyday objects is far too weak to see, so make the '
-      + 'objects absurd. Set both masses to about 5 × 10⁹ kg — type 5e9 into '
-      + 'each — and press Play. They close about a metre and a half in ten '
-      + 'seconds. At 1 × 10¹⁰ they meet.',
+    hint: 'Gravity between everyday objects is far too weak to see, so stop '
+      + 'being reasonable about it. Wind both masses up — further than '
+      + 'anything real — and keep going until the two of them visibly start '
+      + 'moving towards each other.',
     ask: 'Do two masses pull on each other?',
     discover: 'They do — always, and by exactly the same force each way. The '
       + 'force is G·m₁·m₂/r², and for two objects you could lift it is so small '
@@ -133,10 +134,9 @@ export const STAGES = [
     done: ({ main, params }) => !!main
       && (main.speed > 1
         || main.heightAboveGround < Math.max(0, params.dropHeight ?? 0) - 0.5),
-    hint: 'Pick a world in “The world it is on”, set how high it starts, and '
-      + 'press Play. Then change the world and drop it again: same object, '
-      + 'same height, and a different answer every time — because g came out '
-      + 'of that world’s mass and radius rather than out of a table.',
+    hint: 'Choose somewhere for it to be in “The world it is on”, give it some '
+      + 'height to fall from, and press Play. Then send it somewhere else and '
+      + 'drop it again from exactly the same height.',
     ask: 'What has to change before that pull turns into weight?',
     discover: 'Nothing changes except the size of the other mass. Grow it to a '
       + 'planet and the same equation gives 9.8 m/s² — and the surface flattens '
@@ -164,10 +164,9 @@ export const STAGES = [
     features: ['applied', 'planet', 'ground', 'shape', 'space', 'friction'],
     done: ({ params, main }) => !!main
       && (main.speed > 0.5 || Math.abs(params.slopeDeg ?? 0) > 1),
-    hint: 'Open “The surface” and pick something slippery, then something '
-      + 'grippy, and push the object along each. Watch how far it travels '
-      + 'after the push stops. Then tilt the slope until it slides on its own '
-      + '— that angle *is* μs.',
+    hint: 'Open “The surface” and give it something slippery to sit on, then '
+      + 'something grippy, pushing it along each time. Then tilt the slope, a '
+      + 'little at a time, until it gives way on its own.',
     ask: 'Now there is a floor. What holds the object up, and what holds it back?',
     discover: 'The surface pushes back — exactly hard enough, and no harder. '
       + 'Tilt it and only part of the weight presses in; the rest is left over '
@@ -191,9 +190,9 @@ export const STAGES = [
     done: ({ params, main }) => (params.fluidId && params.fluidId !== 'air')
       || (params.surfaceFluidId && params.surfaceFluidId !== 'solid')
       || (!!main && main.speed > 1),
-    hint: 'Change the fluid and run the same drop again. Air, water, honey: '
-      + 'same object, and three completely different answers. Then open “The '
-      + 'object” and change the shape without touching the mass.',
+    hint: 'Change what it is moving through and run the same drop again. Then '
+      + 'change it again. When that stops surprising you, go back to “The '
+      + 'object” and change its shape without touching its mass.',
     ask: 'Air, water, honey — what actually changes?',
     discover: 'Two things about a fluid matter: how much of it there is to shove '
       + 'aside, and how much it resists being sheared. In air, inertia wins and '
@@ -221,9 +220,9 @@ export const STAGES = [
     done: ({ params, forces }) => (params.walls?.length ?? 0) > 1
       || (params.cannons?.length ?? 0) > 1
       || !!forces?.find((f) => f.id === 'control' && f.magnitude > 0),
-    hint: 'Arm the wall tool in “Walls and obstacles” and drag a ramp onto the '
-      + 'drawing, then drop something onto it. Or open “Take the controls”, '
-      + 'click the drawing once, and drive it with the arrow keys.',
+    hint: 'Arm the wall tool in “Walls and obstacles” and draw something for '
+      + 'things to land on, then drop one onto it. Or open “Take the '
+      + 'controls”, click the drawing, and drive it yourself.',
     ask: 'Everything at once — what survives a collision, and what does not?',
     discover: 'Total momentum comes out exactly as it went in, every time, '
       + 'whatever the objects do to each other. Kinetic energy does not — only a '
