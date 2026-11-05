@@ -595,8 +595,13 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.11.0',
+  version: '1.12.0',
   body: [
+    ['Everything on the bench is tappable',
+      'Not just the objects. Tap the floor for the surface and its friction, the planet beneath '
+      + 'it for the world, a wall or a cannon for its own settings, and the empty air for the '
+      + 'fluid you are moving through. Tapping the background puts away whatever is open first, '
+      + 'so the gesture you already know still works.'],
     ['Tap a thing to change it',
       'In Interactive, tapping anything on the bench selects it and raises two buttons beside '
       + 'it — Properties above, Force to the right — and those open its own panel along the '

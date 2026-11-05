@@ -825,3 +825,56 @@ test('the satellites are placed without measuring anything', () => {
   assert.match(fn, /node\.style\.transform/);
   assert.match(fn, /Math\.min\(Math\.max\(/, 'and clamped, so a thrown object leaves its buttons behind');
 });
+
+test('the background dismisses before it means anything', () => {
+  /*
+   * Tapping empty space to put something away is the one gesture everybody
+   * already knows. The background also opens the fluid - but only once there
+   * is nothing to dismiss, or that gesture is gone.
+   */
+  const main = read('../js/main.js');
+  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
+  const sky = fn.indexOf("hit.kind === 'sky'");
+  const dismiss = fn.indexOf('setSheet(null)');
+  const other = fn.indexOf("hit.kind !== 'body'");
+  assert.ok(sky >= 0 && dismiss > sky, 'the sky dismisses first');
+  assert.ok(other > dismiss, 'and only then opens a panel');
+});
+
+test('only a body gets the buttons; everything else opens on one tap', () => {
+  // There is nothing to do with the ground but change it, so making the
+  // reader tap twice for it would be ceremony.
+  const main = read('../js/main.js');
+  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /if \(hit\.kind !== 'body'\) \{[\s\S]*?setSheet\(\{ \.\.\.hit, focus: sectionsFor\(hit\)\[0\] \}\)/);
+});
+
+test('a panel with nothing in it never opens', () => {
+  /*
+   * Every section is guarded by the feature that creates it, so walking back
+   * from the playground to the fluid step with a wall selected leaves a sheet
+   * whose only panel no longer exists. An empty card reads as a failure to
+   * load; closing it says what actually happened.
+   */
+  const main = read('../js/main.js');
+  assert.match(main, /if \(open && sheetNodes\.length === 0\) \{\s*\n\s*setSheet\(null\);\s*\n\s*open = null;/);
+
+  // And the focus is written before the sheet is built, or it does nothing.
+  const focus = main.indexOf('state.ui.sections[`${state.stage}:${id}`] = id === open.focus');
+  const built = main.indexOf('const sheetNodes = open ? bench.sheet(ctx, open)');
+  assert.ok(focus > 0 && built > focus, 'the expanded panel is chosen before the sheet is built');
+});
+
+test('every section the sheet can ask for is guarded by its own feature', () => {
+  // A panel rendered for something the step does not have is a panel about
+  // nothing - and the hit test cannot protect against a step changing under
+  // an open sheet.
+  const bench = read('../js/ui/bench.js');
+  const build = bench.match(/const build = \{[\s\S]*?\n  \};/)[0];
+  for (const [id, guard] of [['push', 'applied'], ['world', 'planet'], ['surface', 'ground'],
+    ['fluid', 'fluid'], ['walls', 'obstacles'], ['cannons', 'obstacles']]) {
+    const line = build.split('\n').find((l) => l.trim().startsWith(`${id}:`));
+    assert.ok(line, `no builder for ${id}`);
+    assert.ok(line.includes(`f.has('${guard}')`), `${id} is not guarded by ${guard}`);
+  }
+});

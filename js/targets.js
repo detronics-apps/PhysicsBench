@@ -39,7 +39,7 @@
  * order is a thing that can be read and tested rather than a property of the
  * control flow.
  */
-export const KINDS = ['body', 'sky'];
+export const KINDS = ['body', 'cannon', 'wall', 'ground', 'planet', 'sky'];
 
 /**
  * Which sidebar sections belong to each kind.
@@ -53,7 +53,18 @@ export const KINDS = ['body', 'sky'];
  */
 export const SECTIONS_FOR = {
   body: ['object', 'push'],
-  sky: [],
+  cannon: ['cannons'],
+  wall: ['walls'],
+  // The line you stand on is the surface; the mass under it is the world.
+  ground: ['surface'],
+  planet: ['world'],
+  /*
+   * Everything that is not a thing is the stuff the object moves through, and
+   * the fluid panel is what changes it — including the water, which is drawn
+   * from `env.surfaceFluid` and is the environment rather than the planet.
+   * (The planet's own material is reached by tapping the planet.)
+   */
+  sky: ['fluid'],
 };
 
 /**
@@ -111,7 +122,78 @@ export function hitTest(scene, at, { minRadius = 0 } = {}) {
     if (!best || score < best.score) best = { id: body.id, score };
   }
 
-  return best ? { kind: 'body', id: best.id } : { kind: 'sky' };
+  if (best) return { kind: 'body', id: best.id };
+
+  /*
+   * Then the things placed on the bench, smallest first.
+   *
+   * A cannon is a fixed object a few units across; a wall is a line. Both are
+   * things somebody put there deliberately, so they beat the ground they are
+   * standing on — a wall drawn along the floor must be reachable without
+   * hunting for a gap in it.
+   */
+  for (const cannon of scene?.cannons || []) {
+    const r = Math.max((cannon.size || 0) / 2, minRadius);
+    if (Math.hypot(at.x - cannon.x, at.y - cannon.y) <= r) {
+      return { kind: 'cannon', id: cannon.id };
+    }
+  }
+
+  const walls = scene?.walls || [];
+  for (let i = 0; i < walls.length; i += 1) {
+    if (distanceToSegment(at, walls[i]) <= minRadius) return { kind: 'wall', id: String(i) };
+  }
+
+  /*
+   * Then the ground line, which is a line and not the half-plane below it.
+   *
+   * Treating everything under it as "the ground" would make the planet
+   * unreachable at every step that has both, and the two are different
+   * questions: the surface is what you slide on, the world is what pulls.
+   */
+  const ground = scene?.ground;
+  if (ground && Math.abs(at.y - groundAt(ground, at.x)) <= minRadius) return { kind: 'ground' };
+
+  const planet = scene?.planet;
+  if (planet && Math.hypot(at.x - planet.x, at.y - planet.y) <= planet.radius) {
+    return { kind: 'planet' };
+  }
+
+  return { kind: 'sky' };
+}
+
+/**
+ * Where the ground is at this x, following its slope.
+ *
+ * `x0` is the point the line is pinned at: the ground is infinite, so it is
+ * given as one known point and a gradient rather than as two ends. Pinning it
+ * at zero instead would be right only when the caller happened to measure the
+ * line at x = 0, and wrong by the whole slope everywhere else.
+ *
+ * Screen y grows downward while a positive slope rises to the right, so the
+ * sign is flipped here rather than at each call site — the kind of thing that
+ * is decided in exactly one place or is wrong in half of them.
+ */
+export function groundAt(ground, x) {
+  const tan = Math.tan(((ground.slopeDeg || 0) * Math.PI) / 180);
+  return ground.y - (x - (ground.x0 || 0)) * tan;
+}
+
+/**
+ * How far a point is from a wall.
+ *
+ * The straight chord, even for a bowed wall. A curve's chord is never more
+ * than its bulge away from the curve itself, and a bulge is small next to a
+ * finger — so the error is smaller than the target, which is the only
+ * precision that matters for something you aim at with a thumb.
+ */
+export function distanceToSegment(at, w) {
+  const dx = w.x2 - w.x1;
+  const dy = w.y2 - w.y1;
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq < 1e-12) return Math.hypot(at.x - w.x1, at.y - w.y1);
+  const t = Math.min(1, Math.max(0, ((at.x - w.x1) * dx + (at.y - w.y1) * dy) / lengthSq));
+  return Math.hypot(at.x - (w.x1 + t * dx), at.y - (w.y1 + t * dy));
 }
 
 /** The sections a hit opens, or an empty list. */

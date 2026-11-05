@@ -33,7 +33,8 @@ import {
 } from './stages.js';
 import { controlForce } from './control.js';
 import { describe as describeObject, shapeById } from './shapes.js';
-import { surfaceGravity } from './gravitation.js';
+import { surfaceGravity, worldById } from './gravitation.js';
+import { fluidById } from './drag.js';
 import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
@@ -71,7 +72,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.11.0';
+export const APP_VERSION = '1.12.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1599,23 +1600,43 @@ export function render({ controls = true } = {}) {
    * state exactly as the sidebar's are — not a copy of them. Which sections
    * belong to what was tapped is decided in `js/targets.js`.
    */
-  const open = sheetOpen();
+  let open = sheetOpen();
   if (open) {
     /*
      * The tapped arm decides which panel is expanded, by writing the same
      * store the accordion reads. Setting it here rather than passing a flag
      * keeps `section()` unaware that sheets exist.
      *
-     * Keyed on the section's own key — `object`, `push` — and taken from the
-     * same list the sheet is built from, so the two cannot drift. Written
-     * against the section *titles* first, which the store does not use, and
-     * both panels arrived collapsed: a sheet that opens showing nothing but
-     * two closed headings reads as something that failed to load.
+     * Keyed on the section's own key — `object`, `push`, `surface` — and taken
+     * from the same list the sheet is built from, so the two cannot drift.
+     * Written against the section *titles* first, which the store does not
+     * use, and both panels arrived collapsed: a sheet that opens showing
+     * nothing but two closed headings reads as something that failed to load.
+     *
+     * Before the sheet is built, not after. Built first, the store is written
+     * too late to affect anything and the focus silently does nothing.
      */
     for (const id of sectionsFor(open)) {
       state.ui.sections[`${state.stage}:${id}`] = id === open.focus;
     }
   }
+
+  /*
+   * The sheet's contents are the sidebar's own sections, rebuilt from live
+   * state exactly as the sidebar's are — not a copy of them. Which sections
+   * belong to what was tapped is decided in `js/targets.js`.
+   *
+   * A panel with nothing in it never opens: every section is guarded by the
+   * feature that creates it, so walking back from the playground to the fluid
+   * step with a wall selected leaves a sheet whose only panel no longer
+   * exists. An empty card reads as something that failed to load.
+   */
+  const sheetNodes = open ? bench.sheet(ctx, open) : [];
+  if (open && sheetNodes.length === 0) {
+    setSheet(null);
+    open = null;
+  }
+
   renderStageUI(dom.stageUI, {
     state,
     /*
@@ -1624,7 +1645,7 @@ export function render({ controls = true } = {}) {
      * telling the reader which of the objects on the bench they have got hold
      * of, which is the only question a heading here can usefully answer.
      */
-    sheet: open ? { title: sheetTitle(open), nodes: bench.sheet(ctx, open) } : null,
+    sheet: open ? { title: sheetTitle(open), nodes: sheetNodes } : null,
     actions: {
       setLevel: (id) => { state.ui.level = id; saveSoon(); render(); },
       goToStage,
@@ -1715,11 +1736,42 @@ function pointerToCanvas(event) {
   return Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: at.x, y: at.y } : null;
 }
 
-/** The bench as targets: every body in canvas units, with the shots excluded. */
+/** The bench as targets: everything on it, in canvas units. */
 function targetScene() {
   const world = shownWorld();
   const cam = sceneCamera(world, 'main', state.view);
+  const at = (x, y) => toScreen(cam, { x, y });
+  const planet = world.bodies.find((b) => b.kind === 'planet');
+  const planetAt = planet ? at(planet.pos.x, planet.pos.y) : null;
+
   return {
+    /*
+     * Only what is actually drawn is a target.
+     *
+     * The ground, the planet and the liquid each have a condition in the
+     * renderer, and they are repeated here rather than inferred — a target for
+     * something invisible is a tap that opens a panel for a thing that is not
+     * there, which is worse than a tap that does nothing.
+     */
+    ground: (() => {
+      if (!world.ground) return null;
+      // Pinned at the point actually measured - world x = 0 - rather than at
+      // canvas x = 0, which is a different place as soon as the view moves.
+      const p = at(0, world.ground.y);
+      return { x0: p.x, y: p.y, slopeDeg: world.ground.slopeDeg || 0 };
+    })(),
+    planet: planet
+      ? { x: planetAt.x, y: planetAt.y, radius: planet.radius * cam.scale }
+      : null,
+    cannons: (world.cannons || []).map((c) => {
+      const p = at(c.x, c.y);
+      return { id: c.id, x: p.x, y: p.y, size: (c.size || 0.4) * cam.scale };
+    }),
+    walls: (world.walls || []).map((w) => {
+      const a = at(w.x1, w.y1);
+      const b = at(w.x2, w.y2);
+      return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    }),
     bodies: world.bodies.map((b) => {
       const at = toScreen(cam, b.pos);
       return {
@@ -1825,9 +1877,29 @@ function tapStage(event) {
   const hit = hitTest(targetScene(), at, { minRadius });
 
   if (hit.kind === 'sky') {
-    if (!state.selectedId && !sheetOpen()) return;
+    /*
+     * The background does two jobs, in this order: it puts away whatever is
+     * open, and only then does it mean "the air". Tapping empty space to
+     * dismiss is the one gesture everybody already knows, and a background
+     * that opened a panel instead would take it away.
+     */
+    if (state.selectedId || sheetOpen()) {
+      state.selectedId = null;
+      setSheet(null);
+      render();
+      return;
+    }
+  }
+
+  /*
+   * Only a body is *selected*. The ground, the planet, a wall, the air — there
+   * is nothing else to do with any of them but change them, so they skip the
+   * buttons and open their panel on the first tap. A body gets the buttons
+   * because there will be more than one thing to do with it.
+   */
+  if (hit.kind !== 'body') {
     state.selectedId = null;
-    setSheet(null);
+    setSheet({ ...hit, focus: sectionsFor(hit)[0] });
     render();
     return;
   }
@@ -1838,16 +1910,36 @@ function tapStage(event) {
   render();
 }
 
-/** What the sheet is called: the thing on the bench, by name and mass. */
+/**
+ * What the sheet is called: the thing that was tapped, named.
+ *
+ * Named after the thing rather than after the panel. "What you tapped" is the
+ * app describing its own mechanism; "Sphere · 1.31 kg" tells the reader which
+ * of the objects on the bench they have got hold of, which is the only
+ * question a heading here can usefully answer.
+ */
 function sheetTitle(target) {
-  const body = shownWorld().bodies.find((b) => b.id === target.id);
-  if (!body) return 'Selected';
-  /*
-   * The shape, then the mass — not `body.label`, which *is* the mass, and
-   * produced "1.31 kg · 1.31 kg" the first time this ran.
-   */
-  const shape = shapeById(body.shapeId)?.label || 'Object';
-  return `${shape} · ${fmtFixed(body.mass, body.mass < 10 ? 2 : 0)} kg`;
+  const world = shownWorld();
+  if (target.kind === 'body') {
+    const body = world.bodies.find((b) => b.id === target.id);
+    if (!body) return 'Selected';
+    /*
+     * The shape, then the mass — not `body.label`, which *is* the mass, and
+     * produced "1.31 kg · 1.31 kg" the first time this ran.
+     */
+    const shape = shapeById(body.shapeId)?.label || 'Object';
+    return `${shape} · ${fmtFixed(body.mass, body.mass < 10 ? 2 : 0)} kg`;
+  }
+  if (target.kind === 'ground') return 'The surface';
+  if (target.kind === 'planet') {
+    return worldById(state.bench.planetId)?.label || 'The world it is on';
+  }
+  if (target.kind === 'wall') return `Wall ${Number(target.id) + 1}`;
+  if (target.kind === 'cannon') {
+    const n = (state.bench.cannons || []).findIndex((c) => c.id === target.id);
+    return n >= 0 ? `Cannon ${n + 1}` : 'Cannon';
+  }
+  return fluidById(state.bench.fluidId)?.label || 'The air';
 }
 
 /** Open one of the selected thing's panels. */

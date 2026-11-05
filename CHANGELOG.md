@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.12.0
+
+Everything on the bench is tappable, not just the objects.
+
+### What a tap opens
+
+| Tapped | Opens |
+|---|---|
+| An object | The object, and The push |
+| A wall | That wall's settings |
+| A cannon | That cannon's settings |
+| The floor | The surface — friction, bounce, slope |
+| The planet beneath it | The world it is on |
+| The empty air | The fluid it moves through |
+
+Only an object is *selected* and gets the two buttons beside it. There is nothing to do with the
+floor but change it, so the floor — and the planet, a wall, a cannon, the air — opens its panel on
+the first tap. Making somebody tap twice for it would be ceremony.
+
+### Three rules that decide which one you meant
+
+Things overlap: a ball rests on the floor, the floor sits on the planet, the planet hangs in the
+sky. A tap has to resolve to exactly one of them.
+
+**Things you placed beat the ground they stand on.** A wall drawn along the floor and a cannon
+standing on it both sit within a finger's width of it; if the floor won, neither could be reached
+without hunting for a gap.
+
+**The ground is a line, not everything below it.** Treating the whole half-plane as the floor would
+make the planet unreachable at every step that has both — and they are different questions: the
+surface is what you slide on, the world is what pulls.
+
+**The background dismisses before it means anything.** Tapping empty space to put something away is
+the one gesture everybody already knows, so the air only opens the fluid panel once there is
+nothing left to dismiss.
+
+### And a panel with nothing in it never opens
+
+Every section is guarded by the feature that creates it, so walking back from the playground to the
+fluid step with a wall selected finds a sheet whose only panel no longer exists. It closes instead
+of showing an empty card — the air at step three opens nothing, because at step three there is no
+fluid to change.
+
+### Under it
+
+One more pure module decision rather than renderer code: where the ground is at a given point
+follows the line's own gradient, pinned at the place it was measured rather than at zero — which is
+a different place as soon as the view has been panned. A wall is measured to the segment rather
+than to its ends, and a bowed wall is targeted by its chord, because a curve is never further from
+its chord than its bulge and a bulge is small next to a thumb.
+
 ## 1.11.0
 
 Interactive stops being a bigger drawing and becomes something you can work in.

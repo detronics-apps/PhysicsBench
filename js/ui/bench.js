@@ -97,9 +97,21 @@ export function sheet(ctx, target) {
   const f = ctx.features;
   const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
 
+  /*
+   * Each one guarded by the feature that creates it, so a panel is never
+   * rendered for something the step does not have. The hit test can only
+   * return a thing that is on the bench, but a step can lose a feature while
+   * a sheet is open — walking back from the playground to the fluid step with
+   * a wall selected — and an empty panel reads as something failing to load.
+   */
   const build = {
     object: () => objectSection(ctx, object, f),
     push: () => (f.has('applied') ? pushSection(ctx) : null),
+    world: () => (f.has('planet') ? worldSection(ctx) : null),
+    surface: () => (f.has('ground') && !ctx.space ? surfaceSection(ctx) : null),
+    fluid: () => (f.has('fluid') ? fluidSection(ctx, object) : null),
+    walls: () => (f.has('obstacles') ? wallsSection(ctx) : null),
+    cannons: () => (f.has('obstacles') ? cannonsSection(ctx) : null),
   };
 
   return sectionsFor(target).map((id) => build[id]?.()).filter(Boolean);
