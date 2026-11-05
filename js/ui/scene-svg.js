@@ -125,6 +125,7 @@ export function renderScene(world, {
   control = null,
   pressed = false,
   viewHeight = null,
+  pull = null,
 } = {}) {
   /*
    * Set first, before any drawing or framing, because everything below reads
@@ -185,6 +186,7 @@ export function renderScene(world, {
     const marks = drawAltitudeMarks(cam, world.ground.y);
     if (marks) root.appendChild(marks);
   }
+  if (pull) root.appendChild(drawPull(cam, pull));
   if (world.walls?.length) root.appendChild(drawWalls(cam, world.walls));
   if (drawing) root.appendChild(drawPending(cam, drawing));
   if (world.cannons?.length) root.appendChild(drawCannons(cam, world.cannons));
@@ -723,6 +725,42 @@ function wallStroke(cam, w, a, b) {
 }
 
 /** The wall currently being dragged out, before the mouse has been let go. */
+/**
+ * The throw being aimed: a line from the object to the finger, with a head.
+ *
+ * Drawn in the velocity colour and at the length actually drawn, because that
+ * is what the gesture means — the arrow you draw is the arrow it leaves along.
+ * An arrow scaled to some other rule would be a different promise from the one
+ * the hand is making.
+ */
+function drawPull(cam, pull) {
+  const group = svg('g', { class: 'scene__pull' });
+  const a = toScreen(cam, pull.from);
+  const b = toScreen(cam, pull.to);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 2) return group;
+
+  group.appendChild(svg('line', {
+    x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y),
+    stroke: 'var(--vec-velocity)', 'stroke-width': 3, 'stroke-linecap': 'round',
+  }));
+  const head = arrowHead(b.x, b.y, dx / length, dy / length, 11);
+  group.appendChild(svg('path', { d: head, fill: 'var(--vec-velocity)' }));
+  group.appendChild(svg('circle', {
+    cx: r(a.x), cy: r(a.y), r: 3.5, fill: 'var(--vec-velocity)',
+  }));
+  if (pull.label) {
+    group.appendChild(svg('text', {
+      x: r(b.x + (dx > 0 ? 10 : -10)), y: r(b.y - 10),
+      'text-anchor': dx > 0 ? 'start' : 'end',
+      fill: 'var(--vec-velocity)', 'font-size': 12, 'font-weight': 600,
+    }, pull.label));
+  }
+  return group;
+}
+
 function drawPending(cam, drawing) {
   const group = svg('g', { class: 'scene__pending' });
   const a = toScreen(cam, drawing.from);

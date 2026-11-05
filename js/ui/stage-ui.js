@@ -296,19 +296,37 @@ let openSheet = null;
  * its `transform` is written per frame, by `placeSatellites`.
  */
 function satellites(actions) {
-  const arm = (dir, glyph, label, section) => el('button', {
-    class: `satellite satellite--${dir}`, type: 'button',
-    'data-field': `satellite:${section}`,
+  const arm = (dir, glyph, label, field, go, current = false) => el('button', {
+    class: `satellite satellite--${dir}${current ? ' is-armed' : ''}`, type: 'button',
+    'data-field': `satellite:${field}`,
+    'aria-pressed': current ? 'true' : null,
     title: label, 'aria-label': label,
-    on: { click: () => actions.openSheet(section) },
+    on: { click: go },
   }, [
     el('span', { class: 'satellite__glyph', 'aria-hidden': 'true', text: glyph }),
     el('span', { class: 'satellite__label', text: label }),
   ]);
 
+  /*
+   * Move is a one-shot arm rather than a mode.
+   *
+   * A drag from a body throws it, because that is the gesture worth having and
+   * the one every physics game has already taught people. Moving is the other
+   * thing you might mean by the same drag, so it is asked for first — and it
+   * disarms itself after one drag, because a mode you can forget you are in is
+   * a mode that makes the next throw do nothing.
+   */
   return el('div', { class: 'satellites', id: 'satellites', hidden: true }, [
-    arm('up', '▲', 'Properties', 'object'),
-    arm('right', '▶', 'Force', 'push'),
+    arm('up', '▲', 'Properties', 'object', () => actions.openSheet('object')),
+    arm('right', '▶', 'Force', 'push', () => actions.openSheet('push')),
+    arm(
+      'left',
+      '◀',
+      actions.moveArmed ? 'Drag it' : 'Move',
+      'move',
+      actions.armMove,
+      !!actions.moveArmed,
+    ),
   ]);
 }
 

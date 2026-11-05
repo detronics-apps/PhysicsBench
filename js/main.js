@@ -66,6 +66,9 @@ import {
   renderStageUI, placeSatellites, sheetOpen, setSheet,
 } from './ui/stage-ui.js';
 import { hitTest, sectionsFor } from './targets.js';
+import {
+  isDrag, pullVelocity, velocityToPolar, pinchSpan, pinchCentre, pinchFactor, zoomAbout,
+} from './gestures.js';
 import { disclosurePanel } from './ui/explain.js';
 import { vectorPicker, suggestionFor } from './ui/vectors.js';
 import * as bench from './ui/bench.js';
@@ -98,6 +101,20 @@ const input = {
   // Whether the drawing has been selected to receive the arrow keys. Until it
   // has, they belong to the page and scroll it, which is what they should do.
   engaged: false,
+  /*
+   * A gesture in progress on the drawing, in Interactive.
+   *
+   * `{ kind, id, from, to, startPx, moved }` — kind is 'throw', 'move' or
+   * 'pinch'. Outside `state` with the rest of the live input: none of it is
+   * part of the experiment, and putting it in state would write to storage on
+   * every pointer move.
+   */
+  gesture: null,
+  // Which body the next drag moves rather than throws, armed by its own
+  // button. One flag rather than a mode, because it lasts exactly one drag.
+  moveArmed: null,
+  // Live touches, for the pinch.
+  touches: new Map(),
 };
 
 /* ---------------------------------------------------------------- theme -- */
@@ -1660,6 +1677,13 @@ export function render({ controls = true } = {}) {
       leave: () => setLayout('page'),
       openSheet: openSheetAt,
       closeSheet: () => { setSheet(null); render(); },
+      moveArmed: input.moveArmed,
+      armMove: () => {
+        // One drag, then back to throwing. Pressing it again cancels.
+        input.moveArmed = input.moveArmed === state.selectedId ? null : state.selectedId;
+        setSheet(null);
+        render();
+      },
       // What this step has, so the menu can never offer a wall on a step that
       // cannot draw one. The same set the sidebar is built from.
       features: sim.scenario?.features ?? new Set(),
@@ -1901,28 +1925,13 @@ function watchStage() {
 }
 
 /**
- * A tap on the drawing, in Interactive.
+ * A tap has been resolved: it travelled no further than a wobble.
  *
- * Selecting is a thing the reader did, not a frame of animation, so it goes
- * through `render` — the readouts follow the selection, and so does the sheet
- * if one is open.
- *
- * Tapping a body that is already selected opens its properties. The reader who
- * asked for this described two taps — one to raise the buttons, one to press
- * them — and that is still what happens; this only means the obvious second
- * tap, on the thing itself, does the obvious thing rather than nothing.
+ * Takes what was under it rather than the event, because the hit test ran on
+ * the way *down* and the finger has moved since — by a few pixels, but enough
+ * to land on something else at the edge of a target.
  */
-function tapStage(event) {
-  const at = pointerToCanvas(event);
-  if (!at) return;
-  /*
-   * A finger is about 44 px across, so a target is never smaller than half of
-   * that however small the thing is drawn. Converted here, where the stage's
-   * width is known, rather than guessed at inside the pure hit test.
-   */
-  const minRadius = stageShape.w > 0 ? 22 * (VIEW_W / stageShape.w) : 22;
-  const hit = hitTest(targetScene(), at, { minRadius });
-
+function resolveTap(hit) {
   if (hit.kind === 'sky') {
     /*
      * The background does two jobs, in this order: it puts away whatever is
@@ -1932,6 +1941,7 @@ function tapStage(event) {
      */
     if (state.selectedId || sheetOpen()) {
       state.selectedId = null;
+      input.moveArmed = null;
       setSheet(null);
       render();
       return;
@@ -1942,10 +1952,11 @@ function tapStage(event) {
    * Only a body is *selected*. The ground, the planet, a wall, the air — there
    * is nothing else to do with any of them but change them, so they skip the
    * buttons and open their panel on the first tap. A body gets the buttons
-   * because there will be more than one thing to do with it.
+   * because there is more than one thing to do with it.
    */
   if (hit.kind !== 'body') {
     state.selectedId = null;
+    input.moveArmed = null;
     setSheet({ ...hit, focus: sectionsFor(hit)[0] });
     render();
     return;
@@ -2003,6 +2014,54 @@ const MENU_TITLES = {
 };
 
 /**
+ * Give a body a velocity, whichever way this bench holds one.
+ *
+ * The main object keeps a speed and a bearing — that is what its controls say
+ * — and the others keep components. Two shapes for one quantity is not ideal,
+ * and converting here is still better than a gesture that can only throw some
+ * of the things on the bench.
+ */
+function throwBody(id, { vx, vy }) {
+  const polar = velocityToPolar({ vx, vy });
+  update((draft) => {
+    if (id === 'main') {
+      draft.bench.v0 = Math.round(polar.speed * 1000) / 1000;
+      draft.bench.v0AngleDeg = Math.round(polar.angleDeg);
+      return;
+    }
+    const object = draft.bench.objects.find((o) => o.id === id);
+    if (!object) return;
+    object.vx = Math.round(vx * 1000) / 1000;
+    object.vy = Math.round(vy * 1000) / 1000;
+  });
+}
+
+/**
+ * Put a body somewhere, whichever way this bench holds a position.
+ *
+ * On a step with a floor the main object's height is a *drop height* rather
+ * than a coordinate — that is the control the reader has, and writing `y0`
+ * instead would move it on screen and then snap it back on the next rebuild,
+ * which reads as the drag having failed.
+ */
+function placeBody(id, { x, y }) {
+  const round = (v) => Math.round(v * 1000) / 1000;
+  const onGround = !!sim.scenario?.features?.has('ground') && !sim.scenario?.space;
+  update((draft) => {
+    if (id === 'main') {
+      draft.bench.x0 = round(x);
+      if (onGround) draft.bench.dropHeight = round(Math.max(0, y));
+      else draft.bench.y0 = round(y);
+      return;
+    }
+    const object = draft.bench.objects.find((o) => o.id === id);
+    if (!object) return;
+    object.x = round(x);
+    object.y = round(y);
+  });
+}
+
+/**
  * Open a sheet that is not about one thing on the bench.
  *
  * The lists of what has been added, the arrow picker and the teaching panel —
@@ -2015,11 +2074,147 @@ function openPanelSheet(kind) {
   render();
 }
 
+/**
+ * A pointer has gone down on the drawing in Interactive.
+ *
+ * Nothing is decided yet. A press on a body might become a throw, a move or a
+ * tap, and which it was is not known until the finger lifts — so the press
+ * only records where it started, and `endGesture` decides.
+ *
+ * This is why the tap is not handled here any more: resolving it on the way
+ * down meant a drag selected something first and then threw it, and the
+ * selection flashed through on the way past.
+ */
+function beginGesture(event) {
+  const at = pointerToCanvas(event);
+  if (!at) return;
+  input.touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  // Two fingers are a pinch, whatever either of them was doing alone.
+  if (input.touches.size === 2) {
+    const [a, b] = [...input.touches.values()];
+    input.gesture = {
+      kind: 'pinch',
+      startSpan: pinchSpan(a, b),
+      startView: { ...boxView(sceneCamera(shownWorld(), 'main', state.view).world) },
+      about: pointerToWorld({ clientX: pinchCentre(a, b).x, clientY: pinchCentre(a, b).y }),
+    };
+    update((draft) => { takeManualView(draft); }, { sim: 'none' });
+    event.preventDefault();
+    return;
+  }
+
+  const minRadius = stageShape.w > 0 ? 22 * (VIEW_W / stageShape.w) : 22;
+  const hit = hitTest(targetScene(), at, { minRadius });
+  const world = pointerToWorld(event);
+
+  input.gesture = {
+    kind: hit.kind === 'body' && input.moveArmed === hit.id ? 'move' : 'press',
+    hit,
+    id: hit.id,
+    startPx: { x: event.clientX, y: event.clientY },
+    from: world,
+    to: world,
+    moved: false,
+  };
+  dom.stage.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+/** The pointer has moved while a gesture is running. */
+function moveGesture(event) {
+  const g = input.gesture;
+  if (!g) return false;
+
+  if (g.kind === 'pinch') {
+    input.touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (input.touches.size < 2) return true;
+    const [a, b] = [...input.touches.values()];
+    const factor = pinchFactor(g.startSpan, pinchSpan(a, b));
+    if (g.about) {
+      const next = zoomAbout(g.startView, g.about, factor);
+      state.view.camera.cx = next.cx;
+      state.view.camera.cy = next.cy;
+      state.view.camera.span = next.span;
+      saveSoon();
+      paint(true);
+    }
+    return true;
+  }
+
+  const world = pointerToWorld(event);
+  if (!world) return true;
+  g.to = world;
+  if (!g.moved) {
+    g.moved = isDrag(event.clientX - g.startPx.x, event.clientY - g.startPx.y);
+    /*
+     * The moment a press becomes a drag it commits to being a throw — unless
+     * the Move button armed it, or it started on something that is not a body,
+     * in which case dragging is how the view is panned.
+     */
+    if (g.moved && g.kind === 'press') {
+      g.kind = g.hit.kind === 'body' ? 'throw' : 'pan';
+      if (g.kind === 'pan') update((draft) => { takeManualView(draft); }, { sim: 'none' });
+    }
+  }
+  if (!g.moved) return true;
+
+  if (g.kind === 'pan') {
+    state.view.camera.cx -= g.to.x - g.from.x;
+    state.view.camera.cy -= g.to.y - g.from.y;
+    saveSoon();
+  }
+  paint(true);
+  return true;
+}
+
+/** The pointer has lifted. Now it is known what the gesture was. */
+function endGesture(event) {
+  const g = input.gesture;
+  input.touches.delete(event?.pointerId);
+  if (!g) return false;
+  input.gesture = null;
+
+  if (g.kind === 'pinch' || g.kind === 'pan') { render(); return true; }
+
+  // Never travelled far enough to be anything else.
+  if (!g.moved) { resolveTap(g.hit); return true; }
+
+  if (g.kind === 'throw' && g.id) {
+    throwBody(g.id, pullVelocity(g.from, g.to));
+    input.moveArmed = null;
+    render();
+    return true;
+  }
+  if (g.kind === 'move' && g.id) {
+    placeBody(g.id, g.to);
+    input.moveArmed = null;
+    render();
+    return true;
+  }
+  paint(true);
+  return true;
+}
+
 /** Open one of the selected thing's panels. */
 function openSheetAt(sectionId) {
   if (!state.selectedId) return;
   setSheet({ kind: 'body', id: state.selectedId, focus: sectionId });
   render();
+}
+
+/**
+ * The throw being aimed, or null.
+ *
+ * Only while a drag that has committed to being a throw is actually running —
+ * and it carries the speed as a label, because the whole point of drawing the
+ * arrow is that you can see what you are about to do before you do it.
+ */
+function pullPreview() {
+  const g = input.gesture;
+  if (!g || g.kind !== 'throw' || !g.moved || !g.from || !g.to) return null;
+  const v = pullVelocity(g.from, g.to);
+  return { from: g.from, to: g.to, label: `${fmtFixed(v.speed, v.speed < 10 ? 2 : 1)} m/s` };
 }
 
 function paint(force = false) {
@@ -2054,6 +2249,7 @@ function paint(force = false) {
     // always been. Interactive hands it the stage's own shape so the drawing
     // fills the screen instead of letterboxing inside it.
     viewHeight: stageCanvasHeight(),
+    pull: pullPreview(),
     selectedId: state.selectedId,
     vectors: state.vectors,
     view: state.view,
@@ -2728,6 +2924,9 @@ function wireInput() {
   dom.stage.addEventListener('pointermove', (event) => {
     input.pointer = pointerToWorld(event);
 
+    // A gesture in Interactive owns the pointer for as long as it lasts.
+    if (moveGesture(event)) return;
+
     /*
      * Panning moves the view so that the world point under the pointer stays
      * under it — which is the only version of dragging a picture that feels
@@ -2805,7 +3004,7 @@ function wireInput() {
     const thrusting = sim.scenario?.features?.has('control')
       && state.bench.control?.mode === 'mouse';
     if (interactive() && state.ui.tool === 'none' && !thrusting) {
-      tapStage(event);
+      beginGesture(event);
       return;
     }
 
@@ -2854,8 +3053,24 @@ function wireInput() {
     input.pressed = false;
     paint(true);
   };
-  dom.stage.addEventListener('pointerup', (event) => { release(); finishWall(event); });
-  dom.stage.addEventListener('pointercancel', () => { input.drawing = null; release(); paint(true); });
+  dom.stage.addEventListener('pointerup', (event) => {
+    if (endGesture(event)) return;
+    release();
+    finishWall(event);
+  });
+  dom.stage.addEventListener('pointercancel', (event) => {
+    /*
+     * A cancelled gesture is abandoned rather than completed. The browser
+     * cancels a pointer when the system takes over — a notification, a
+     * back-swipe from the edge — and finishing the throw then would launch
+     * something at whatever speed the finger happened to be at.
+     */
+    input.gesture = null;
+    input.touches.delete(event?.pointerId);
+    input.drawing = null;
+    release();
+    paint(true);
+  });
   // A button released outside the drawing must still stop the thruster, or it
   // fires for ever with nothing on screen explaining why.
   window.addEventListener('pointerup', release);

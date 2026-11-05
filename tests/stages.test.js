@@ -1250,3 +1250,23 @@ test('every graph group has a stable id, unique within its step', () => {
     ['ke', 'pe', 'etotal'],
   );
 });
+
+test('the starting velocity is a speed and a bearing, and both reach the body', () => {
+  /*
+   * Written as a second `vy` on the line above an existing `vy: 0`, which is a
+   * duplicate key: the later one wins silently, so the throw gesture set the
+   * angle, the angle reached the spec, and the object went sideways anyway.
+   * Nothing in the language complains, and the only way to see it is to look
+   * at what the body actually got.
+   */
+  const bench = { ...defaults().bench, v0: 5, v0AngleDeg: 37 };
+  const body = build('push', bench).world.bodies.find((b) => b.id === 'main');
+  assert.ok(Math.abs(body.vel.x - 5 * Math.cos((37 * Math.PI) / 180)) < 1e-9);
+  assert.ok(Math.abs(body.vel.y - 5 * Math.sin((37 * Math.PI) / 180)) < 1e-9, 'vy reached it');
+  assert.ok(Math.abs(Math.hypot(body.vel.x, body.vel.y) - 5) < 1e-9, 'the speed is the speed');
+
+  // And an experiment made before the angle existed is unchanged by it.
+  const flat = build('push', { ...defaults().bench, v0: 5 }).world.bodies.find((b) => b.id === 'main');
+  assert.equal(flat.vel.y, 0);
+  assert.equal(flat.vel.x, 5);
+});

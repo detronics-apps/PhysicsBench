@@ -454,8 +454,24 @@ function pushSection(ctx) {
     }),
     numberField('Starting velocity', p.v0, (v) => set('v0', v), {
       unit: 'm/s', step: 0.5, min: -500, max: 500, key: 'v0',
+      info: 'How fast it is already going when the clock starts, before the '
+        + 'push does anything. A negative number sends it the other way.',
     }),
-  ], { key: 'push' });
+    /*
+     * Shown once there is something to say.
+     *
+     * A direction for a speed of zero is a control for nothing, and the first
+     * step is about one number getting bigger. It appears the moment the
+     * object is moving — including the moment somebody throws it on the
+     * drawing, which is the other way this field gets set.
+     */
+    p.v0 !== 0 ? sliderField('Which way it starts', p.v0AngleDeg, (v) => set('v0AngleDeg', v), {
+      min: -180, max: 180, step: 5, key: 'v0AngleDeg',
+      format: (v) => `${v}°`,
+      hint: '0° is to the right, 90° straight up. Measured anticlockwise, as '
+        + 'angles are everywhere in this app.',
+    }) : null,
+  ].filter(Boolean), { key: 'push' });
 }
 
 function otherMassSection(ctx) {

@@ -184,6 +184,16 @@ export const defaults = () => ({
     x0: 0,
     y0: 0,
     v0: 0,
+    /*
+     * Which way it is already going, anticlockwise from the right.
+     *
+     * The starting velocity was a single signed number, which is a speed along
+     * x and nothing else — fine while the only thing that moved was a crate on
+     * a bench, and not enough the moment anything could be thrown. Zero by
+     * default, so every saved experiment and every share link made before this
+     * existed means exactly what it meant before.
+     */
+    v0AngleDeg: 0,
 
     /*
      * The push: how hard, which way, for how long.
@@ -544,6 +554,7 @@ export function migrate(incoming) {
       x0: clamp(b.x0, -500, 500, d.x0),
       y0: clamp(b.y0, -500, 500, d.y0),
       v0: clamp(b.v0, -500, 500, d.v0),
+      v0AngleDeg: clamp(b.v0AngleDeg, -180, 180, d.v0AngleDeg),
 
       pushForce: push.force,
       pushAngleDeg: push.angleDeg,

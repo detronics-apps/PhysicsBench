@@ -804,13 +804,20 @@ test('the expanded panel is keyed on the section key, not its title', () => {
 
 test('a tap resolves to exactly one thing, and empty space deselects', () => {
   const main = read('../js/main.js');
-  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
-  assert.match(fn, /hitTest\(targetScene\(\), at, \{ minRadius \}\)/);
-  assert.match(fn, /hit\.kind === 'sky'/, 'empty space is a case, not a null check');
-  assert.match(fn, /state\.selectedId = null/, 'and it deselects');
+  /*
+   * The hit test runs on the way *down*: a press might become a drag, and a
+   * drag has to know what it started on. What the gesture actually was - a
+   * tap, a throw, a move - is only known when the finger lifts.
+   */
+  const down = main.match(/function beginGesture\(event\) \{[\s\S]*?\n\}/)[0];
+  assert.match(down, /hitTest\(targetScene\(\), at, \{ minRadius \}\)/);
   // The finger-sized floor is converted from screen pixels where the stage's
   // width is known, not guessed at inside the pure hit test.
-  assert.match(fn, /22 \* \(VIEW_W \/ stageShape\.w\)/);
+  assert.match(down, /22 \* \(VIEW_W \/ stageShape\.w\)/);
+
+  const fn = main.match(/function resolveTap\(hit\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /hit\.kind === 'sky'/, 'empty space is a case, not a null check');
+  assert.match(fn, /state\.selectedId = null/, 'and it deselects');
 });
 
 test('the satellites are placed without measuring anything', () => {
@@ -833,7 +840,7 @@ test('the background dismisses before it means anything', () => {
    * is nothing to dismiss, or that gesture is gone.
    */
   const main = read('../js/main.js');
-  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
+  const fn = main.match(/function resolveTap\(hit\) \{[\s\S]*?\n\}/)[0];
   const sky = fn.indexOf("hit.kind === 'sky'");
   const dismiss = fn.indexOf('setSheet(null)');
   const other = fn.indexOf("hit.kind !== 'body'");
@@ -845,7 +852,7 @@ test('only a body gets the buttons; everything else opens on one tap', () => {
   // There is nothing to do with the ground but change it, so making the
   // reader tap twice for it would be ceremony.
   const main = read('../js/main.js');
-  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
+  const fn = main.match(/function resolveTap\(hit\) \{[\s\S]*?\n\}/)[0];
   assert.match(fn, /if \(hit\.kind !== 'body'\) \{[\s\S]*?setSheet\(\{ \.\.\.hit, focus: sectionsFor\(hit\)\[0\] \}\)/);
 });
 

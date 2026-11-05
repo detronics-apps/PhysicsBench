@@ -333,8 +333,11 @@ export function objectList(p, f) {
      * lift the object — it was handed a zero and had nothing to lift.
      */
     y: onGround ? Math.max(0, p.dropHeight ?? 0) : (p.y0 ?? 0),
-    vx: p.v0 ?? 0,
-    vy: 0,
+    // A speed and a bearing, not a speed along x. Zero degrees is to the
+    // right, which is what the field meant when it was a single number — so
+    // an experiment built before the angle existed is unchanged by it.
+    vx: (p.v0 ?? 0) * Math.cos(((p.v0AngleDeg ?? 0) * Math.PI) / 180),
+    vy: (p.v0 ?? 0) * Math.sin(((p.v0AngleDeg ?? 0) * Math.PI) / 180),
     colour: 0,
     main: true,
   }];

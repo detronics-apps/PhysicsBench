@@ -2004,3 +2004,11 @@ html[data-layout='interactive'][data-page='bench'] #strip .graph__head {
   top: auto;
   bottom: calc(100% + var(--space-2));
 }
+
+/* The third arm: Move, armed for exactly one drag. */
+.satellite--left { left: -38px; top: 0; transform: translate(-100%, -50%); }
+.satellite.is-armed {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--panel);
+}
