@@ -1829,3 +1829,135 @@ html[data-level='simple'] .corner__itemNote { display: none; }
   width: 1px;
   background: var(--border);
 }
+
+/* --- the buttons beside the selected thing ------------------------------ *
+ * Beside it, never on it: a control drawn over the object hides the object it
+ * edits, under the reader's own thumb — and the thing being changed is the
+ * thing most worth watching while it changes.                               */
+
+.satellites {
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 0;
+  pointer-events: none;
+  /* Moved by `transform` alone, once per frame, so following a thrown object
+     never costs a layout. */
+  will-change: transform;
+}
+.satellites[hidden] { display: none; }
+
+.satellite {
+  position: absolute;
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--accent-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--accent-strong);
+  font: 600 12px/1 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.satellite:hover { background: var(--accent-soft); }
+.satellite:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.satellite__glyph { font-size: 9px; }
+
+/* Placed clear of the object rather than over it. 38px is past the edge of a
+   target drawn at the minimum finger size, so the arm never covers what it
+   points at. */
+.satellite--up { left: 0; top: -38px; transform: translate(-50%, -100%); }
+.satellite--right { left: 38px; top: 0; transform: translateY(-50%); }
+
+/* --- the sheet ---------------------------------------------------------- *
+ * A non-modal <dialog>: the top layer, so it escapes every clipping context
+ * without a z-index fight, and no backdrop — the reason to change a mass is to
+ * watch what it does, and a modal would cover the one thing worth looking at. */
+
+.sheet {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+}
+.sheet::backdrop { background: none; }
+
+/*
+ * Portrait: along the bottom, where the thumb is.
+ *
+ * 44 dvh rather than half the screen, because the camera centres what is on
+ * the bench — so the object being edited sits at about the middle of the
+ * drawing, and a sheet taking half the screen starts exactly where it is. At
+ * 54 dvh the ball was sliced in two by the top edge of its own settings panel,
+ * with the Force button hidden behind it. The panel scrolls; the bench cannot.
+ */
+.sheet {
+  inset: auto 0 0 0;
+  width: 100%;
+  max-height: 44dvh;
+  border-width: 1px 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex; flex-direction: column;
+}
+
+.sheet__head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.sheet__title { flex: 1 1 auto; margin: 0; font-size: 13px; font-weight: 650; color: var(--text-dim); }
+.sheet__close {
+  flex: 0 0 auto;
+  width: 34px; height: 34px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--panel-2); color: var(--text);
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+.sheet__close:hover { border-color: var(--accent); }
+.sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/*
+ * Landscape: down the right-hand side instead.
+ *
+ * A bottom sheet on a 375px-tall screen covers the thing it is editing. A side
+ * sheet leaves the bench visible beside it, which is why every landscape phone
+ * app uses one.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  .sheet {
+    inset: 0 0 auto auto;
+    width: min(340px, 46vw);
+    /*
+     * Capped at the screen rather than stretched to it: a <dialog> is
+     * `height: fit-content` by the browser's own rules, so it is as tall as
+     * what is in it — a full-height panel holding two fields reads as
+     * something that failed to load. The cap is what stops a long panel
+     * running off the bottom.
+     */
+    max-height: 100dvh;
+    border-width: 0 0 0 1px;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* On a wide screen it is a panel in the corner, not a bar across the window. */
+@media (min-width: 900px) and (min-height: 560px) {
+  .sheet {
+    inset: auto auto var(--space-4) var(--space-4);
+    width: 360px;
+    max-height: min(70dvh, 560px);
+    border-width: 1px;
+    border-radius: var(--radius-lg);
+  }
+}

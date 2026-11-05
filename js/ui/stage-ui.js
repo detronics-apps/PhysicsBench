@@ -172,11 +172,121 @@ export function stageFurniture({ state, actions }) {
   ];
 }
 
+/*
+ * Which sheet is open, across rebuilds, and nothing else about it.
+ *
+ * Every edit inside the sheet re-renders the app, which rebuilds this overlay.
+ * Without remembering, changing a mass would close the panel the mass was
+ * changed in. The *contents* are rebuilt from live state every time, like the
+ * sidebar's are; only the fact that it is open survives.
+ */
+let openSheet = null;
+
+/**
+ * The buttons beside the selected thing.
+ *
+ * **Beside it, never on it.** A control drawn on top of the object hides the
+ * object it edits, under the reader's own thumb — and the thing you are about
+ * to change is the thing you most need to watch.
+ *
+ * Built when the selection changes, not per frame: `paint` runs sixty times a
+ * second and rebuilding a button that often means it cannot be pressed. Only
+ * its `transform` is written per frame, by `placeSatellites`.
+ */
+function satellites(actions) {
+  const arm = (dir, glyph, label, section) => el('button', {
+    class: `satellite satellite--${dir}`, type: 'button',
+    'data-field': `satellite:${section}`,
+    title: label, 'aria-label': label,
+    on: { click: () => actions.openSheet(section) },
+  }, [
+    el('span', { class: 'satellite__glyph', 'aria-hidden': 'true', text: glyph }),
+    el('span', { class: 'satellite__label', text: label }),
+  ]);
+
+  return el('div', { class: 'satellites', id: 'satellites', hidden: true }, [
+    arm('up', '▲', 'Properties', 'object'),
+    arm('right', '▶', 'Force', 'push'),
+  ]);
+}
+
+/**
+ * Move the cluster to a point, or hide it.
+ *
+ * Called from the paint loop, so it writes one style and reads nothing: a
+ * measurement here would force the browser to finish laying the page out,
+ * sixty times a second.
+ *
+ * @param {Node} host   the overlay
+ * @param {{x:number,y:number}|null} at  overlay-relative pixels
+ * @param {{w:number,h:number}} bounds   the overlay's own box, for clamping
+ */
+export function placeSatellites(host, at, bounds) {
+  const node = host?.querySelector('.satellites');
+  if (!node) return;
+  if (!at) { node.hidden = true; return; }
+
+  /*
+   * Clamped inside the overlay, because an object at the edge of the bench —
+   * or off it entirely, which happens the moment anything is thrown — would
+   * otherwise take its buttons with it and leave nothing to press.
+   */
+  const pad = 56;
+  const x = Math.min(Math.max(at.x, pad), Math.max(pad, (bounds?.w ?? 0) - pad));
+  const y = Math.min(Math.max(at.y, pad), Math.max(pad, (bounds?.h ?? 0) - pad));
+  node.hidden = false;
+  node.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+
+/**
+ * The panel of controls for whatever was tapped.
+ *
+ * A **non-modal** `<dialog>`: it sits in the top layer, so it escapes every
+ * clipping context on the page without a z-index fight, but it does not put a
+ * backdrop over the bench. That matters more than it sounds — the reason to
+ * change a mass is to watch what the change does, and a modal would cover the
+ * one thing worth looking at while doing it.
+ *
+ * @param {Node} host
+ * @param {object} spec  `{ title, nodes, onClose }`
+ */
+function buildSheet(host, { title, nodes, onClose }) {
+  const panel = el('dialog', { class: 'sheet', id: 'sheet' }, [
+    el('div', { class: 'sheet__head' }, [
+      el('h2', { class: 'sheet__title', text: title }),
+      el('button', {
+        class: 'sheet__close', type: 'button',
+        'data-field': 'sheet:close', title: 'Done', 'aria-label': 'Done',
+        on: { click: () => onClose() },
+      }, '✕'),
+    ]),
+    el('div', { class: 'sheet__body' }, nodes),
+  ]);
+  host.appendChild(panel);
+  // `show`, not `showModal`: no backdrop, and the bench stays live behind it.
+  if (!panel.open) panel.show();
+  return panel;
+}
+
+/** What is open, so the app can rebuild it after a state change. */
+export const sheetOpen = () => openSheet;
+
+/** Open, change or close the sheet. `null` closes it. */
+export function setSheet(target) { openSheet = target; }
+
 /** Replace the overlay's contents. A no-op when the host is not there. */
 export function renderStageUI(host, spec) {
   if (!host) return;
   clear(host);
   for (const node of stageFurniture(spec)) host.appendChild(node);
+  host.appendChild(satellites(spec.actions));
+  if (openSheet && spec.sheet) {
+    buildSheet(host, {
+      title: spec.sheet.title,
+      nodes: spec.sheet.nodes,
+      onClose: () => spec.actions.closeSheet(),
+    });
+  }
 }
 
 /*

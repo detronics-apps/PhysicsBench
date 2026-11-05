@@ -19,6 +19,7 @@ import { stageById, featuresAt, pushState, pushRange, equationsAt, MAX_OBJECTS }
 import { CONTROL_MODES, modeById, controlStatus } from '../control.js';
 import { boxWalls, wallAngle, wallLength, arcLength, isCurved, MAX_WALLS } from '../segments.js';
 import { exampleById } from '../examples.js';
+import { sectionsFor } from '../targets.js';
 import { RATE_ERROR, errorAt, secondsFor, duration } from '../recorder.js';
 import {
   SURFACES, surfaceById, matchSurface, describeSurface, slipAngle, brakingG, rollingFor,
@@ -69,6 +70,39 @@ export function controls(ctx) {
     at('expert') ? recordingSection(ctx) : null,
     exportSection(ctx),
   ].filter(Boolean), 'controls');
+}
+
+/**
+ * The controls for one thing on the drawing, for Interactive's sheet.
+ *
+ * **The rule that keeps this cheap: these are the same section functions the
+ * sidebar calls, not copies of them.** Same fields, same parsing, same
+ * `data-field` names, same validation, same tests. The mode is a new route to
+ * the controls, never a second set of them — a second set is two things to
+ * keep in step, and it would drift within a month.
+ *
+ * Which sections belong to which kind of thing is decided in `js/targets.js`,
+ * where it is data and can be tested; this turns those ids into panels.
+ *
+ * Sections a step does not have are dropped rather than rendered empty: the
+ * push does not exist on a step with no applied force, and a sheet with an
+ * empty panel in it reads as something failing to load.
+ *
+ * @param {object} ctx
+ * @param {{kind: string, id?: string}} target  from `hitTest`
+ * @returns {Node[]}
+ */
+export function sheet(ctx, target) {
+  const { params: p } = ctx;
+  const f = ctx.features;
+  const object = describeObject({ shapeId: p.shapeId, size: p.size, mass: p.mass });
+
+  const build = {
+    object: () => objectSection(ctx, object, f),
+    push: () => (f.has('applied') ? pushSection(ctx) : null),
+  };
+
+  return sectionsFor(target).map((id) => build[id]?.()).filter(Boolean);
 }
 
 /**

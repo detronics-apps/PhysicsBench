@@ -32,7 +32,7 @@ import {
   channelsFor, vectorsFor, inputSummary, MAX_OBJECTS,
 } from './stages.js';
 import { controlForce } from './control.js';
-import { describe as describeObject } from './shapes.js';
+import { describe as describeObject, shapeById } from './shapes.js';
 import { surfaceGravity } from './gravitation.js';
 import { fmtFixed } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
@@ -43,7 +43,7 @@ import {
 } from './ui/guide.js';
 import { WHATS_NEW } from './guide.js';
 import { LICENCE, IMPRINT } from './legal.js';
-import { toWorld } from './camera.js';
+import { toWorld, toScreen } from './camera.js';
 import {
   LEVELS, levelById, shownAt, INTERACTIVE, defaultLayout,
 } from './levels.js';
@@ -61,14 +61,17 @@ import {
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
 import { renderTransport, transportNote } from './ui/transport.js';
-import { renderStageUI } from './ui/stage-ui.js';
+import {
+  renderStageUI, placeSatellites, sheetOpen, setSheet,
+} from './ui/stage-ui.js';
+import { hitTest, sectionsFor } from './targets.js';
 import { disclosurePanel } from './ui/explain.js';
 import { vectorPicker, suggestionFor } from './ui/vectors.js';
 import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.10.0';
+export const APP_VERSION = '1.11.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1540,8 +1543,19 @@ export function render({ controls = true } = {}) {
   ]));
 
   clear(dom.controls);
-  for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
-  soloOpenSection();
+  /*
+   * The sidebar is not built at all in Interactive.
+   *
+   * Hidden is not absent: four hundred controls still in the document carry
+   * `data-field` names, and the sheet's own fields are the same names — so a
+   * lookup finds whichever comes first, which is the hidden one. That bug has
+   * already been paid for once here, on the corner menus. Not building it also
+   * takes the work out of every render in the mode that can least afford it.
+   */
+  if (!interactive()) {
+    for (const node of bench.controls(ctx)) dom.controls.appendChild(node);
+    soloOpenSection();
+  }
 
   if (wantsKeys) {
     wantsKeys = false;
@@ -1580,8 +1594,37 @@ export function render({ controls = true } = {}) {
     dom.explain.appendChild(disclosurePanel(sim.scenario.disclosure));
   }
 
+  /*
+   * The sheet's contents are the sidebar's own sections, rebuilt from live
+   * state exactly as the sidebar's are — not a copy of them. Which sections
+   * belong to what was tapped is decided in `js/targets.js`.
+   */
+  const open = sheetOpen();
+  if (open) {
+    /*
+     * The tapped arm decides which panel is expanded, by writing the same
+     * store the accordion reads. Setting it here rather than passing a flag
+     * keeps `section()` unaware that sheets exist.
+     *
+     * Keyed on the section's own key — `object`, `push` — and taken from the
+     * same list the sheet is built from, so the two cannot drift. Written
+     * against the section *titles* first, which the store does not use, and
+     * both panels arrived collapsed: a sheet that opens showing nothing but
+     * two closed headings reads as something that failed to load.
+     */
+    for (const id of sectionsFor(open)) {
+      state.ui.sections[`${state.stage}:${id}`] = id === open.focus;
+    }
+  }
   renderStageUI(dom.stageUI, {
     state,
+    /*
+     * Named after the thing itself, not after the panel. "What you tapped" is
+     * the app describing its own mechanism; "The crate, 1.31 kg" is the app
+     * telling the reader which of the objects on the bench they have got hold
+     * of, which is the only question a heading here can usefully answer.
+     */
+    sheet: open ? { title: sheetTitle(open), nodes: bench.sheet(ctx, open) } : null,
     actions: {
       setLevel: (id) => { state.ui.level = id; saveSoon(); render(); },
       goToStage,
@@ -1589,6 +1632,8 @@ export function render({ controls = true } = {}) {
       showGuide,
       showAchievements,
       leave: () => setLayout('page'),
+      openSheet: openSheetAt,
+      closeSheet: () => { setSheet(null); render(); },
     },
   });
 
@@ -1607,7 +1652,7 @@ export function render({ controls = true } = {}) {
  * forces the browser to finish laying the page out before it can answer —
  * which is the one thing a frame budget cannot afford.
  */
-let stageShape = { w: 0, h: 0 };
+let stageShape = { w: 0, h: 0, offX: 0, offY: 0, overW: 0, overH: 0 };
 
 /**
  * How tall to draw the canvas, in canvas units, or null for its usual shape.
@@ -1635,9 +1680,81 @@ function measureStage() {
   const box = dom.stage.getBoundingClientRect();
   const w = Math.round(box.width);
   const h = Math.round(box.height);
-  if (w === stageShape.w && h === stageShape.h) return false;
-  stageShape = { w, h };
+  /*
+   * And where the drawing sits inside the overlay, which is what turns a
+   * position in the drawing into a position for a button floating over it.
+   * Read here, with the rest, so the paint loop never measures anything.
+   */
+  const over = dom.stageUI?.getBoundingClientRect();
+  const offX = over ? Math.round(box.left - over.left) : 0;
+  const offY = over ? Math.round(box.top - over.top) : 0;
+  const overW = over ? Math.round(over.width) : 0;
+  const overH = over ? Math.round(over.height) : 0;
+  if (w === stageShape.w && h === stageShape.h
+    && offX === stageShape.offX && offY === stageShape.offY) return false;
+  stageShape = { w, h, offX, offY, overW, overH };
   return true;
+}
+
+/**
+ * A pointer event, in the drawing's own coordinates.
+ *
+ * The same first half as `pointerToWorld`, stopping one step earlier. Targets
+ * are decided in canvas units rather than in metres because a target is a
+ * place to aim at on a screen: a 0.25 m ball is a finger-wide target at one
+ * zoom and a speck at another, and only the canvas knows which.
+ */
+function pointerToCanvas(event) {
+  const svg = dom.stage.querySelector('svg');
+  const ctm = svg?.getScreenCTM?.();
+  if (!ctm) return null;
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const at = point.matrixTransform(ctm.inverse());
+  return Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: at.x, y: at.y } : null;
+}
+
+/** The bench as targets: every body in canvas units, with the shots excluded. */
+function targetScene() {
+  const world = shownWorld();
+  const cam = sceneCamera(world, 'main', state.view);
+  return {
+    bodies: world.bodies.map((b) => {
+      const at = toScreen(cam, b.pos);
+      return {
+        id: b.id,
+        x: at.x,
+        y: at.y,
+        radius: (b.radius || 0) * cam.scale,
+        width: (b.width || 0) * cam.scale,
+        height: (b.height || 0) * cam.scale,
+        /*
+         * A planet is excluded from the framing and is most of the sky; a
+         * cannon shot is allowed to leave the bench and is gone in a second.
+         * Neither is a thing to open a settings panel for.
+         */
+        pickable: b.kind !== 'planet' && !b.projectile,
+      };
+    }),
+  };
+}
+
+/**
+ * Where the selected body is, as a point on the overlay — or null.
+ *
+ * Pure arithmetic over what was measured earlier: the canvas is `VIEW_W` wide
+ * however big the stage is, so one scale factor converts the whole thing.
+ */
+function selectionPoint() {
+  if (!interactive() || !state.selectedId || !(stageShape.w > 0)) return null;
+  const world = shownWorld();
+  const body = world.bodies.find((b) => b.id === state.selectedId);
+  if (!body) return null;
+  const cam = sceneCamera(world, 'main', state.view);
+  const at = toScreen(cam, body.pos);
+  const k = stageShape.w / VIEW_W;
+  return { x: stageShape.offX + at.x * k, y: stageShape.offY + at.y * k };
 }
 
 /**
@@ -1682,6 +1799,62 @@ function watchStage() {
     }
     if (interactive() && state.page === 'bench') paint(true);
   }).observe(dom.stage);
+}
+
+/**
+ * A tap on the drawing, in Interactive.
+ *
+ * Selecting is a thing the reader did, not a frame of animation, so it goes
+ * through `render` — the readouts follow the selection, and so does the sheet
+ * if one is open.
+ *
+ * Tapping a body that is already selected opens its properties. The reader who
+ * asked for this described two taps — one to raise the buttons, one to press
+ * them — and that is still what happens; this only means the obvious second
+ * tap, on the thing itself, does the obvious thing rather than nothing.
+ */
+function tapStage(event) {
+  const at = pointerToCanvas(event);
+  if (!at) return;
+  /*
+   * A finger is about 44 px across, so a target is never smaller than half of
+   * that however small the thing is drawn. Converted here, where the stage's
+   * width is known, rather than guessed at inside the pure hit test.
+   */
+  const minRadius = stageShape.w > 0 ? 22 * (VIEW_W / stageShape.w) : 22;
+  const hit = hitTest(targetScene(), at, { minRadius });
+
+  if (hit.kind === 'sky') {
+    if (!state.selectedId && !sheetOpen()) return;
+    state.selectedId = null;
+    setSheet(null);
+    render();
+    return;
+  }
+
+  const again = state.selectedId === hit.id;
+  state.selectedId = hit.id;
+  if (again && !sheetOpen()) setSheet({ ...hit, focus: 'object' });
+  render();
+}
+
+/** What the sheet is called: the thing on the bench, by name and mass. */
+function sheetTitle(target) {
+  const body = shownWorld().bodies.find((b) => b.id === target.id);
+  if (!body) return 'Selected';
+  /*
+   * The shape, then the mass — not `body.label`, which *is* the mass, and
+   * produced "1.31 kg · 1.31 kg" the first time this ran.
+   */
+  const shape = shapeById(body.shapeId)?.label || 'Object';
+  return `${shape} · ${fmtFixed(body.mass, body.mass < 10 ? 2 : 0)} kg`;
+}
+
+/** Open one of the selected thing's panels. */
+function openSheetAt(sectionId) {
+  if (!state.selectedId) return;
+  setSheet({ kind: 'body', id: state.selectedId, focus: sectionId });
+  render();
 }
 
 function paint(force = false) {
@@ -1735,6 +1908,10 @@ function paint(force = false) {
    * natural size there, because its natural size is whatever the stage is.
    */
   if (!interactive()) capDiagramScale(dom.stage);
+
+  // One style write, no measurement: the stage was measured when it changed.
+  placeSatellites(dom.stageUI, selectionPoint(),
+    { w: stageShape.overW, h: stageShape.overH });
 
   /*
    * Everything that is words and numbers is redrawn far less often than the
@@ -2411,6 +2588,19 @@ function wireInput() {
      * offered to. And it starts the pointer thrust, which lasts exactly as long
      * as the button is held.
      */
+    /*
+     * In Interactive the drawing is the only input surface there is, so a tap
+     * on it has to mean something. Not while the pointer is the throttle —
+     * step six can hand the pointer to the control force, and a tap that both
+     * selects and thrusts does neither clearly.
+     */
+    const thrusting = sim.scenario?.features?.has('control')
+      && state.bench.control?.mode === 'mouse';
+    if (interactive() && state.ui.tool === 'none' && !thrusting) {
+      tapStage(event);
+      return;
+    }
+
     if (dom.stage.tabIndex === 0) dom.stage.focus({ preventScroll: true });
     if (sim.scenario?.features?.has('control') && state.bench.control?.mode === 'mouse') {
       input.pointer = pointerToWorld(event) || input.pointer;

@@ -31,6 +31,6 @@ than a recipient of them.
 
 ## Outstanding against r8
 
-Interactive shipped its first commit — the mode, the layout, the phone default and the corner
-buttons. Still to come, in order: tap to select and the properties sheet · the rest of the tap
-targets · Add and Remove in the menu · the forces satellite · the graph strip · the gestures.
+Interactive has shipped two of its seven commits: the mode itself, and tapping a thing to change
+it. Still to come, in order: the rest of the tap targets (the planet, the ground, the water, the
+sky, walls, cannons) · Add and Remove in the menu · the graph strip · the gestures.

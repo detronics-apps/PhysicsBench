@@ -762,3 +762,66 @@ test('two or more notices fold, and one never does', () => {
   assert.match(fn, /details\.replaceWith\(body\.firstElementChild\);/);
   assert.match(fn, /new MutationObserver\(tally\)/);
 });
+
+// --- Interactive: tapping the drawing --------------------------------------
+
+test('the sheet is the sidebar\u2019s own sections, never a second set', () => {
+  /*
+   * The rule the whole mode rests on. A second copy of a control is two things
+   * to keep in step, and it drifts within a month - different parsing,
+   * different limits, different names for the same field.
+   */
+  const bench = read('../js/ui/bench.js');
+  const fn = bench.match(/export function sheet\(ctx, target\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /objectSection\(/, 'the object panel is the sidebar\u2019s own');
+  assert.match(fn, /pushSection\(/, 'and so is the push');
+  assert.match(fn, /sectionsFor\(target\)/, 'and which ones is decided in targets.js');
+  // Nothing in the sheet builder may define a control of its own.
+  for (const maker of ['numberField(', 'sliderField(', 'selectField(', 'chipField(']) {
+    assert.ok(!fn.includes(maker), `the sheet builds its own ${maker} instead of reusing one`);
+  }
+});
+
+test('the sidebar is not built at all in Interactive', () => {
+  /*
+   * Hidden is not absent. Four hundred controls still in the document carry
+   * the same `data-field` names the sheet uses, and a lookup finds whichever
+   * comes first - the hidden one. The corner menus already paid for this bug
+   * once.
+   */
+  const main = read('../js/main.js');
+  assert.match(main, /if \(!interactive\(\)\) \{\s*\n\s*for \(const node of bench\.controls\(ctx\)\)/);
+});
+
+test('the expanded panel is keyed on the section key, not its title', () => {
+  // `section()` keys on `key || title`, and both panels pass a key - so
+  // writing the store against "The object" set a key nothing reads, and the
+  // sheet opened with every panel collapsed.
+  const main = read('../js/main.js');
+  assert.match(main, /for \(const id of sectionsFor\(open\)\) \{/);
+  assert.match(main, /state\.ui\.sections\[`\$\{state\.stage\}:\$\{id\}`\] = id === open\.focus/);
+});
+
+test('a tap resolves to exactly one thing, and empty space deselects', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function tapStage\(event\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /hitTest\(targetScene\(\), at, \{ minRadius \}\)/);
+  assert.match(fn, /hit\.kind === 'sky'/, 'empty space is a case, not a null check');
+  assert.match(fn, /state\.selectedId = null/, 'and it deselects');
+  // The finger-sized floor is converted from screen pixels where the stage's
+  // width is known, not guessed at inside the pure hit test.
+  assert.match(fn, /22 \* \(VIEW_W \/ stageShape\.w\)/);
+});
+
+test('the satellites are placed without measuring anything', () => {
+  /*
+   * They follow a moving body, so this runs on every animation frame.
+   * A `getBoundingClientRect` here forces the browser to finish laying the
+   * page out sixty times a second, which is the whole frame budget.
+   */
+  const ui = read('../js/ui/stage-ui.js');
+  const fn = ui.match(/export function placeSatellites\([\s\S]*?\n\}/)[0];
+  assert.ok(!/getBoundingClientRect|offsetWidth|clientWidth/.test(fn));
+  assert.match(fn, /node\.style\.transform/);
+  assert.match(fn, /Math\.min\(Math\.max\(/, 'and clamped, so a thrown object leaves its buttons behind');
+});

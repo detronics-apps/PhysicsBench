@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.11.0
+
+Interactive stops being a bigger drawing and becomes something you can work in.
+
+### Tap a thing to change it
+
+Until now the mode gave the screen to the bench and then offered no way to touch anything on it —
+on a laptop there was not a single control reachable, which is the first thing anybody tried.
+
+Now a tap selects. Two buttons appear **beside** the selected thing, never on top of it: Properties
+above, Force to the right. Either opens that thing's own panel — along the bottom in portrait, down
+the right-hand side in landscape, as a card in the corner on a wide screen. Tapping the background
+deselects and puts the panel away. Tapping a thing that is already selected opens its properties,
+so the obvious second tap does the obvious thing.
+
+### The panel is the sidebar's own
+
+Not a copy of it. Tapping an object renders the same "The object" section the sidebar renders, by
+calling the same function: the same fields, the same engineering-notation parsing, the same limits,
+the same names, the same tests. A second set of controls would be two things to keep in step, and
+it would drift within a month. Which sections belong to which kind of thing is decided in one small
+tested module rather than in the renderer.
+
+The panel is deliberately **not modal**: the reason to change a mass is to watch what the change
+does, and a backdrop would cover the one thing worth looking at. It is also capped at 44% of the
+screen in portrait — the camera centres what is on the bench, so at half the screen the panel
+started exactly where the object was and sliced the ball in two.
+
+### Targets are finger-sized, not picture-sized
+
+A 0.25 m ball on a phone is drawn about eleven pixels across; a fingertip covers forty-four.
+Hit-testing the drawn outline would have meant a mode usable only with a mouse. Every target has a
+floor of twenty-two pixels, measured on the screen rather than in metres, so the ball is tappable to
+twice its drawn size. Where targets overlap, the nearest as a fraction of its own size wins — so a
+small thing drawn in front of a large one is still reachable, and the answer does not depend on the
+order the world happens to hold its bodies in.
+
+### Also
+
+The sidebar is not built at all in this mode. Hidden is not absent: four hundred controls still in
+the document carry the same names the panel uses, and a lookup finds whichever comes first — which
+is the hidden one. It also takes that work out of every render in the mode that can least afford it.
+
 ## 1.10.0
 
 Interactive: a fourth setting that drops the page and gives the whole screen to the drawing.

@@ -595,8 +595,14 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.10.0',
+  version: '1.11.0',
   body: [
+    ['Tap a thing to change it',
+      'In Interactive, tapping anything on the bench selects it and raises two buttons beside '
+      + 'it — Properties above, Force to the right — and those open its own panel along the '
+      + 'bottom of the screen, or down the side in landscape. Tapping the background puts it '
+      + 'away. Targets are finger-sized rather than picture-sized: a ball drawn eleven pixels '
+      + 'across is tappable out to twenty-two, so you do not have to aim.'],
     ['Interactive — the drawing takes the screen',
       'A fourth setting beside Simple, Advanced and Expert. It drops the page and gives the '
       + 'whole screen to the bench, with the level, the step and the way out as buttons over '
