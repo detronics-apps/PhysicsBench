@@ -2053,7 +2053,17 @@ html[data-layout='interactive'][data-page='bench'] #strip .graph__head {
  */
 .stage-wrap { display: contents; }
 html[data-layout='interactive'][data-page='bench'] .stage-wrap {
-  display: block;
+  /*
+   * A flex column, not a block.
+   *
+   * As a block the drawing inside it was no longer a flex child, so its
+   * `flex: 1 1 auto` meant nothing and it sized itself to its own content —
+   * leaving 205 px of empty panel between the bench and the timeline on a
+   * 1512 x 945 screen. That band is the "grey block": the wrapper was the
+   * right height all along and the drawing simply was not filling it.
+   */
+  display: flex;
+  flex-direction: column;
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -2138,4 +2148,30 @@ html[data-layout='interactive'][data-page='bench'] .stage-wrap {
   .sheet__close { width: 44px; height: 44px; }
   /* Play and Step were 38 x 39 — the two most-pressed controls in the app. */
   .transport__btn { min-width: 44px; min-height: 44px; }
+}
+
+/*
+ * 44px targets everywhere a thumb is used, not only on the drawing.
+ *
+ * The audit this standard calls for found 153 controls under 44px in the page
+ * layout at 375 — most of the sidebar, the step tabs, the level chips and
+ * every banner's close button. They are comfortable with a mouse and a matter
+ * of aim with a finger.
+ *
+ * Only on a coarse pointer: a desktop has no reason to grow its controls, and
+ * doing it by width would catch a narrow window on a laptop.
+ *
+ * The sidebar gets taller on a phone as a result. That is the right trade — it
+ * is a scrolling column either way, and a control you have to aim at costs
+ * more than a scroll.
+ */
+@media (pointer: coarse) {
+  .btn, .chip, .stepper__step, .modebar__chip { min-height: 44px; }
+  .btn--icon, .btn-icon { min-width: 44px; }
+  .banner__close, .section__lock { min-width: 44px; min-height: 44px; }
+  .section > summary { min-height: 44px; }
+  .corner__item, .unlock__close { min-height: 44px; }
+  /* Range and checkbox inputs are the thing being aimed at, not their label. */
+  input[type='range'] { height: 44px; }
+  input[type='checkbox'] { width: 24px; height: 24px; }
 }

@@ -441,9 +441,20 @@ export function setSheet(target) { openSheet = target; }
 export function renderStageUI(host, spec) {
   if (!host) return;
 
+  /*
+   * "Typing" means a field, not merely focus inside the panel.
+   *
+   * Tested against `contains(activeElement)` first, which is true of the close
+   * button the instant it is pressed — so closing the sheet kept it instead.
+   * The rule is about not pulling an edit out from under someone, and only an
+   * editable control can have an edit in progress.
+   */
   const existing = host.querySelector('.sheet');
-  const typing = existing?.contains(document.activeElement);
-  const keep = typing ? existing : null;
+  const active = document.activeElement;
+  const editing = !!active && existing?.contains(active)
+    && (active.tagName === 'INPUT' || active.tagName === 'SELECT'
+      || active.tagName === 'TEXTAREA' || active.isContentEditable);
+  const keep = editing ? existing : null;
   if (keep) keep.remove();
 
   clear(host);

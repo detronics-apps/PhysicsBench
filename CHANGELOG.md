@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.18.0
+
+A camera that lets things move, a close button that closes, and the rest of the grey block.
+
+### The object moves across the screen
+
+The automatic framing re-centres on every frame, so the object stood still in the middle and the
+grid slid past it. That is a correct picture of the physics and a poor picture of *motion*: a
+reader watching something accelerate saw only a scrolling background.
+
+In Interactive the view is now a place you are looking at. It holds where it is, and the object you
+have **selected** is followed *lazily* — it crosses the screen freely until it reaches the edge of a
+dead zone, and only then does the camera ease after it, keeping its lead. Measured on a phone: the
+object travels from one side to the other over about a second and a half before the camera moves at
+all.
+
+Select nothing, and the view does not move. The reader is looking at a place on the grid rather
+than at a thing, and a camera that wanders off on its own takes that decision away from them.
+Double-tap fits the bench again — once, and then holds it.
+
+### The close button closes
+
+Collateral from 1.16.0. The sheet is left alone while the focus is inside it, so that a render
+cannot pull a half-typed number out from under somebody — and the close button is itself inside the
+sheet, so pressing it counted as "focus inside" and the panel was kept. The rule is about not
+interrupting an *edit*, so it now asks whether the focused thing is a field.
+
+### The rest of the grey block
+
+1.16.0 fixed a stale measurement. This is the other half: the wrapper holding the drawing and its
+floating furniture was a `block`, so the drawing inside it was no longer a flex child, its
+`flex: 1 1 auto` meant nothing, and it sized itself to its own content. On a 1512 × 945 screen that
+left **205 px of empty panel** between the bench and the timeline — and with a taskbar below the
+window, enough to push the timeline out of reach. The drawing now fills its wrapper: 889 px of 945.
+
+### 153 controls that were too small to aim at
+
+The audit the new mobile-first standard calls for found 153 controls under 44px in the page layout
+at 375 — most of the sidebar, the step tabs, the level chips, every banner's close button and both
+kinds of slider. They are comfortable with a mouse and a matter of aim with a finger. **Three
+remain**, all inside menus, and they are fixed here too.
+
+Only on a coarse pointer: a desktop has no reason to grow its controls. The sidebar is taller on a
+phone as a result, which is the right trade — it scrolls either way, and a control you have to aim
+at costs more than a scroll.
+
+Checked at 320 and 375: no horizontal overflow at either. Text-entry fields are 16px, so iOS has
+nothing to zoom into; checkboxes and range sliders are below that and do not trigger it.
+
 ## 1.17.0
 
 Two faults the new mobile-first standard caught in the app that produced it.

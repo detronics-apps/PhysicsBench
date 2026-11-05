@@ -595,8 +595,14 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.17.0',
+  version: '1.18.0',
   body: [
+    ['The object moves across the screen now',
+      'The view used to re-fit on every frame, which pinned the object to the middle and slid '
+      + 'the grid past it — a correct picture of the physics and a poor one of motion. In '
+      + 'Interactive the view stays where you left it, and the object you have selected moves '
+      + 'freely until it nears the edge, when the camera eases after it. Select nothing and the '
+      + 'view does not move at all. Double-tap fits the bench again.'],
     ['Fields big enough that iOS leaves them alone',
       'Safari zooms into any form field whose text is under 16px — the view lurches and you '
       + 'lose your place, on every field, every time. The fields here were 14. And every button '

@@ -5,7 +5,7 @@ import { vec } from '../js/vec.js';
 import {
   createCamera, toScreen, toWorld, toPixels, toMetres, onScreen,
   boundsFor, union, vectorScale, arrowHead, clampLabel, insideView, gridStep, gridLines, visibleWorld,
-  placeLabels, overlaps,
+  placeLabels, overlaps, lazyFollow,
 } from '../js/camera.js';
 
 const close = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
@@ -284,4 +284,52 @@ test('no label is pushed outside the canvas while avoiding another', () => {
 
 test('an empty list places nothing and throws nothing', () => {
   assert.deepEqual(placeLabels([], 880, 460), []);
+});
+
+// --- a camera that lets the object move -------------------------------------
+
+test('the camera does nothing while the object is in the middle', () => {
+  /*
+   * The whole point. Re-centring every frame pins the object to the middle of
+   * the screen and slides the grid past it - a correct picture of the physics
+   * and a poor picture of motion, because nothing on screen appears to move.
+   */
+  const view = { cx: 0, cy: 0, span: 10 };
+  assert.deepEqual(lazyFollow(view, { x: 0, y: 0 }), { cx: 0, cy: 0 });
+  assert.deepEqual(lazyFollow(view, { x: 2, y: 0 }), { cx: 0, cy: 0 }, 'well inside');
+  assert.deepEqual(lazyFollow(view, { x: -2.2, y: 0 }), { cx: 0, cy: 0 }, 'just inside');
+});
+
+test('it eases after the object once it leaves the dead zone', () => {
+  const view = { cx: 0, cy: 0, span: 10 };
+  const after = lazyFollow(view, { x: 5, y: 0 }, { ease: 0.5 });
+  // 5 m out, the zone ends at 2.25, so 2.75 of overshoot; half of it closed.
+  assert.ok(Math.abs(after.cx - 1.375) < 1e-9, `${after.cx}`);
+  assert.equal(after.cy, 0, 'and nothing on the axis it has not left');
+});
+
+test('it follows backwards as readily as forwards', () => {
+  const after = lazyFollow({ cx: 0, cy: 0, span: 10 }, { x: -5, y: 0 }, { ease: 0.5 });
+  assert.ok(after.cx < 0 && Math.abs(after.cx + 1.375) < 1e-9);
+});
+
+test('the vertical dead zone follows the shape of the screen', () => {
+  /*
+   * A tall phone screen has a short half-span across and a long one down, and
+   * a dead zone measured only on the width would make the camera chase every
+   * small vertical wobble on a portrait screen.
+   */
+  const view = { cx: 0, cy: 0, span: 10 };
+  const wide = lazyFollow(view, { x: 0, y: 2 }, { aspect: 2 });
+  const tall = lazyFollow(view, { x: 0, y: 2 }, { aspect: 0.5 });
+  assert.ok(wide.cy !== 0, 'on a wide screen 2 m up is outside the zone');
+  assert.equal(tall.cy, 0, 'on a tall one it is still inside');
+});
+
+test('it never overshoots, whatever ease it is given', () => {
+  const view = { cx: 0, cy: 0, span: 10 };
+  for (const ease of [0, 0.5, 1, 5, -3]) {
+    const after = lazyFollow(view, { x: 100, y: 0 }, { ease });
+    assert.ok(after.cx >= 0 && after.cx <= 97.75, `ease ${ease} gave ${after.cx}`);
+  }
 });

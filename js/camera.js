@@ -378,3 +378,54 @@ export const overlaps = (a, b, gap = 0) =>
   && a.x + a.width + gap > b.x
   && a.y < b.y + b.height + gap
   && a.y + a.height + gap > b.y;
+
+/**
+ * A camera that lets the object move on screen, then catches up.
+ *
+ * The automatic framing re-centres on every frame, which pins the object to
+ * the middle of the screen and slides the grid past it instead. That is a
+ * correct picture of the physics and a poor picture of *motion*: nothing on
+ * screen appears to move, and a reader watching a thing accelerate sees only
+ * a background scrolling.
+ *
+ * So the camera does nothing at all while the object is somewhere in the
+ * middle, and only starts moving once the object reaches the edge of a dead
+ * zone — and then eases after it rather than snapping, so the object keeps
+ * its lead and arrives back toward the centre gradually. It is how a camera
+ * operator follows a runner, and how every side-scrolling game has done it
+ * since the eighties.
+ *
+ * @param {{cx:number,cy:number,span:number}} view  the window now, in metres
+ * @param {{x:number,y:number}} at                  where the object is
+ * @param {object} [options]
+ * @param {number} [options.aspect]    width ÷ height of the view
+ * @param {number} [options.deadZone]  fraction of the half-span the object may
+ *                                     wander before the camera reacts at all
+ * @param {number} [options.ease]      share of the remaining gap closed per
+ *                                     frame once it is moving
+ * @returns {{cx:number,cy:number}} the new centre
+ */
+export function lazyFollow(view, at, { aspect = 2, deadZone = 0.45, ease = 0.08 } = {}) {
+  const halfX = view.span / 2;
+  const halfY = halfX / Math.max(0.01, aspect);
+  const slackX = halfX * deadZone;
+  const slackY = halfY * deadZone;
+
+  /*
+   * How far outside the dead zone it is, per axis — zero while it is inside.
+   * Measured against the *edge* of the zone rather than the centre, so the
+   * camera does not creep whenever the object is slightly off-middle.
+   */
+  const over = (d, slack) => {
+    if (d > slack) return d - slack;
+    if (d < -slack) return d + slack;
+    return 0;
+  };
+
+  const dx = over(at.x - view.cx, slackX);
+  const dy = over(at.y - view.cy, slackY);
+  if (dx === 0 && dy === 0) return { cx: view.cx, cy: view.cy };
+
+  const k = Math.min(1, Math.max(0, ease));
+  return { cx: view.cx + dx * k, cy: view.cy + dy * k };
+}

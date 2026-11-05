@@ -44,7 +44,7 @@ import {
 } from './ui/guide.js';
 import { WHATS_NEW } from './guide.js';
 import { LICENCE, IMPRINT } from './legal.js';
-import { toWorld, toScreen } from './camera.js';
+import { toWorld, toScreen, lazyFollow } from './camera.js';
 import {
   LEVELS, levelById, shownAt, INTERACTIVE, defaultLayout,
 } from './levels.js';
@@ -75,7 +75,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.17.0';
+export const APP_VERSION = '1.18.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -176,6 +176,15 @@ function setLayout(id) {
   // Written even when it matches what the screen was already suggesting: the
   // point of the write is that it is now a decision rather than a guess.
   state.ui.layout = id;
+  /*
+   * Entering Interactive takes the framing off automatic.
+   *
+   * Automatic re-fits the whole bench on every frame, which pins the object to
+   * the middle of the screen and slides the grid past it. In this mode the
+   * view is a place the reader is looking at: it stays where it is, and a
+   * selected object is followed lazily rather than locked to the centre.
+   */
+  if (id === 'interactive') takeManualView(state);
   saveSoon();
   render();
   /*
@@ -1509,6 +1518,21 @@ export function render({ controls = true } = {}) {
   }
 
   document.documentElement.dataset.page = 'bench';
+
+  /*
+   * Interactive holds its framing; it never re-fits.
+   *
+   * Automatic framing re-centres on every frame, which pins the object to the
+   * middle of the screen and slides the grid past it — the reader sees the
+   * background move and the thing they are watching stand still. Here, rather
+   * than only in `setLayout`, because a phone *opens* in this mode without
+   * ever passing through the switch.
+   *
+   * A no-op once the view is held, and double-tap is how the reader asks for
+   * the bench to be fitted again.
+   */
+  if (interactive() && state.view.camera.mode === 'auto') takeManualView(state);
+
   const ctx = context();
   const stage = stageById(state.stage);
   const here = stageIndex(state.stage);
@@ -2263,7 +2287,17 @@ function endGesture(event) {
     input.lastTap = now;
     if (quick) {
       input.lastTap = 0;
-      update((draft) => { draft.view.camera.mode = 'auto'; }, { sim: 'none' });
+      /*
+       * Fit once, then hold it. Leaving the camera on automatic would put the
+       * object back in the middle of the screen for ever, which is the thing
+       * a reader double-tapping is trying to recover *from* — they want to see
+       * the whole bench again, not to be followed by a locked camera.
+       */
+      update((draft) => {
+        // `autoView` is already a view; wrapping it in `boxView` again fed a
+        // view where a world box belongs and framed on NaN.
+        draft.view.camera = { mode: 'manual', ...autoView(shownWorld(), 'main') };
+      }, { sim: 'none' });
       sayZoom('Fitted to the bench');
       return true;
     }
@@ -2325,6 +2359,37 @@ function pullPreview() {
   if (!g || g.kind !== 'throw' || !g.moved || !g.from || !g.to) return null;
   const v = pullVelocity(g.from, g.to);
   return { from: g.from, to: g.to, label: `${fmtFixed(v.speed, v.speed < 10 ? 2 : 1)} m/s` };
+}
+
+/**
+ * Keep the selected object on screen, without pinning it to the middle.
+ *
+ * The automatic framing re-centres every frame, which is why a reader with
+ * one object sees it stand still while the grid slides past: a correct
+ * picture of the physics and a poor one of motion. In Interactive the view is
+ * held where it is, and a *selected* object is followed lazily — it moves
+ * across the screen freely until it reaches the edge of a dead zone, and only
+ * then does the camera ease after it.
+ *
+ * With nothing selected the view does not move at all. That is the other half
+ * of what was asked for: the reader is looking at a place on the grid, not at
+ * a thing, and a camera that wanders off on its own is a camera taking the
+ * decision away from them.
+ */
+function followSelection() {
+  if (!interactive() || !state.selectedId) return;
+  if (state.view.camera.mode !== 'manual') return;
+  const body = sim.world?.bodies?.find((b) => b.id === state.selectedId);
+  if (!body) return;
+
+  const aspect = stageShape.h > 0 ? stageShape.w / stageShape.h : 2;
+  const next = lazyFollow(state.view.camera, body.pos, { aspect });
+  if (next.cx === state.view.camera.cx && next.cy === state.view.camera.cy) return;
+  state.view.camera.cx = next.cx;
+  state.view.camera.cy = next.cy;
+  // Not saved on every frame: where the camera has drifted to is not a
+  // decision the reader made, and writing it sixty times a second would be
+  // a storage write per frame for something nobody asked to keep.
 }
 
 function paint(force = false) {
@@ -2976,6 +3041,7 @@ function announceAchievement(id) {
 }
 
 function stepSimulation(seconds) {
+  followSelection();
   // The push is re-applied before every step, because it stops after its
   // duration — and what happens after it stops is the whole point of step two.
   // It also re-reads the parameters, which is what lets the angle be turned
