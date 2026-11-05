@@ -44,7 +44,9 @@ import {
 import { WHATS_NEW } from './guide.js';
 import { LICENCE, IMPRINT } from './legal.js';
 import { toWorld } from './camera.js';
-import { LEVELS, levelById, shownAt } from './levels.js';
+import {
+  LEVELS, levelById, shownAt, INTERACTIVE, defaultLayout,
+} from './levels.js';
 import {
   ACHIEVEMENTS, newlyEarned, byId as achievementById, groups as achievementGroups,
 } from './achievements.js';
@@ -53,10 +55,13 @@ import { angleDelta } from './orient.js';
 import { advance, inspect, totals, createWorld, snapshot as snapWorld } from './world.js';
 import { createRecorder, record, frameAt, endTime, trailAt } from './recorder.js';
 
-import { renderScene, sceneLegend, sceneCamera, autoView, boxView } from './ui/scene-svg.js';
+import {
+  renderScene, sceneLegend, sceneCamera, autoView, boxView, VIEW_W,
+} from './ui/scene-svg.js';
 import { renderGraph } from './ui/graph-svg.js';
 import { renderInspector, renderTotals, renderBodyPicker } from './ui/inspector.js';
 import { renderTransport, transportNote } from './ui/transport.js';
+import { renderStageUI } from './ui/stage-ui.js';
 import { disclosurePanel } from './ui/explain.js';
 import { vectorPicker, suggestionFor } from './ui/vectors.js';
 import * as bench from './ui/bench.js';
@@ -104,8 +109,64 @@ const input = {
  * future hint — and unlike a JS gate it leaves them in the printed sheet,
  * which is where a reader does want the prose.
  */
+/**
+ * The layout in force: what the reader chose, or what their screen suggests.
+ *
+ * Resolved here on every read rather than written once at startup, and that is
+ * the difference between a default and a guess that hardens into a choice. A
+ * measurement taken while the page is still laying out, or mid-rotation, can be
+ * wrong; stored, a wrong one would be indistinguishable from a decision and
+ * would survive every reload. Left unstored, it corrects itself the moment the
+ * screen is measurable, and `state.ui.layout` means exactly one thing: the
+ * reader said so.
+ */
+function layoutNow() {
+  if (state.ui.layout) return state.ui.layout;
+  return defaultLayout({
+    coarse: window.matchMedia?.('(pointer: coarse)')?.matches ?? false,
+    minSide: Math.min(window.innerWidth, window.innerHeight),
+  });
+}
+
+const interactive = () => layoutNow() === 'interactive';
+
 function applyLevel() {
   document.documentElement.dataset.level = state.ui.level;
+  /*
+   * The layout, on the same element and for the same reason: one attribute and
+   * one block of CSS, rather than a JS gate at every region that has to be
+   * hidden.
+   */
+  document.documentElement.dataset.layout = layoutNow();
+}
+
+/**
+ * Switch layout, and remember that the reader chose.
+ *
+ * Writing the field is what makes the choice stick: once it holds a value the
+ * screen is never consulted again, so a phone that has been taken out of
+ * Interactive stays out of it across reloads.
+ *
+ * `render`, never `rebuild` — the rule the levels follow. A layout decides
+ * where the controls are and nothing else; it must not touch a value or put
+ * the clock back to zero.
+ */
+function setLayout(id) {
+  if (state.ui.layout === id) return;
+  // Written even when it matches what the screen was already suggesting: the
+  // point of the write is that it is now a decision rather than a guess.
+  state.ui.layout = id;
+  saveSoon();
+  render();
+  /*
+   * The stage is a different size now, and the drawing has to be re-cut to it.
+   *
+   * Measured after the render rather than before: the CSS that resizes the
+   * stage hangs off the `data-layout` attribute, which `render` is what sets.
+   * The observer would catch this a frame later; doing it here means the switch
+   * never shows a letterboxed frame first.
+   */
+  if (measureStage()) paint(true);
 }
 
 function applyTheme() {
@@ -325,10 +386,14 @@ function renderStages() {
  */
 function renderLevels() {
   clear(dom.levels);
-  dom.levelHint.textContent = levelById(state.ui.level).note;
+  dom.levelHint.textContent = interactive()
+    ? INTERACTIVE.note
+    : levelById(state.ui.level).note;
+
+  const onPage = !interactive();
 
   for (const level of LEVELS) {
-    const current = level.id === state.ui.level;
+    const current = onPage && level.id === state.ui.level;
     dom.levels.appendChild(el('button', {
       class: 'chip modebar__chip', type: 'button',
       'aria-pressed': String(current),
@@ -338,6 +403,14 @@ function renderLevels() {
         click: () => {
           if (current) return;
           state.ui.level = level.id;
+          /*
+           * Picking a level is also choosing the page layout.
+           *
+           * Any press in this bar is the reader saying which of the four they
+           * want, and storing it is what stops a phone being put back into
+           * Interactive by the next reload.
+           */
+          state.ui.layout = 'page';
           saveSoon();
           /*
            * Re-render, never rebuild.
@@ -353,6 +426,24 @@ function renderLevels() {
       },
     }, level.label));
   }
+
+  /*
+   * And Interactive, last, with a rule before it.
+   *
+   * Last because it is the one that changes the shape of the app rather than
+   * the amount of detail in it, and beside the other three because this bar is
+   * where a reader looks for "how much of the bench is on screen". The rule is
+   * the CSS's job — `--aside`, the same marker the step bar uses for the pages
+   * that are not steps.
+   */
+  const inInteractive = interactive();
+  dom.levels.appendChild(el('button', {
+    class: 'chip modebar__chip modebar__chip--aside', type: 'button',
+    'aria-pressed': String(inInteractive),
+    title: `${INTERACTIVE.note} The physics is the same — this only moves the controls.`,
+    'data-field': `level:${INTERACTIVE.id}`,
+    on: { click: () => setLayout(inInteractive ? 'page' : 'interactive') },
+  }, INTERACTIVE.label));
 }
 
 /**
@@ -495,6 +586,16 @@ function buildViewport() {
     tabindex: '-1',
     'aria-label': 'The bench. Click to take the controls.',
   });
+  /*
+   * The furniture that floats over the drawing in Interactive.
+   *
+   * A sibling of the stage, never a child of it: `paint` empties the stage and
+   * rebuilds the scene on every animation frame, so anything parented there
+   * would be destroyed sixty times a second — along with any menu the reader
+   * had open. It is positioned against `.viewport`, which the CSS makes the
+   * containing block, and it is `display: none` in the page layout.
+   */
+  dom.stageUI = el('div', { class: 'stage-ui', id: 'stage-ui' });
   dom.legend = el('div', { id: 'legend' });
   dom.transportHost = el('div', { id: 'transport' });
   dom.readout = el('div', { class: 'readout', id: 'readout' });
@@ -544,6 +645,7 @@ function buildViewport() {
     dom.ask,
     dom.vectors,
     dom.stage,
+    dom.stageUI,
     dom.legend,
     dom.transportHost,
     // Live commentary belongs beside the live picture, not three sections down.
@@ -1478,11 +1580,108 @@ export function render({ controls = true } = {}) {
     dom.explain.appendChild(disclosurePanel(sim.scenario.disclosure));
   }
 
+  renderStageUI(dom.stageUI, {
+    state,
+    actions: {
+      setLevel: (id) => { state.ui.level = id; saveSoon(); render(); },
+      goToStage,
+      showExamples,
+      showGuide,
+      showAchievements,
+      leave: () => setLayout('page'),
+    },
+  });
+
   renderTransportBar();
   paint(true);
   restoreFocus(snap);
   checkAchievements(true);
   startClock();
+}
+
+/*
+ * The stage, as last measured.
+ *
+ * Read from a ResizeObserver rather than from `getBoundingClientRect` in
+ * `paint`, because paint runs sixty times a second and measuring an element
+ * forces the browser to finish laying the page out before it can answer —
+ * which is the one thing a frame budget cannot afford.
+ */
+let stageShape = { w: 0, h: 0 };
+
+/**
+ * How tall to draw the canvas, in canvas units, or null for its usual shape.
+ *
+ * Only Interactive asks for anything but null: there the drawing is the screen,
+ * so its canvas has to be the screen's shape or it letterboxes inside the space
+ * the mode just gave it.
+ */
+function stageCanvasHeight() {
+  if (!interactive()) return null;
+  if (!(stageShape.w > 0 && stageShape.h > 0)) return null;
+  return (VIEW_W * stageShape.h) / stageShape.w;
+}
+
+/**
+ * Measure the stage. True if its shape has changed since the last look.
+ *
+ * Reading an element's box forces the browser to finish laying the page out,
+ * so this is called at the three moments the shape can actually change —
+ * startup, a layout switch, and a resize — and never from `paint`, which runs
+ * sixty times a second.
+ */
+function measureStage() {
+  if (!dom.stage) return false;
+  const box = dom.stage.getBoundingClientRect();
+  const w = Math.round(box.width);
+  const h = Math.round(box.height);
+  if (w === stageShape.w && h === stageShape.h) return false;
+  stageShape = { w, h };
+  return true;
+}
+
+/**
+ * Watch the stage, and redraw when its shape changes.
+ *
+ * This is what makes rotating a phone work: landscape and portrait are the
+ * same CSS, but the canvas shape is measured rather than declared, so turning
+ * the phone re-frames the drawing without a second code path. It is also what
+ * covers the keyboard appearing, the browser bar sliding away, and the window
+ * being dragged narrower on a desktop.
+ *
+ * No feedback loop: the SVG is sized by CSS to fill the stage, so repainting it
+ * cannot change the stage, and an unchanged measurement returns early anyway.
+ */
+function watchStage() {
+  /*
+   * Measured once, synchronously, and **after the first render** — which is
+   * the part that is easy to get wrong.
+   *
+   * Two reasons it cannot happen earlier. The stage is `display: none` until
+   * `data-page` is on the root element, and `render` is what puts it there, so
+   * measuring before it reads a box of zero by zero. And the CSS that gives
+   * the stage the whole screen hangs off `data-layout`, which `render` also
+   * sets — so even a visible stage would be measured at its page-layout size.
+   *
+   * It has to be synchronous rather than left to the observer, which delivers
+   * its first callback at the end of a frame: that is one painted frame of the
+   * drawing letterboxed at the wrong shape before it snaps to the screen.
+   */
+  if (measureStage()) paint(true);
+  if (typeof ResizeObserver !== 'function') return;
+  new ResizeObserver(() => {
+    if (!measureStage()) return;
+    /*
+     * A reader who has never chosen follows their screen, so crossing the
+     * phone threshold — rotating a tablet, dragging a desktop window narrow —
+     * has to change the layout, not just the drawing inside it.
+     */
+    if (!state.ui.layout && document.documentElement.dataset.layout !== layoutNow()) {
+      render();
+      return;
+    }
+    if (interactive() && state.page === 'bench') paint(true);
+  }).observe(dom.stage);
 }
 
 function paint(force = false) {
@@ -1513,6 +1712,10 @@ function paint(force = false) {
   input.engaged = withKeys && document.activeElement === dom.stage;
   dom.stage.classList.toggle('is-engaged', input.engaged);
   dom.stage.appendChild(renderScene(ctx.world, {
+    // Null in the page layout, which keeps the canvas exactly the shape it has
+    // always been. Interactive hands it the stage's own shape so the drawing
+    // fills the screen instead of letterboxing inside it.
+    viewHeight: stageCanvasHeight(),
     selectedId: state.selectedId,
     vectors: state.vectors,
     view: state.view,
@@ -1522,9 +1725,16 @@ function paint(force = false) {
     control: driving ? state.bench.control : null,
     pressed: input.pressed,
   }));
-  // A drawing sized to its contents must never be magnified to fill the panel.
-  // Called after the stage has been replaced, on every render — pitfalls.md #3.
-  capDiagramScale(dom.stage);
+  /*
+   * A drawing sized to its contents must never be magnified to fill the panel.
+   * Called after the stage has been replaced, on every render — pitfalls.md #3.
+   *
+   * Except in Interactive, where the canvas *is* the stage: the cap writes an
+   * inline `max-width: 880px`, which on a wide screen would letterbox the one
+   * thing the mode exists to make bigger. Nothing is being magnified past its
+   * natural size there, because its natural size is whatever the stage is.
+   */
+  if (!interactive()) capDiagramScale(dom.stage);
 
   /*
    * Everything that is words and numbers is redrawn far less often than the
@@ -2316,6 +2526,7 @@ function init() {
   load();
   applyTheme();
 
+
   configureSections({
     // `undefined` means "the reader has not said" — which is different from
     // "the reader wants it open", and `section` needs to be able to tell.
@@ -2347,6 +2558,8 @@ function init() {
   wireInput();
   rebuild();
   render();
+  // After the first render: see `watchStage`. Measuring before it reads zero.
+  watchStage();
   visited.add(state.stage);
   save();
 
@@ -2414,4 +2627,8 @@ window.PhysicsBench = {
   press: (key) => input.keys.add(key),
   release: (key) => input.keys.delete(key),
   camera: () => sceneCamera(shownWorld(), 'main', state.view),
+  // The stage as last measured, and the canvas height that follows from it.
+  // Interactive stands or falls on these two numbers agreeing with the screen.
+  stage: () => ({ ...stageShape, canvas: stageCanvasHeight(), layout: layoutNow() }),
+  measureStage,
 };

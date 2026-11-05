@@ -26,7 +26,7 @@ import { WORLDS } from './gravitation.js';
 import { SHAPES, MATERIALS } from './shapes.js';
 import { FLUIDS } from './drag.js';
 import { CHANNELS } from './recorder.js';
-import { LEVEL_IDS } from './levels.js';
+import { LEVEL_IDS, LAYOUTS } from './levels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 
 const KEY = 'physics-bench';
@@ -344,6 +344,18 @@ export const defaults = () => ({
     level: 'simple',
 
     /*
+     * Which layout: the page, or the drawing full screen.
+     *
+     * `null` means nobody has chosen, and that is the whole mechanism. A reader
+     * who has never expressed a preference gets whatever their screen suggests
+     * — a phone opens in Interactive — and the moment they choose, the choice
+     * is stored here and the screen is never consulted again. Without the third
+     * value, pressing the X on a phone would be undone by the next reload,
+     * which is a mode you cannot leave.
+     */
+    layout: null,
+
+    /*
      * When this reader first opened the app, or null if they have not.
      *
      * A timestamp rather than a flag, because "when" is the more useful thing
@@ -587,6 +599,8 @@ export function migrate(incoming) {
       locks: sectionFlags(incoming.ui?.locks),
       tool: oneOf(incoming.ui?.tool, ['none', 'wall', 'arc', 'pan'], 'none'),
       level: oneOf(incoming.ui?.level, LEVEL_IDS, base.ui.level),
+      // Anything unrecognised reads as "not chosen", so the screen decides.
+      layout: oneOf(incoming.ui?.layout, LAYOUTS, null),
       /*
        * Only ever a string that looks like a date, or null.
        *
@@ -750,14 +764,33 @@ export function saveSoon() {
   pending = setTimeout(() => { pending = null; save(); }, 400);
 }
 
+/**
+ * The state as it should travel, in a link or a file.
+ *
+ * Two things are facts about the device reading rather than about the
+ * experiment, and both have to be dropped or they arrive as instructions:
+ *
+ *   layout   a link made on a phone would otherwise reshape a desktop into
+ *            the full-screen mode, with the sidebar gone and no explanation.
+ *            Null means "not chosen", which lets the recipient's own screen
+ *            decide — exactly what it does for a first-time visitor.
+ *   playing  a shared experiment is a setup; the recipient presses Play.
+ */
+function portable() {
+  return {
+    ...state,
+    transport: { ...state.transport, playing: false, scrubT: null },
+    ui: { ...state.ui, layout: null },
+  };
+}
+
 /** A link that reopens this exact experiment. The fragment never leaves the browser. */
 export function shareLink() {
-  const payload = { ...state, transport: { ...state.transport, playing: false, scrubT: null } };
-  return `${location.origin}${location.pathname}#${encodeURIComponent(JSON.stringify(payload))}`;
+  return `${location.origin}${location.pathname}#${encodeURIComponent(JSON.stringify(portable()))}`;
 }
 
 export const projectJson = () =>
-  JSON.stringify({ app: 'physics-bench', saved: new Date().toISOString(), state }, null, 2);
+  JSON.stringify({ app: 'physics-bench', saved: new Date().toISOString(), state: portable() }, null, 2);
 
 /** Read a project file back, tolerating both the wrapper and a bare state. */
 export function loadProject(text) {

@@ -1719,3 +1719,113 @@ html[data-level='simple'] .field__hint { display: none; }
   font-size: 13px; color: var(--text-dim);
   cursor: pointer;
 }
+
+/* ======================================================================== *
+ * The furniture that floats over the drawing in Interactive.
+ *
+ * Round, 44 px, and over the picture rather than above it. Floating is the
+ * whole point: a phone in landscape has 375 px of height, and a row of chrome
+ * claiming 44 of them is a ninth of the bench spent on buttons.
+ * ======================================================================== */
+
+.stage-ui { display: none; }
+
+html[data-layout='interactive'][data-page='bench'] .stage-ui {
+  display: block;
+  position: absolute;
+  /* Inset by the notch and the rounded corners, whichever way the phone is
+     held — in landscape the notch is on the left, not the top. */
+  top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
+  right: calc(var(--space-2) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+  left: calc(var(--space-2) + env(safe-area-inset-left, 0px));
+  z-index: 10;
+  /* The overlay is a frame, not a lid: taps pass through it to the drawing,
+     and only the buttons themselves take one. */
+  pointer-events: none;
+}
+
+.stage-ui__cluster {
+  position: absolute;
+  display: flex;
+  gap: var(--space-2);
+  pointer-events: auto;
+}
+.stage-ui__cluster--tl { top: 0; left: 0; }
+.stage-ui__cluster--tr { top: 0; right: 0; }
+
+.corner { position: relative; }
+
+.corner__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  font: 600 14px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  /* The disclosure triangle a <summary> draws would make a 44 px circle into
+     an oval with a wedge in it. */
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.corner__btn::-webkit-details-marker { display: none; }
+.corner__btn:hover { background: var(--panel); border-color: var(--accent); }
+.corner__btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.corner[open] > .corner__btn { background: var(--accent-soft); border-color: var(--accent-strong); }
+
+.corner__menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  min-width: min(74vw, 320px);
+  max-height: min(60dvh, 420px);
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 11;
+}
+.corner--left .corner__menu { left: 0; }
+.corner--right .corner__menu { right: 0; }
+
+.corner__item {
+  display: block; width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none; border-radius: var(--radius-sm);
+  background: none; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.corner__item:hover { background: var(--panel-2); }
+.corner__item.is-current { background: var(--accent-soft); }
+.corner__itemLabel { display: block; font-weight: 600; }
+.corner__itemNote {
+  display: block; margin-top: 2px;
+  font-size: 12px; line-height: 1.35; color: var(--text-faint);
+}
+/* The note is the level's own explanation, and it goes where every other
+   explanatory line goes when a reader has asked for less of them. */
+html[data-level='simple'] .corner__itemNote { display: none; }
+
+/* The way out, beside the menu: a plain glyph, no label to translate. */
+.corner__btn--plain { font-size: 18px; font-weight: 400; }
+
+/* Interactive is the chip that changes the shape of the app rather than the
+   amount of detail in it, so it carries the same rule the step bar uses to
+   fence off the tabs that are not steps. */
+.modebar__chip--aside { position: relative; margin-left: var(--space-4); }
+/* Absolutely placed in the gap rather than as a flex child: `.chip` is an
+   inline-block button, so a stretched pseudo-element would sit inside it. */
+.modebar__chip--aside::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-2) * -1);
+  top: 15%; bottom: 15%;
+  width: 1px;
+  background: var(--border);
+}

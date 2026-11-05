@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { defaults, migrate, STAGE_IDS, VECTOR_IDS, STATE_VERSION } from '../js/state.js';
 import { build, STAGES } from '../js/stages.js';
@@ -7,6 +8,8 @@ import { findBody } from '../js/world.js';
 import { shapeById } from '../js/shapes.js';
 import { fluidById } from '../js/drag.js';
 import { worldById } from '../js/gravitation.js';
+
+const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
 const close = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} !≈ ${b} (±${tol})`);
 
@@ -217,4 +220,28 @@ test('a push can last as long as reaching the ISS altitude takes', () => {
   // And it is still a bound: nonsense does not get through.
   assert.ok(Number.isFinite(ceiling) && ceiling <= 3600, `${ceiling} s is not a bound`);
   assert.equal(migrate({ bench: { pushSeconds: -5 } }).bench.pushSeconds, 0);
+});
+
+// --- the layout belongs to the device, not to the experiment ---------------
+
+test('a layout chosen on a phone never travels in a link or a file', () => {
+  /*
+   * `shareLink` and `projectJson` spread the whole state, so a field added to
+   * `ui` travels by default. This one must not: a link made on a phone would
+   * open a desktop with no sidebar, no header and no footer, and nothing on
+   * screen to explain why. Null means "not chosen", which hands the decision
+   * to the reader's own screen exactly as it does for a first-time visitor.
+   */
+  const source = read('../js/state.js');
+  const fn = source.match(/function portable\(\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /layout: null/);
+
+  // Both routes out have to go through it, or one of them leaks the field.
+  assert.match(source, /JSON\.stringify\(portable\(\)\)/, 'the share link');
+  assert.match(source, /state: portable\(\)/, 'and the saved project file');
+
+  // And anything unrecognised arriving from either reads as "not chosen".
+  assert.equal(migrate({ ui: { layout: 'interactive' } }).ui.layout, 'interactive');
+  assert.equal(migrate({ ui: { layout: 'kiosk' } }).ui.layout, null);
+  assert.equal(migrate({}).ui.layout, null, 'and the default is unchosen');
 });

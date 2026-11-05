@@ -139,3 +139,139 @@ body {
   .sidebar { order: 2; }
   .viewport--more { order: 3; }
 }
+
+/* ======================================================================== *
+ * Interactive — the drawing, full screen, with no page around it.
+ *
+ * Measured, which is why this block exists. On a 375 x 812 phone the page
+ * layout puts 774 px of apparatus above the drawing and then gives it 200 px —
+ * a quarter of the screen, below the fold, with the first control 511 px
+ * further down, so the thing you are watching and the knob that changes it are
+ * never on screen together. In landscape it is worse: the page is 10.1 screens
+ * long and the drawing is 416 px tall inside a 375 px viewport, so even after
+ * scrolling to it you cannot see all of it.
+ *
+ * Here the drawing takes the screen and the controls come to it.
+ *
+ * Qualified on `[data-page='bench']` throughout: Examples, How to use and
+ * Things to find render into `#ask`, and they are ordinary scrolling pages
+ * that must keep scrolling. Only the bench is clamped to the viewport.
+ * ======================================================================== */
+
+html[data-layout='interactive'][data-page='bench'],
+html[data-layout='interactive'][data-page='bench'] body {
+  /*
+   * `dvh`, never `vh`. On a phone `100vh` is the height the viewport has with
+   * the browser bars *hidden*, so a bar-height strip of the app — the
+   * transport, here — sits under the address bar until you scroll, and in this
+   * mode there is nothing to scroll.
+   */
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Everything the page layout is made of, gone. */
+html[data-layout='interactive'][data-page='bench'] .app-header,
+html[data-layout='interactive'][data-page='bench'] .app-footer,
+html[data-layout='interactive'][data-page='bench'] .sidebar,
+html[data-layout='interactive'][data-page='bench'] .viewport--more,
+html[data-layout='interactive'][data-page='bench'] .modebar-host,
+html[data-layout='interactive'][data-page='bench'] .stepper,
+html[data-layout='interactive'][data-page='bench'] #ask,
+html[data-layout='interactive'][data-page='bench'] #vectors,
+html[data-layout='interactive'][data-page='bench'] #legend,
+html[data-layout='interactive'][data-page='bench'] #banners { display: none; }
+
+html[data-layout='interactive'][data-page='bench'] .app-main {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+/*
+ * `display: contents` is what the phone page layout uses to slide the sidebar
+ * between the drawing and the graphs. With no sidebar to place there, the
+ * workspace goes back to being the column it is on a desktop — and it has to
+ * be a flex column so the stage can take the leftover height.
+ */
+html[data-layout='interactive'][data-page='bench'] .workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-layout='interactive'][data-page='bench'] .viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  /* The containing block for the floating furniture. */
+  position: relative;
+}
+
+html[data-layout='interactive'][data-page='bench'] .viewport__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  /*
+   * Without this the browser treats a drag on the drawing as a page pan and a
+   * two-finger spread as a page zoom, so every gesture the mode is built on
+   * goes to the browser instead of the app. It reads like every gesture is
+   * broken, and it is one line.
+   */
+  touch-action: none;
+}
+
+/* The canvas is the stage, so neither the 900 px panel cap nor the renderer's
+   own natural-size cap applies — both would letterbox the one thing this mode
+   exists to make bigger. */
+html[data-layout='interactive'][data-page='bench'] .viewport__stage > * {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+html[data-layout='interactive'][data-page='bench'] .scene { display: block; }
+
+/*
+ * The transport owns the bottom edge: it is the one thing always needed, and
+ * the bottom edge is where a thumb already is. Flat against the edge rather
+ * than a floating card, so it reads as part of the frame.
+ */
+html[data-layout='interactive'][data-page='bench'] #transport {
+  flex: 0 0 auto;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+html[data-layout='interactive'][data-page='bench'] #transport .transport {
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/*
+ * Landscape: 375 px of height in total, and nothing may claim any of it.
+ *
+ * The transport stops being a row and becomes a bar floating over the bottom
+ * of the drawing, so the drawing keeps the full height rather than 319 px of
+ * it. Everything else about the mode is identical — orientation is a media
+ * query here and nowhere else, never a second code path.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  html[data-layout='interactive'][data-page='bench'] #transport {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 5;
+  }
+  html[data-layout='interactive'][data-page='bench'] #transport .transport {
+    background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+    backdrop-filter: blur(6px);
+    border-top-color: color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  html[data-layout='interactive'][data-page='bench'] .workspace { position: relative; }
+}

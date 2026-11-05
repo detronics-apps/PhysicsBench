@@ -449,11 +449,57 @@ test('the mode bar is its own row, above the steps', () => {
     'the steps come before the mode bar');
 });
 
-test('the sentence beside the chips is the current level\u2019s own', () => {
+test('the sentence beside the chips is the current mode\u2019s own', () => {
   // Not a description of the control: a reader wants to know what they are
-  // looking at, not what the three words mean in the abstract.
+  // looking at, not what the four words mean in the abstract. Whichever of the
+  // four is current, the sentence is that one's own note.
   const main = read('../js/main.js');
-  assert.match(main, /dom\.levelHint\.textContent = levelById\(state\.ui\.level\)\.note;/);
+  const line = main.match(/dom\.levelHint\.textContent = ([\s\S]*?);/)[1];
+  assert.match(line, /levelById\(state\.ui\.level\)\.note/, 'a level shows its own note');
+  assert.match(line, /INTERACTIVE\.note/, 'and so does Interactive');
+});
+
+test('Interactive is a fourth chip in the same bar, and the way out of it', () => {
+  const main = read('../js/main.js');
+  // The chip, beside the three, pressed when it is the layout in force.
+  assert.match(main, /'data-field': `level:\$\{INTERACTIVE\.id\}`/);
+  assert.match(main, /class: 'chip modebar__chip modebar__chip--aside'/);
+
+  /*
+   * A phone opens in the mode, so leaving it must be one visible tap. Pressing
+   * any level chip is also a way out, which is what makes the bar coherent:
+   * all four answer "how much of the bench is on screen".
+   */
+  const levels = main.match(/function renderLevels\(\)[\s\S]*?\n\}/)[0];
+  assert.match(levels, /state\.ui\.layout = 'page'/, 'picking a level leaves Interactive');
+  assert.match(levels, /setLayout\(inInteractive \? 'page' : 'interactive'\)/);
+
+  // And the overlay carries its own X, because in the mode the bar is hidden.
+  const ui = read('../js/ui/stage-ui.js');
+  assert.match(ui, /'data-field': 'corner:leave'/);
+
+  /*
+   * Hidden is not absent. The mode bar and the step bar stay in the document
+   * in this mode, carrying `level:advanced` and `stage:planet` — so the
+   * overlay's own copies have to be named differently, or a lookup finds
+   * whichever comes first and that is the hidden one.
+   */
+  assert.match(ui, /`corner:\$\{item\.field\}`/);
+});
+
+/**
+ * A layout is presentation, exactly like a level.
+ *
+ * `rebuild()` builds the world again from the parameters and puts the clock
+ * back to zero, so switching layout two minutes into a run would throw the
+ * run away — the same bug as a slider that resets the simulation.
+ */
+test('switching layout re-renders and never rebuilds', () => {
+  const main = read('../js/main.js');
+  const fn = main.match(/function setLayout\(id\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /\brender\(\)/);
+  assert.ok(!/\brebuild\(/.test(fn), 'a layout must not rebuild the world');
+  assert.match(fn, /state\.ui\.layout = id/, 'and it stores the choice');
 });
 
 /**

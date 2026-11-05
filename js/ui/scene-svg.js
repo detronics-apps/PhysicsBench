@@ -42,7 +42,28 @@ import { alongSurface } from '../orient.js';
 import { fmtFixed, fmtLength } from '../format.js';
 
 const VIEW_W = 880;
-const VIEW_H = 460;
+
+/*
+ * How tall the canvas is, in its own coordinates. 460 by default — the shape
+ * the drawing has always had inside the page layout.
+ *
+ * Variable, because Interactive gives the drawing the whole screen and a fixed
+ * shape cannot fill it. A phone in portrait is roughly 1:2; at 880 x 460 the
+ * drawing is as tall as its width allows — 196 px on a 375 px screen — and the
+ * other 560 px of a full-screen stage would be empty. Matching the canvas to
+ * the stage lets the same scene be drawn tall, which on a phone means sky to
+ * throw something into rather than a letterbox with margins.
+ *
+ * A module variable set at the top of `renderScene`, rather than a parameter
+ * threaded through a dozen private drawing functions that each want to know
+ * where the bottom of the canvas is. Rendering is synchronous and single
+ * threaded, so "the height of the canvas being drawn" is a safe thing for them
+ * to read — and `sceneCamera`, which the pointer maths calls *after* a render
+ * to convert a tap back into metres, has to use the same value the live SVG was
+ * drawn with. A parameter would have let those two drift apart.
+ */
+let VIEW_H = 460;
+export const DEFAULT_VIEW_H = 460;
 
 /**
  * How tall a label actually renders, including the ascender and descender.
@@ -103,7 +124,18 @@ export function renderScene(world, {
   drawing = null,
   control = null,
   pressed = false,
+  viewHeight = null,
 } = {}) {
+  /*
+   * Set first, before any drawing or framing, because everything below reads
+   * it. A height is clamped to something sane rather than trusted: a stage
+   * measured mid-transition can be a few pixels tall, and a canvas 6 units
+   * high would put every label on top of every other.
+   */
+  VIEW_H = Number.isFinite(viewHeight)
+    ? Math.round(Math.min(4000, Math.max(160, viewHeight)))
+    : DEFAULT_VIEW_H;
+
   const root = svg('svg', {
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
     role: 'img',
@@ -1269,4 +1301,6 @@ export function sceneLegend(world, vectors) {
   ])));
 }
 
-export { VIEW_W, VIEW_H, scalePath };
+export { VIEW_W, scalePath };
+/** The canvas height the last render used, for the pointer maths. */
+export const viewHeight = () => VIEW_H;

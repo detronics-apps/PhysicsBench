@@ -43,6 +43,60 @@ export const LEVELS = [
 
 export const LEVEL_IDS = LEVELS.map((l) => l.id);
 
+/**
+ * Interactive — the fourth chip, which is a layout rather than a level.
+ *
+ * It sits beside the three because that is where a reader looks for "how much
+ * of the bench is on screen", and it answers the same question — but it
+ * answers it by moving the controls rather than by hiding them. The drawing
+ * takes the whole screen and every input is reached by tapping the thing it
+ * belongs to.
+ *
+ * Deliberately **not** a fourth rank in the list above. `atLeast` is asked
+ * several hundred times across the app, and a fourth rank would make every
+ * `at('expert')` either always true or always false depending on which end it
+ * was added at. A layout and a level are two questions; this is the other one,
+ * and the level you picked still decides what the sheets show.
+ */
+export const INTERACTIVE = {
+  id: 'interactive',
+  label: 'Interactive',
+  note: 'The drawing, full screen, with every control reached by tapping the thing it belongs '
+    + 'to. Made for a phone, and the way a phone opens.',
+};
+
+export const LAYOUTS = ['page', 'interactive'];
+
+/**
+ * The largest "smaller side" that still counts as a phone, in CSS pixels.
+ *
+ * 560 sits above every phone held either way — the tallest common phone is 430
+ * across in portrait and 430 tall in landscape — and below every tablet, the
+ * smallest common one being 768. The gap is wide enough that the number does
+ * not need revisiting every time a handset grows.
+ */
+export const PHONE_SIDE = 560;
+
+/**
+ * Which layout a reader who has never chosen one should get.
+ *
+ * Measured on the *smaller* side of the viewport, never the width. A phone in
+ * landscape is 812 px across — wider than a laptop in a split window — so a
+ * width test would send exactly the case this mode was asked for into the page
+ * layout. The smaller side is 375 whichever way the phone is held.
+ *
+ * The coarse pointer is the second half of the question: a 500 px browser
+ * window on a desktop is a small screen being used with a mouse, and a mouse
+ * does not have the problem this mode solves.
+ *
+ * This is a *default*, not an override. It decides what somebody sees who has
+ * never expressed a preference; the moment they press the X or pick a level,
+ * their choice is stored and this is never consulted again.
+ */
+export function defaultLayout({ coarse = false, minSide = Infinity } = {}) {
+  return coarse && minSide <= PHONE_SIDE ? 'interactive' : 'page';
+}
+
 const RANK = Object.fromEntries(LEVELS.map((l, i) => [l.id, i]));
 
 /** Is `level` at or above `needed`? An unknown level reads as Simple. */
