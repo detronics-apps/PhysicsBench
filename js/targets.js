@@ -73,7 +73,14 @@ export const SECTIONS_FOR = {
    * sheet?" whichever door it was opened by.
    */
   objects: ['objects'],
-  obstacles: ['walls', 'cannons'],
+  /*
+   * One kind, one panel. A sheet shows the contents of exactly one section —
+   * no heading, no siblings folded up underneath it — so a kind that mapped
+   * to two would have to choose anyway. The menu offers them separately
+   * instead, which is also one fewer tap to the one you wanted.
+   */
+  walls: ['walls'],
+  cannons: ['cannons'],
 };
 
 /**

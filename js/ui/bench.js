@@ -123,7 +123,25 @@ export function sheet(ctx, target) {
   if (target?.kind === 'arrows') return [ctx.arrowPicker()].filter(Boolean);
   if (target?.kind === 'explain') return explains(ctx);
 
-  return sectionsFor(target).map((id) => build[id]?.()).filter(Boolean);
+  /*
+   * One panel, and its contents rather than the panel.
+   *
+   * The sheet already says what it is about, along the top, and the thing it
+   * is about is six inches away on the drawing. A fold-out heading repeating
+   * the word "object" above the only fields on screen is the app describing
+   * its own furniture — and a second section collapsed underneath, which
+   * nobody asked for and which has its own door, is the sidebar growing back.
+   *
+   * Unwrapped after the fact rather than by splitting every section function
+   * in two: the sidebar keeps calling them exactly as it does, so there is no
+   * second way to build a panel and nothing to drift.
+   */
+  const ids = sectionsFor(target);
+  const id = ids.includes(target?.focus) ? target.focus : ids[0];
+  const panel = build[id]?.();
+  if (!panel) return [];
+  const body = panel.querySelector('.section__body');
+  return body ? [...body.childNodes] : [panel];
 }
 
 /**

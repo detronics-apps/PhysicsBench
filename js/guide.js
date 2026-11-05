@@ -595,8 +595,19 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.14.0',
+  version: '1.15.0',
   body: [
+    ['Throw it, move it, pinch to zoom',
+      'In Interactive, drag from an object and let go: it leaves the way you drew, at the speed '
+      + 'the arrow shows while you aim. The ◀ Move button claims the next drag instead, for '
+      + 'putting something somewhere. Drag from empty space to pan, and pinch to zoom about the '
+      + 'point between your fingers. A tap is still a tap — a finger may wander ten pixels '
+      + 'and still mean it.'],
+    ['A panel shows one thing, and only that thing',
+      'Tapping Properties now opens the properties: the fields, with no heading repeating what '
+      + 'the panel is called and nothing else folded up underneath. Force opens the force. And '
+      + 'adding an object or a cannon simply puts it on the bench — it is already in front '
+      + 'of you, and tapping it opens its settings.'],
     ['One graph, kept on screen',
       'The ▦ in the bottom corner, in Interactive. Pick a graph and it sits as a thin band '
       + 'above the timeline while you watch; pick another and it swaps; put it away and the '

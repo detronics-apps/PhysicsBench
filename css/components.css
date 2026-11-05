@@ -1997,12 +1997,33 @@ html[data-layout='interactive'][data-page='bench'] #strip .graph__head {
   }
 }
 
-.stage-ui__cluster--bl { bottom: 0; left: 0; top: auto; }
+/*
+ * Bottom right, not bottom left.
+ *
+ * The drawing prints its grid size in the bottom-left corner, and the
+ * transport's Play button is directly below. Placed left, the graphs button
+ * covered Play outright — the bench could not be started at all.
+ */
+.stage-ui__cluster--br { bottom: 0; right: 0; top: auto; }
 /* A menu anchored to the bottom opens upward, or it opens off the screen. */
-.corner--left.stage-ui__cluster--bl .corner__menu,
-.stage-ui__cluster--bl .corner__menu {
+.stage-ui__cluster--br .corner__menu {
   top: auto;
   bottom: calc(100% + var(--space-2));
+}
+
+/*
+ * The drawing and the furniture over it, as one box.
+ *
+ * Without it the overlay is measured against the whole viewport — which
+ * includes the graph strip and the transport — so "the bottom corner" is a
+ * corner of the timeline rather than of the bench.
+ */
+.stage-wrap { display: contents; }
+html[data-layout='interactive'][data-page='bench'] .stage-wrap {
+  display: block;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* The third arm: Move, armed for exactly one drag. */

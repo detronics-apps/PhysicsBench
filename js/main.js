@@ -75,7 +75,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.14.0';
+export const APP_VERSION = '1.15.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -674,8 +674,19 @@ function buildViewport() {
     dom.stages,
     dom.ask,
     dom.vectors,
-    dom.stage,
-    dom.stageUI,
+    /*
+     * The drawing and the furniture floating over it, in one box.
+     *
+     * The overlay used to be positioned against the whole viewport, which
+     * includes the graph strip and the transport — so the bottom-corner
+     * buttons sat on top of the timeline, and the graphs button landed
+     * squarely on Play. Wrapping the two means "over the drawing" is a
+     * statement about a box rather than a sum of other elements' heights.
+     *
+     * `display: contents` in the page layout, so nothing outside this mode
+     * sees a new element at all.
+     */
+    el('div', { class: 'stage-wrap' }, [dom.stage, dom.stageUI]),
     dom.legend,
     dom.strip,
     dom.transportHost,
@@ -1625,22 +1636,12 @@ export function render({ controls = true } = {}) {
   let open = sheetOpen();
   if (open) {
     /*
-     * The tapped arm decides which panel is expanded, by writing the same
-     * store the accordion reads. Setting it here rather than passing a flag
-     * keeps `section()` unaware that sheets exist.
-     *
-     * Keyed on the section's own key — `object`, `push`, `surface` — and taken
-     * from the same list the sheet is built from, so the two cannot drift.
-     * Written against the section *titles* first, which the store does not
-     * use, and both panels arrived collapsed: a sheet that opens showing
-     * nothing but two closed headings reads as something that failed to load.
-     *
-     * Before the sheet is built, not after. Built first, the store is written
-     * too late to affect anything and the focus silently does nothing.
+     * The panel the sheet shows is built open, whatever the sidebar's
+     * accordion last remembered about it — the sheet shows one panel's
+     * contents and nothing else, so a remembered "folded" would leave it
+     * empty.
      */
-    for (const id of sectionsFor(open)) {
-      state.ui.sections[`${state.stage}:${id}`] = id === open.focus;
-    }
+    state.ui.sections[`${state.stage}:${open.focus}`] = true;
   }
 
   /*
@@ -1694,9 +1695,18 @@ export function render({ controls = true } = {}) {
        * second time this exact mistake has been made in this file. The
        * comment above `actions` says so, and was not enough on its own.
        */
-      addObject: () => { ctx.addObject(); openPanelSheet('objects'); },
-      addBox: () => { ctx.addBox(); openPanelSheet('obstacles'); },
-      addCannon: () => { ctx.addCannon(); openPanelSheet('obstacles'); },
+      /*
+       * Adding puts the thing on the bench and stops.
+       *
+       * It used to open the list it had joined, on the theory that the new
+       * thing should be in front of you. On a phone that is a panel sliding
+       * over the bench at the exact moment you wanted to look at it — and the
+       * thing is already in front of you, in the drawing, where tapping it
+       * opens its own settings.
+       */
+      addObject: ctx.addObject,
+      addBox: ctx.addBox,
+      addCannon: ctx.addCannon,
       /*
        * Arming the wall tool takes the drawing's taps away from selecting, so
        * it is a mode and says so: the menu item reads "Stop drawing walls"
@@ -2008,7 +2018,8 @@ function sheetTitle(target) {
 
 const MENU_TITLES = {
   objects: 'What is on the bench',
-  obstacles: 'Walls and cannons',
+  walls: 'The walls',
+  cannons: 'The cannons',
   arrows: 'Arrows',
   explain: 'How this works',
 };

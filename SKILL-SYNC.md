@@ -31,6 +31,5 @@ than a recipient of them.
 
 ## Outstanding against r8
 
-Interactive has shipped five of its seven commits: the mode itself, tapping a thing to change it,
-the rest of the tap targets, the menu, and the graph strip. Still to come: the gestures — drag to
-move, pull to throw, pinch to zoom.
+Interactive is complete: the mode, tapping a thing to change it, every tap target, the menu, the
+graph strip, and the gestures. What remains is tuning from use rather than unbuilt pieces.

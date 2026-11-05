@@ -793,13 +793,50 @@ test('the sidebar is not built at all in Interactive', () => {
   assert.match(main, /if \(!interactive\(\)\) \{\s*\n\s*for \(const node of bench\.controls\(ctx\)\)/);
 });
 
-test('the expanded panel is keyed on the section key, not its title', () => {
-  // `section()` keys on `key || title`, and both panels pass a key - so
-  // writing the store against "The object" set a key nothing reads, and the
-  // sheet opened with every panel collapsed.
+test('the sheet shows one panel, unwrapped, with no heading', () => {
+  /*
+   * The sheet already says what it is about along its top, and the thing it
+   * is about is six inches away on the drawing. A fold-out heading repeating
+   * "object" above the only fields on screen is the app describing its own
+   * furniture - and a second section collapsed underneath, which has its own
+   * door, is the sidebar growing back.
+   */
+  const bench = read('../js/ui/bench.js');
+  const fn = bench.match(/export function sheet\(ctx, target\) \{[\s\S]*?\n\}/)[0];
+  assert.match(fn, /const id = ids\.includes\(target\?\.focus\) \? target\.focus : ids\[0\]/,
+    'the tapped arm picks the panel');
+  assert.match(fn, /\.querySelector\('\.section__body'\)/, 'and its contents are what is shown');
+  assert.ok(!/\.map\(\(id\) =>/.test(fn), 'never more than one panel');
+
+  // Built open, whatever the sidebar's accordion last remembered - a folded
+  // one would leave the sheet empty.
   const main = read('../js/main.js');
-  assert.match(main, /for \(const id of sectionsFor\(open\)\) \{/);
-  assert.match(main, /state\.ui\.sections\[`\$\{state\.stage\}:\$\{id\}`\] = id === open\.focus/);
+  assert.match(main, /state\.ui\.sections\[`\$\{state\.stage\}:\$\{open\.focus\}`\] = true/);
+});
+
+test('a panel with nothing in it never opens', () => {
+  /*
+   * Every section is guarded by the feature that creates it, so walking back
+   * from the playground to the fluid step with a wall selected leaves a sheet
+   * whose only panel no longer exists. An empty card reads as a failure to
+   * load; closing it says what actually happened.
+   */
+  const main = read('../js/main.js');
+  assert.match(main, /if \(open && sheetNodes\.length === 0\) \{\s*\n\s*setSheet\(null\);\s*\n\s*open = null;/);
+});
+
+test('adding something puts it on the bench and stops', () => {
+  /*
+   * It used to open the list it had joined. On a phone that is a panel
+   * sliding over the bench at the moment you wanted to look at it - and the
+   * thing is already in front of you, in the drawing, where tapping it opens
+   * its own settings.
+   */
+  const main = read('../js/main.js');
+  const call = main.match(/renderStageUI\(dom\.stageUI, \{[\s\S]*?\n  \}\);/)[0];
+  for (const add of ['addObject', 'addBox', 'addCannon']) {
+    assert.match(call, new RegExp(`${add}: ctx\.${add},`), `${add} does more than add`);
+  }
 });
 
 test('a tap resolves to exactly one thing, and empty space deselects', () => {
@@ -866,10 +903,11 @@ test('a panel with nothing in it never opens', () => {
   const main = read('../js/main.js');
   assert.match(main, /if \(open && sheetNodes\.length === 0\) \{\s*\n\s*setSheet\(null\);\s*\n\s*open = null;/);
 
-  // And the focus is written before the sheet is built, or it does nothing.
-  const focus = main.indexOf('state.ui.sections[`${state.stage}:${id}`] = id === open.focus');
+  // And the panel is opened before the sheet is built, or it is built folded
+  // and the sheet comes up empty.
+  const opened = main.indexOf('state.ui.sections[`${state.stage}:${open.focus}`] = true');
   const built = main.indexOf('const sheetNodes = open ? bench.sheet(ctx, open)');
-  assert.ok(focus > 0 && built > focus, 'the expanded panel is chosen before the sheet is built');
+  assert.ok(opened > 0 && built > opened, 'the panel is opened before the sheet is built');
 });
 
 test('every section the sheet can ask for is guarded by its own feature', () => {
@@ -924,7 +962,7 @@ test('every sheet the menu opens has a name of its own', () => {
   // picker "Air".
   const main = read('../js/main.js');
   const titles = main.match(/const MENU_TITLES = \{[\s\S]*?\n\};/)[0];
-  for (const kind of ['objects', 'obstacles', 'arrows', 'explain']) {
+  for (const kind of ['objects', 'walls', 'cannons', 'arrows', 'explain']) {
     assert.ok(titles.includes(`${kind}:`), `${kind} has no title`);
   }
   assert.match(main, /if \(target\.kind === 'sky'\) return fluidById/, 'only the sky is named after the fluid');

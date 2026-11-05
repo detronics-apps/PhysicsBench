@@ -213,10 +213,16 @@ export function stageFurniture({ state, actions }) {
         go: () => actions.openPanel('objects'),
       } : null,
       f.has('obstacles') ? {
-        label: 'Walls and cannons',
-        note: 'The obstacles, each with a way to remove it',
-        field: 'open:obstacles',
-        go: () => actions.openPanel('obstacles'),
+        label: 'The walls',
+        note: 'Each one, with a way to remove it',
+        field: 'open:walls',
+        go: () => actions.openPanel('walls'),
+      } : null,
+      f.has('obstacles') ? {
+        label: 'The cannons',
+        note: 'Each one, with a way to remove it',
+        field: 'open:cannons',
+        go: () => actions.openPanel('cannons'),
       } : null,
       {
         label: 'Arrows',
@@ -247,7 +253,7 @@ export function stageFurniture({ state, actions }) {
     title: strip
       ? 'A graph is on screen. Tap to swap it, or to put it away.'
       : 'Keep one graph on screen while you watch',
-    align: 'left',
+    align: 'right',
     items: [
       ...graphs.map((g) => ({
         label: g.label.split('—')[0].trim(),
@@ -268,8 +274,13 @@ export function stageFurniture({ state, actions }) {
   return [
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tl' }, [levels, steps]),
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tr' }, [menu, leave]),
+    /*
+     * Bottom right, not bottom left: the drawing prints its grid size in the
+     * bottom-left corner, and the transport's Play button is below. The first
+     * placement covered Play outright, so the bench could not be started.
+     */
     graphMenu
-      ? el('div', { class: 'stage-ui__cluster stage-ui__cluster--bl' }, [graphMenu])
+      ? el('div', { class: 'stage-ui__cluster stage-ui__cluster--br' }, [graphMenu])
       : null,
   ].filter(Boolean);
 }

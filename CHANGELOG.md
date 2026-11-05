@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.15.0
+
+The gestures, and four things that phone testing found.
+
+### Throw, move, pan, pinch
+
+Drag from an object and let go: it leaves the way you drew, at the speed the arrow shows while you
+aim. The **◀ Move** button claims the next drag instead, for putting something somewhere, and
+disarms itself afterwards — a mode you can forget you are in is a mode that makes the next throw do
+nothing. Drag from empty space to pan. Pinch to zoom about the point between your fingers.
+
+A tap is still a tap: a finger may wander ten pixels and still mean it. Nobody taps without moving,
+and without that tolerance every attempt to select something would throw it instead, gently and
+bafflingly.
+
+The press no longer resolves on the way down. The hit test runs there, because a drag has to know
+what it started on, but what the gesture *was* is only known when the finger lifts.
+
+### The starting velocity became a speed and a bearing
+
+It was a single signed number — a speed along x — which was enough while the only thing that moved
+was a crate on a bench and not enough the moment anything could be thrown. Zero degrees is what the
+field already meant, so every saved experiment and share link is unchanged, and the direction has
+its own slider in the sidebar: the gesture is a shortcut, never the only way.
+
+### A panel shows one thing, and only that thing
+
+Tapping Properties opens the properties — the fields, with no fold-out heading repeating what the
+panel is called, and nothing else collapsed underneath it. Force opens the force. The sheet already
+says what it is about along its top, and the thing it is about is six inches away on the drawing.
+
+The panels are still the sidebar's own, called the same way; only their contents are lifted out of
+the wrapper, so there is no second way to build one and nothing to drift.
+
+### Adding something just adds it
+
+It used to open the list it had joined. On a phone that is a panel sliding over the bench at the
+moment you wanted to look at it — and the thing is already in front of you, in the drawing, where
+tapping it opens its settings.
+
+### The graphs button covered Play
+
+It sat in the bottom-left corner of the *viewport*, which includes the timeline — so it landed on
+the Play button and the bench could not be started. The drawing and the furniture over it are one
+box now, so "the bottom corner" means a corner of the bench. It is on the right, because the
+drawing prints its grid size on the left.
+
+### The bug that hides
+
+The new `vy` was written on the line above an existing `vy: 0`. A duplicate key — the later one
+wins, silently — so the throw set the angle, the angle reached the spec, and the object still went
+sideways. Nothing in the language complains. Pinned now by a test that asserts what the body
+actually got rather than what was passed to it.
+
 ## 1.14.0
 
 One graph, kept on screen in Interactive.
