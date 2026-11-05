@@ -112,7 +112,16 @@ export function sheet(ctx, target) {
     fluid: () => (f.has('fluid') ? fluidSection(ctx, object) : null),
     walls: () => (f.has('obstacles') ? wallsSection(ctx) : null),
     cannons: () => (f.has('obstacles') ? cannonsSection(ctx) : null),
+    objects: () => (f.has('objects') ? objectsSection(ctx) : null),
   };
+
+  /*
+   * Two sheets hold something other than sections: the arrow picker, which is
+   * 313 px of the page layout and has nowhere else to go here, and the
+   * teaching panels. Both are built by the same functions the page uses.
+   */
+  if (target?.kind === 'arrows') return [ctx.arrowPicker()].filter(Boolean);
+  if (target?.kind === 'explain') return explains(ctx);
 
   return sectionsFor(target).map((id) => build[id]?.()).filter(Boolean);
 }

@@ -878,3 +878,47 @@ test('every section the sheet can ask for is guarded by its own feature', () => 
     assert.ok(line.includes(`f.has('${guard}')`), `${id} is not guarded by ${guard}`);
   }
 });
+
+test('the overlay\u2019s actions never reach for the transport bag', () => {
+  /*
+   * `actions` at module scope in main.js is the transport - play, pause,
+   * scrub. The things the menu does live on `ctx`. Writing `actions.addObject`
+   * compiles cleanly and throws at the click, which is the worst place to find
+   * out, and it has now happened twice in this file: once when the pages were
+   * wired, once when the menu was.
+   *
+   * So the rule is mechanical: nothing inside the overlay's action bag may
+   * name `actions` at all.
+   */
+  const main = read('../js/main.js');
+  const call = main.match(/renderStageUI\(dom\.stageUI, \{[\s\S]*?\n  \}\);/)[0];
+  const offenders = [...call.matchAll(/\bactions\.(\w+)/g)].map((m) => m[1]);
+  assert.deepEqual(offenders, [], `the overlay calls actions.${offenders[0]} - it wants ctx`);
+});
+
+test('the menu offers only what the step has', () => {
+  // A menu that offers a wall on a step that cannot draw one is a button that
+  // does nothing, and the reader cannot tell that from one that is broken.
+  const ui = read('../js/ui/stage-ui.js');
+  const menu = ui.match(/const menu = menuFor\('menu', \{[\s\S]*?\n  \}\);/)[0];
+  for (const field of ['add:object', 'open:objects']) {
+    assert.ok(menu.includes(`f.has('objects')`), `${field} is not gated on the objects feature`);
+  }
+  for (const field of ['add:wall', 'add:box', 'add:cannon', 'open:obstacles']) {
+    assert.ok(menu.includes(`f.has('obstacles')`), `${field} is not gated on obstacles`);
+  }
+  // Arrows and the teaching panel exist on every step, so they are not gated.
+  assert.match(menu, /'open:arrows'/);
+  assert.match(menu, /'open:explain'/);
+});
+
+test('every sheet the menu opens has a name of its own', () => {
+  // Falling through to the fluid's name, as this did first, titled the arrow
+  // picker "Air".
+  const main = read('../js/main.js');
+  const titles = main.match(/const MENU_TITLES = \{[\s\S]*?\n\};/)[0];
+  for (const kind of ['objects', 'obstacles', 'arrows', 'explain']) {
+    assert.ok(titles.includes(`${kind}:`), `${kind} has no title`);
+  }
+  assert.match(main, /if \(target\.kind === 'sky'\) return fluidById/, 'only the sky is named after the fluid');
+});

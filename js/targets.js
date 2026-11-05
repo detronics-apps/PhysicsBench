@@ -65,6 +65,15 @@ export const SECTIONS_FOR = {
    * (The planet's own material is reached by tapping the planet.)
    */
   sky: ['fluid'],
+
+  /*
+   * Not hit-test kinds: these are the sheets the menu opens, where the thing
+   * being changed is a *list* rather than something you can point at. They
+   * live in the same map so that one function answers "what goes in this
+   * sheet?" whichever door it was opened by.
+   */
+  objects: ['objects'],
+  obstacles: ['walls', 'cannons'],
 };
 
 /**

@@ -44,7 +44,7 @@ const INITIAL = (id) => id.charAt(0).toUpperCase();
  */
 let openMenu = null;
 
-function menu(name, { label, title, items, align = 'left' }) {
+function menuFor(name, { label, title, items, align = 'left' }) {
   const host = el('details', {
     class: `corner corner--${align}`,
     'data-menu': name,
@@ -115,7 +115,7 @@ export function stageFurniture({ state, actions }) {
   const here = Math.max(0, STAGES.findIndex((s) => s.id === state.stage));
   const found = Object.keys(state.ui.found || {}).length;
 
-  const levels = menu('level', {
+  const levels = menuFor('level', {
     label: INITIAL(state.ui.level),
     title: `Showing ${levelById(state.ui.level).label.toLowerCase()} detail. `
       + 'Tap to change how much each panel says — it never changes a value.',
@@ -128,7 +128,7 @@ export function stageFurniture({ state, actions }) {
     })),
   });
 
-  const steps = menu('step', {
+  const steps = menuFor('step', {
     label: `${here + 1}/${STAGES.length}`,
     title: `Step ${here + 1} of ${STAGES.length} — ${STAGES[here].label}. Tap for the rest.`,
     items: [
@@ -166,9 +166,76 @@ export function stageFurniture({ state, actions }) {
     on: { click: () => actions.leave() },
   }, '✕');
 
+  /*
+   * Everything the page layout has that is not a control for one thing on the
+   * bench: what you can add, what you have added, the arrow picker, and the
+   * teaching panel. Each item is the step's own — built from what the step
+   * has, so the menu can never offer a wall on a step that cannot draw one.
+   */
+  const f = actions.features || new Set();
+  const drawing = state.ui.tool === 'wall';
+  const menu = menuFor('menu', {
+    label: '☰',
+    title: 'Add something, take something away, or change what is drawn',
+    align: 'right',
+    items: [
+      f.has('objects') ? {
+        label: 'Add an object',
+        note: 'Another one on the bench, beside what is already there',
+        field: 'add:object',
+        go: actions.addObject,
+      } : null,
+      f.has('obstacles') ? {
+        label: drawing ? 'Stop drawing walls' : 'Draw a wall',
+        note: drawing
+          ? 'Back to tapping things to change them'
+          : 'Then drag across the bench to lay one down',
+        current: drawing,
+        field: 'add:wall',
+        go: actions.toggleWallTool,
+      } : null,
+      f.has('obstacles') ? {
+        label: 'Add a box of walls',
+        note: 'Four of them, around what is on the bench',
+        field: 'add:box',
+        go: actions.addBox,
+      } : null,
+      f.has('obstacles') ? {
+        label: 'Add a cannon',
+        note: 'Aim it, set the shot, and it fires on a timer',
+        field: 'add:cannon',
+        go: actions.addCannon,
+      } : null,
+      f.has('objects') ? {
+        label: 'What is on the bench',
+        note: 'Everything you have added, each with a way to take it off',
+        field: 'open:objects',
+        go: () => actions.openPanel('objects'),
+      } : null,
+      f.has('obstacles') ? {
+        label: 'Walls and cannons',
+        note: 'The obstacles, each with a way to remove it',
+        field: 'open:obstacles',
+        go: () => actions.openPanel('obstacles'),
+      } : null,
+      {
+        label: 'Arrows',
+        note: 'Which forces and motions are drawn on the bench',
+        field: 'open:arrows',
+        go: () => actions.openPanel('arrows'),
+      },
+      {
+        label: 'How this works',
+        note: 'The idea, the formula, and that formula with your own numbers in it',
+        field: 'open:explain',
+        go: () => actions.openPanel('explain'),
+      },
+    ],
+  });
+
   return [
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tl' }, [levels, steps]),
-    el('div', { class: 'stage-ui__cluster stage-ui__cluster--tr' }, [leave]),
+    el('div', { class: 'stage-ui__cluster stage-ui__cluster--tr' }, [menu, leave]),
   ];
 }
 

@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.13.0
+
+A menu in Interactive, for everything that is not a thing on the bench.
+
+### What the ☰ holds
+
+**Add** — an object, a cannon, a box of four walls, or the wall tool: arm it and drag across the
+bench to lay one down. Adding something opens the list it joined, so the thing you just made is in
+front of you rather than somewhere on the bench to be found.
+
+**What you have added** — the objects, and the walls and cannons, each row with a way to take it
+off. The same lists the sidebar has, by calling the same functions.
+
+**Arrows** — the picker that is 313 px of the page layout and had nowhere to go here.
+
+**How this works** — the teaching panels. The mode hid the app's central promise, and a promise
+behind a mode switch is not one.
+
+Every item is built from the step's own features, so the menu can never offer a wall on a step that
+cannot draw one, and never shows an add for something the step does not have.
+
+### Arming the wall tool is a mode, and says so
+
+While it is on, the menu item reads **Stop drawing walls** and is marked as current — because a
+drawing whose taps have stopped selecting, with nothing to say why, is a drawing that looks broken.
+Arming it also closes whatever panel is open: the next thing you do is drag across the bench, and
+the panel is in the way.
+
+### The bug this cost, and the guard it bought
+
+The menu's actions were written against `actions`, which at that point in the file is the transport
+— play, pause, scrub. The things the menu does live on the context object. It compiled cleanly and
+threw at the click, which is the worst place to find out, and the file already carried a comment
+warning about exactly this from the last time it happened.
+
+So the rule is mechanical now rather than remembered: a test reads the overlay's action bag and
+fails if it names `actions` at all. Proved by putting the bug back and watching it fail.
+
 ## 1.12.0
 
 Everything on the bench is tappable, not just the objects.

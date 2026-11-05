@@ -595,8 +595,14 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.12.0',
+  version: '1.13.0',
   body: [
+    ['A menu for everything that is not a thing on the bench',
+      'The ☰ in the top corner, in Interactive. Add an object, a cannon or a box of walls; '
+      + 'draw a wall by dragging across the bench; open the list of what you have added, each '
+      + 'row with a way to take it off; and reach the arrow picker and the teaching panel, '
+      + 'which the page layout has room for and this one does not. It offers only what the '
+      + 'step has, so it can never put a wall on a step that cannot draw one.'],
     ['Everything on the bench is tappable',
       'Not just the objects. Tap the floor for the surface and its friction, the planet beneath '
       + 'it for the world, a wall or a cannon for its own settings, and the empty air for the '

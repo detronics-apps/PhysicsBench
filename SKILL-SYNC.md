@@ -31,6 +31,5 @@ than a recipient of them.
 
 ## Outstanding against r8
 
-Interactive has shipped three of its seven commits: the mode itself, tapping a thing to change it,
-and the rest of the tap targets. Still to come, in order: Add and Remove in the menu · the graph
-strip · the gestures.
+Interactive has shipped four of its seven commits: the mode itself, tapping a thing to change it,
+the rest of the tap targets, and the menu. Still to come: the graph strip · the gestures.

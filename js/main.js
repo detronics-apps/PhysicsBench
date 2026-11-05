@@ -72,7 +72,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.12.0';
+export const APP_VERSION = '1.13.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1507,12 +1507,7 @@ export function render({ controls = true } = {}) {
 
   clear(dom.vectors);
   const available = vectorsFor(state.stage, state.bench);
-  dom.vectors.appendChild(vectorPicker(
-    available,
-    state.vectors,
-    (id, on) => update((draft) => { draft.vectors[id] = on; }, { sim: 'none' }),
-    (patch) => update((draft) => { Object.assign(draft.vectors, patch); }, { sim: 'none' }),
-  ));
+  dom.vectors.appendChild(arrowPicker());
   /*
    * The arrow filter on the left, the view controls on the right, one row.
    *
@@ -1655,6 +1650,37 @@ export function render({ controls = true } = {}) {
       leave: () => setLayout('page'),
       openSheet: openSheetAt,
       closeSheet: () => { setSheet(null); render(); },
+      // What this step has, so the menu can never offer a wall on a step that
+      // cannot draw one. The same set the sidebar is built from.
+      features: sim.scenario?.features ?? new Set(),
+      /*
+       * `ctx`, not `actions` — `actions` in this scope is the transport bag,
+       * play and pause and scrub. Written against it first, which compiled
+       * cleanly and threw at the click: the worst place to find out, and the
+       * second time this exact mistake has been made in this file. The
+       * comment above `actions` says so, and was not enough on its own.
+       */
+      addObject: () => { ctx.addObject(); openPanelSheet('objects'); },
+      addBox: () => { ctx.addBox(); openPanelSheet('obstacles'); },
+      addCannon: () => { ctx.addCannon(); openPanelSheet('obstacles'); },
+      /*
+       * Arming the wall tool takes the drawing's taps away from selecting, so
+       * it is a mode and says so: the menu item reads "Stop drawing walls"
+       * while it is on, and the sheet closes because the next thing the reader
+       * does is drag, not read.
+       */
+      toggleWallTool: () => {
+        const arming = state.ui.tool !== 'wall';
+        // The next thing the reader does is drag across the bench, so anything
+        // covering it goes. Said in a comment before it was true, which is
+        // exactly how a comment becomes a lie.
+        if (arming) setSheet(null);
+        update((draft) => {
+          draft.ui.tool = arming ? 'wall' : 'none';
+          if (arming) draft.selectedId = null;
+        }, { sim: 'none' });
+      },
+      openPanel: openPanelSheet,
     },
   });
 
@@ -1939,7 +1965,33 @@ function sheetTitle(target) {
     const n = (state.bench.cannons || []).findIndex((c) => c.id === target.id);
     return n >= 0 ? `Cannon ${n + 1}` : 'Cannon';
   }
-  return fluidById(state.bench.fluidId)?.label || 'The air';
+  if (target.kind === 'sky') return fluidById(state.bench.fluidId)?.label || 'The air';
+  /*
+   * The sheets the menu opens are named after what they are rather than after
+   * a thing on the bench. Falling through to the fluid's name, as this did
+   * first, titled the arrow picker "Air".
+   */
+  return MENU_TITLES[target.kind] || 'Selected';
+}
+
+const MENU_TITLES = {
+  objects: 'What is on the bench',
+  obstacles: 'Walls and cannons',
+  arrows: 'Arrows',
+  explain: 'How this works',
+};
+
+/**
+ * Open a sheet that is not about one thing on the bench.
+ *
+ * The lists of what has been added, the arrow picker and the teaching panel —
+ * everything the page layout has room for and this one does not. They arrive
+ * through the menu rather than through a tap, so there is nothing to select.
+ */
+function openPanelSheet(kind) {
+  state.selectedId = null;
+  setSheet({ kind, focus: sectionsFor({ kind })[0] });
+  render();
 }
 
 /** Open one of the selected thing's panels. */
@@ -2119,10 +2171,23 @@ function takeManualView(draft) {
 /** Renumber the extra objects so their ids always match their position. */
 const renumber = (list) => list.map((o, i) => ({ ...o, id: `o${i + 2}` }));
 
+/** The arrow picker, built once and reachable from both the page and the sheet. */
+function arrowPicker() {
+  return vectorPicker(
+    vectorsFor(state.stage, state.bench),
+    state.vectors,
+    (id, on) => update((draft) => { draft.vectors[id] = on; }, { sim: 'none' }),
+    (patch) => update((draft) => { Object.assign(draft.vectors, patch); }, { sim: 'none' }),
+  );
+}
+
 function context() {
   return {
     state,
     params: state.bench,
+    // The arrow picker, so a sheet can hold the one the page layout shows
+    // above the drawing. Built by the same function either way.
+    arrowPicker,
     space: !!sim.scenario?.space,
     pointer: input.pointer,
     keys: input.keys,
