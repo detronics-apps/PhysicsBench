@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.10.0
+
+Interactive: a fourth setting that drops the page and gives the whole screen to the drawing.
+
+### The measurement that asked for it
+
+On a 375 x 812 phone the page layout put **774 px of apparatus above the drawing** — header, level
+bar, step bar, step block, a notice, the arrow picker — and then gave the drawing **200 px**, a
+quarter of the screen, starting below the fold. The first control was 511 px further down, so the
+thing you were watching and the knob that changed it were never on screen together, and the busiest
+step ran to 3402 px: 4.2 screens over 67 fields.
+
+Landscape was worse and had never been measured. At 812 x 375 the page was **10.1 screens** and the
+drawing was **416 px tall inside a 375 px viewport** — so even scrolled to it, you could not see all
+of it at once.
+
+### What Interactive does
+
+A fourth chip beside Simple, Advanced and Expert. It is a layout rather than a level: the detail
+level still decides how much each panel says, and this decides where the panels are. It hides the
+header, the level bar, the step bar, the arrow picker, the sidebar, the graphs, the measurements,
+the teaching panels and the footer, and gives the screen to the bench and its timeline.
+
+Three round buttons float over the drawing: the current level as one letter, the step as `3/6`, and
+an X to leave. The first two open menus; changing either does not leave the mode. The transport
+takes the bottom edge in portrait and floats over the drawing in landscape, where 375 px of height
+cannot afford to give any away.
+
+After: **756 px of drawing in portrait**, all **375 px in landscape**, and no scrolling in either.
+The object itself is larger too — 22.9 px across rather than 14.1 — because a canvas that is tall
+is framed by its width.
+
+### A phone opens in it
+
+The test is a coarse pointer and the *smaller* viewport side under 560 px, never the width: a phone
+in landscape is 812 px across, so a width test would send exactly the screen this is for into the
+page layout.
+
+It is a default, not an override. The decision is worked out on every read rather than written at
+startup, because a measurement taken while the page is still laying out can be wrong, and stored it
+would be indistinguishable from a choice and survive every reload. Only the X and the chips write
+it — so once you leave, you stay left.
+
+### The canvas now takes the shape of the stage
+
+The drawing has always been cut to a fixed 880 x 460. Given a full-screen stage it would have drawn
+a 196 px picture letterboxed inside 756 px of nothing, which is to say the mode would have appeared
+to do nothing at all. The canvas height now follows the stage it is drawn into. The page layout's
+canvas is unchanged, to the pixel.
+
+### Also
+
+A layout switch re-renders and never rebuilds, so changing it two minutes into a run does not throw
+the run away. The layout is stripped from share links and saved project files — it is a fact about
+the device, and a link made on a phone must not open a desktop with no sidebar and nothing to
+explain why.
+
+This is the first of seven steps. Tapping an object to edit it, the add-and-remove menu, the action
+controls and the graph strip follow.
+
 ## 1.9.0
 
 The legal surface, finished and checkable, and several messages at once folded into one line.

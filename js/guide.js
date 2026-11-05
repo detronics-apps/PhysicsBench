@@ -595,8 +595,15 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.9.0',
+  version: '1.10.0',
   body: [
+    ['Interactive — the drawing takes the screen',
+      'A fourth setting beside Simple, Advanced and Expert. It drops the page and gives the '
+      + 'whole screen to the bench, with the level, the step and the way out as buttons over '
+      + 'the drawing. On a 375-wide phone the drawing goes from 200 pixels to 756, and the '
+      + 'scrolling goes away; turned sideways you get all 375 pixels of height instead of a '
+      + '416-pixel drawing you could never see the whole of. A phone opens in it, and the X '
+      + 'beside the menu leaves it for good.'],
     ['A licence that exists',
       'The app has said "MIT" since the beginning with no LICENSE file behind it. There is '
       + 'one now — MIT, © 2026 Detronics — and a test holds the panel, the file and '
