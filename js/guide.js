@@ -595,8 +595,19 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.15.0',
+  version: '1.16.0',
   body: [
+    ['Move is a handle you drag, not a button you arm',
+      'Four arrows beside the object. Press them and drag, and the object follows — with '
+      + 'your hand next to it rather than on top of the thing you are placing. Double-tap '
+      + 'anywhere to fit the bench back on screen, and a pinch now says how wide the view is '
+      + 'while you make it.'],
+    ['A panel you can type in',
+      'Tapping a number field used to throw the panel into the top corner and lose what you '
+      + 'had typed. The first was the on-screen keyboard making the screen wider than it is '
+      + 'tall, which read as a phone held sideways; the second was the panel being rebuilt '
+      + 'under your fingers. Both fixed, and the panel has a margin now instead of running '
+      + 'into the glass.'],
     ['Throw it, move it, pinch to zoom',
       'In Interactive, drag from an object and let go: it leaves the way you drew, at the speed '
       + 'the arrow shows while you aim. The ◀ Move button claims the next drag instead, for '

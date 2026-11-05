@@ -234,6 +234,16 @@ html[data-layout='interactive'][data-page='bench'] .viewport__stage > * {
   height: 100%;
   max-width: none;
 }
+/*
+ * And no panel colour behind it.
+ *
+ * The drawing is cut to the stage, so in principle it fills it exactly — but
+ * for the one frame between a window changing size and the canvas being
+ * re-cut, a mismatch shows as a band of panel grey above the grid, which
+ * reads as a chunk of the app failing to load. Letting the page colour show
+ * through makes that frame invisible instead of alarming.
+ */
+html[data-layout='interactive'][data-page='bench'] .viewport__stage { background: var(--bg); }
 html[data-layout='interactive'][data-page='bench'] .scene { display: block; }
 
 /*
@@ -262,7 +272,17 @@ html[data-layout='interactive'][data-page='bench'] #transport .transport {
  * it. Everything else about the mode is identical — orientation is a media
  * query here and nowhere else, never a second code path.
  */
-@media (orientation: landscape) and (max-height: 560px) {
+/*
+ * A phone held sideways — not a phone with its keyboard up.
+ *
+ * `orientation: landscape` is only "wider than tall", and an on-screen
+ * keyboard makes a portrait phone exactly that. Without the width test the
+ * sheet jumped to the top-right corner as a narrow panel the instant
+ * somebody tapped a number field — half on the screen, half off it — and
+ * the transport came away from the bottom with it. A phone in real
+ * landscape is 600 px or more across; one in portrait is 430 at the widest.
+ */
+@media (orientation: landscape) and (max-height: 560px) and (min-width: 600px) {
   html[data-layout='interactive'][data-page='bench'] #transport {
     position: absolute;
     left: 0; right: 0; bottom: 0;

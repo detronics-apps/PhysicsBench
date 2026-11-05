@@ -35,7 +35,7 @@ import { controlForce } from './control.js';
 import { describe as describeObject, shapeById } from './shapes.js';
 import { surfaceGravity, worldById } from './gravitation.js';
 import { fluidById } from './drag.js';
-import { fmtFixed } from './format.js';
+import { fmtFixed, fmtLength } from './format.js';
 import { boxWalls, MAX_WALLS } from './segments.js';
 import { EXAMPLES, exampleState } from './examples.js';
 import { galleryPage } from './ui/gallery.js';
@@ -75,7 +75,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.15.0';
+export const APP_VERSION = '1.16.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -110,11 +110,10 @@ const input = {
    * every pointer move.
    */
   gesture: null,
-  // Which body the next drag moves rather than throws, armed by its own
-  // button. One flag rather than a mode, because it lasts exactly one drag.
-  moveArmed: null,
   // Live touches, for the pinch.
   touches: new Map(),
+  // When the last tap landed, for spotting a double one.
+  lastTap: 0,
 };
 
 /* ---------------------------------------------------------------- theme -- */
@@ -1678,13 +1677,7 @@ export function render({ controls = true } = {}) {
       leave: () => setLayout('page'),
       openSheet: openSheetAt,
       closeSheet: () => { setSheet(null); render(); },
-      moveArmed: input.moveArmed,
-      armMove: () => {
-        // One drag, then back to throwing. Pressing it again cancels.
-        input.moveArmed = input.moveArmed === state.selectedId ? null : state.selectedId;
-        setSheet(null);
-        render();
-      },
+      grabMove: grabMove,
       // What this step has, so the menu can never offer a wall on a step that
       // cannot draw one. The same set the sidebar is built from.
       features: sim.scenario?.features ?? new Set(),
@@ -1918,6 +1911,23 @@ function watchStage() {
    * drawing letterboxed at the wrong shape before it snaps to the screen.
    */
   if (measureStage()) paint(true);
+
+  /*
+   * And on a window resize as well as an element one.
+   *
+   * A ResizeObserver covers the element changing size, which is nearly always
+   * the same thing — but not when a window is restored from minimised, moved
+   * between screens, or reopened at a different size, where the browser can
+   * deliver the new layout without the observer ever firing. The symptom is
+   * the drawing left cut to the *old* shape and letterboxed inside the new
+   * one: a slab of empty panel above the grid, which is exactly what it looks
+   * like. Measuring is cheap and only repaints when the shape really changed.
+   */
+  window.addEventListener('resize', () => { if (measureStage()) paint(true); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && measureStage()) paint(true);
+  });
+
   if (typeof ResizeObserver !== 'function') return;
   new ResizeObserver(() => {
     if (!measureStage()) return;
@@ -1951,7 +1961,6 @@ function resolveTap(hit) {
      */
     if (state.selectedId || sheetOpen()) {
       state.selectedId = null;
-      input.moveArmed = null;
       setSheet(null);
       render();
       return;
@@ -1966,7 +1975,6 @@ function resolveTap(hit) {
    */
   if (hit.kind !== 'body') {
     state.selectedId = null;
-    input.moveArmed = null;
     setSheet({ ...hit, focus: sectionsFor(hit)[0] });
     render();
     return;
@@ -2086,6 +2094,59 @@ function openPanelSheet(kind) {
 }
 
 /**
+ * The move handle has been grabbed.
+ *
+ * The drag runs on the handle itself rather than on the drawing, so the
+ * finger is beside the object the whole time and never over the thing being
+ * placed — which is the entire reason this is a handle and not a press on the
+ * object.
+ *
+ * The body is moved in the live world as the finger moves, and the parameter
+ * is written once on release. Writing the parameter on every move would
+ * rebuild the world from it sixty times a second; moving the body directly
+ * shows exactly what the release will commit, because the release commits
+ * where the body now is.
+ */
+function grabMove(event) {
+  const body = shownWorld().bodies.find((b) => b.id === state.selectedId);
+  const at = pointerToWorld(event);
+  if (!body || !at) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+
+  /*
+   * Measured from the grab point, so the object does not jump to the finger
+   * the moment it is touched — the handle is a short way off to the left, and
+   * snapping the centre there would move it before the drag began.
+   */
+  const grab = { x: body.pos.x - at.x, y: body.pos.y - at.y };
+  const id = body.id;
+  const node = event.currentTarget;
+  node.classList.add('is-held');
+
+  const move = (e) => {
+    const now = pointerToWorld(e);
+    if (!now) return;
+    const live = sim.world.bodies.find((b) => b.id === id);
+    if (live) { live.pos = vec(now.x + grab.x, now.y + grab.y); }
+    paint(true);
+  };
+  const up = (e) => {
+    node.classList.remove('is-held');
+    node.removeEventListener('pointermove', move);
+    node.removeEventListener('pointerup', up);
+    node.removeEventListener('pointercancel', up);
+    const now = pointerToWorld(e);
+    if (now) placeBody(id, { x: now.x + grab.x, y: now.y + grab.y });
+    render();
+  };
+  node.addEventListener('pointermove', move);
+  node.addEventListener('pointerup', up);
+  node.addEventListener('pointercancel', up);
+}
+
+/**
  * A pointer has gone down on the drawing in Interactive.
  *
  * Nothing is decided yet. A press on a body might become a throw, a move or a
@@ -2120,7 +2181,7 @@ function beginGesture(event) {
   const world = pointerToWorld(event);
 
   input.gesture = {
-    kind: hit.kind === 'body' && input.moveArmed === hit.id ? 'move' : 'press',
+    kind: 'press',
     hit,
     id: hit.id,
     startPx: { x: event.clientX, y: event.clientY },
@@ -2149,6 +2210,7 @@ function moveGesture(event) {
       state.view.camera.span = next.span;
       saveSoon();
       paint(true);
+      sayZoom(viewWidthSaid());
     }
     return true;
   }
@@ -2189,17 +2251,28 @@ function endGesture(event) {
   if (g.kind === 'pinch' || g.kind === 'pan') { render(); return true; }
 
   // Never travelled far enough to be anything else.
-  if (!g.moved) { resolveTap(g.hit); return true; }
+  if (!g.moved) {
+    /*
+     * Two taps in a third of a second is Home: the framing goes back to
+     * fitting whatever is on the bench. After a pinch the only way back was a
+     * control that is not in this mode, so a reader could zoom into a corner
+     * and have no way out of it.
+     */
+    const now = performance.now();
+    const quick = now - input.lastTap < 320;
+    input.lastTap = now;
+    if (quick) {
+      input.lastTap = 0;
+      update((draft) => { draft.view.camera.mode = 'auto'; }, { sim: 'none' });
+      sayZoom('Fitted to the bench');
+      return true;
+    }
+    resolveTap(g.hit);
+    return true;
+  }
 
   if (g.kind === 'throw' && g.id) {
     throwBody(g.id, pullVelocity(g.from, g.to));
-    input.moveArmed = null;
-    render();
-    return true;
-  }
-  if (g.kind === 'move' && g.id) {
-    placeBody(g.id, g.to);
-    input.moveArmed = null;
     render();
     return true;
   }
@@ -2221,6 +2294,32 @@ function openSheetAt(sectionId) {
  * and it carries the speed as a label, because the whole point of drawing the
  * arrow is that you can see what you are about to do before you do it.
  */
+/**
+ * A word about the view, shown for a moment over the drawing.
+ *
+ * A pinch changes the scale and nothing on screen says by how much — the grid
+ * relabels itself, which is honest but easy to miss while two fingers are in
+ * the way. This says it in metres across, which is the thing a reader is
+ * actually asking when they zoom.
+ */
+let zoomSaid = 0;
+function sayZoom(text) {
+  const node = dom.stageUI?.querySelector('.zoom-said');
+  if (!node) return;
+  node.textContent = text;
+  node.hidden = false;
+  const mine = performance.now();
+  zoomSaid = mine;
+  setTimeout(() => { if (zoomSaid === mine) node.hidden = true; }, 900);
+}
+
+/** How wide the bench is on screen right now, in words. */
+function viewWidthSaid() {
+  const cam = sceneCamera(shownWorld(), 'main', state.view);
+  const metres = VIEW_W / cam.scale;
+  return `${fmtLength(metres)} across`;
+}
+
 function pullPreview() {
   const g = input.gesture;
   if (!g || g.kind !== 'throw' || !g.moved || !g.from || !g.to) return null;

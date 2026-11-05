@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.16.0
+
+Six things from testing 1.15.0 on a phone and on a desktop.
+
+### Move is a handle, not a button
+
+It was a button that armed the next drag. Arming is a mode — you have to remember you are in it —
+and the thing you then dragged was the object itself, which puts your finger on top of the thing
+you are placing. It is four arrows beside the object now: press, drag, let go. Your hand is next to
+it the whole time. The object follows live, and the position is written once on release.
+
+It was also drawing between the object and the Force button rather than to its left. Fixed.
+
+### A panel you can actually type in
+
+Two separate faults, both of which only appear with a real keyboard.
+
+**The panel jumped to the top-right corner.** `orientation: landscape` means nothing more than
+"wider than tall", and an on-screen keyboard makes a portrait phone exactly that — so the landscape
+rule fired and moved the panel to the side of the screen, half on and half off, the instant anybody
+tapped a number. The landscape rules now also require 600 px of width: a phone held sideways is
+812 px across, one in portrait is 430 at the widest.
+
+**What you typed was thrown away.** A number commits on Enter, on change, or on blur — and an input
+that is *removed* never blurs. Anything causing a render while a field had focus took the field with
+it. The panel is now left alone entirely while the focus is inside it.
+
+### The panel has a margin
+
+Every label, slider and value ran edge to edge against the glass, which reads as the panel being cut
+off rather than as a panel. It has a gutter now, and a bottom inset so the last control is not under
+the home bar.
+
+### Double-tap to fit, and a word about the zoom
+
+After a pinch there was no way back to the original framing without leaving the mode. Two taps
+anywhere now hands the framing back to the bench. A pinch also says how wide the view is while you
+make it — the grid relabels itself, which is honest and easy to miss with two fingers in the way.
+
+### The grey slab on the desktop
+
+On a desktop the drawing is cut to the shape of the stage, so it fills it exactly — unless the stage
+changed size without the element-level observer firing, which is what happens when a window is
+restored, moved between screens or reopened. The drawing was left cut to the old shape and
+letterboxed inside the new one: a band of panel grey above the grid. It re-measures on a window
+resize and on becoming visible again now, and the stage carries the page colour rather than the
+panel colour, so a single mismatched frame is invisible rather than alarming.
+
 ## 1.15.0
 
 The gestures, and four things that phone testing found.

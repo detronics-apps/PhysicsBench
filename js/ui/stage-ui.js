@@ -272,6 +272,11 @@ export function stageFurniture({ state, actions }) {
   }) : null;
 
   return [
+    /*
+     * What the view is doing, for a moment, while two fingers are in the way
+     * of reading the grid.
+     */
+    el('div', { class: 'zoom-said', hidden: true, 'aria-live': 'polite' }),
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tl' }, [levels, steps]),
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tr' }, [menu, leave]),
     /*
@@ -307,10 +312,9 @@ let openSheet = null;
  * its `transform` is written per frame, by `placeSatellites`.
  */
 function satellites(actions) {
-  const arm = (dir, glyph, label, field, go, current = false) => el('button', {
-    class: `satellite satellite--${dir}${current ? ' is-armed' : ''}`, type: 'button',
+  const arm = (dir, glyph, label, field, go) => el('button', {
+    class: `satellite satellite--${dir}`, type: 'button',
     'data-field': `satellite:${field}`,
-    'aria-pressed': current ? 'true' : null,
     title: label, 'aria-label': label,
     on: { click: go },
   }, [
@@ -319,25 +323,35 @@ function satellites(actions) {
   ]);
 
   /*
-   * Move is a one-shot arm rather than a mode.
+   * Move is a handle, not a button.
    *
-   * A drag from a body throws it, because that is the gesture worth having and
-   * the one every physics game has already taught people. Moving is the other
-   * thing you might mean by the same drag, so it is asked for first — and it
-   * disarms itself after one drag, because a mode you can forget you are in is
-   * a mode that makes the next throw do nothing.
+   * It was a button that armed the next drag, and arming is a mode: you have
+   * to remember you are in it, and the thing you then drag is the object —
+   * which means your finger is on top of the object while you place it. A
+   * handle is the way every drawing program has done this for thirty years.
+   * Press the arrows, drag, let go; the object moves and your hand is beside
+   * it the whole time, never over it.
+   *
+   * It is a `div` rather than a `button` because it is never clicked: a
+   * button that does nothing on click but something on drag is a button that
+   * lies about itself. The keyboard reaches the same thing through the
+   * position fields in Properties.
    */
+  const handle = el('div', {
+    class: 'satellite satellite--left satellite--handle',
+    'data-field': 'satellite:move',
+    role: 'img',
+    'aria-label': 'Drag to move it',
+    title: 'Drag to move it',
+    on: { pointerdown: (event) => actions.grabMove(event) },
+  }, [
+    el('span', { class: 'satellite__glyph', 'aria-hidden': 'true', text: '✥' }),
+  ]);
+
   return el('div', { class: 'satellites', id: 'satellites', hidden: true }, [
     arm('up', '▲', 'Properties', 'object', () => actions.openSheet('object')),
     arm('right', '▶', 'Force', 'push', () => actions.openSheet('push')),
-    arm(
-      'left',
-      '◀',
-      actions.moveArmed ? 'Drag it' : 'Move',
-      'move',
-      actions.armMove,
-      !!actions.moveArmed,
-    ),
+    handle,
   ]);
 }
 
@@ -405,12 +419,38 @@ export const sheetOpen = () => openSheet;
 /** Open, change or close the sheet. `null` closes it. */
 export function setSheet(target) { openSheet = target; }
 
-/** Replace the overlay's contents. A no-op when the host is not there. */
+/**
+ * Replace the overlay's contents. A no-op when the host is not there.
+ *
+ * The sheet is *kept* rather than rebuilt with the rest, for two reasons that
+ * both showed up the first time somebody typed into it on a phone:
+ *
+ *   A new `<dialog>` is a new element, and an element that has just been
+ *   created has not been laid out. Replacing it mid-edit made the panel jump
+ *   across the screen.
+ *
+ *   An input that is removed never fires `blur`, and `blur` is what commits a
+ *   typed number. So anything that caused a render while a field had focus —
+ *   including moving a slider in the same panel — threw away what had been
+ *   typed into it, and Enter appeared not to work.
+ *
+ * So: while the focus is inside the sheet, its contents are left exactly as
+ * they are. The reader is mid-sentence; nothing else on screen needs saying
+ * badly enough to interrupt them.
+ */
 export function renderStageUI(host, spec) {
   if (!host) return;
+
+  const existing = host.querySelector('.sheet');
+  const typing = existing?.contains(document.activeElement);
+  const keep = typing ? existing : null;
+  if (keep) keep.remove();
+
   clear(host);
   for (const node of stageFurniture(spec)) host.appendChild(node);
   host.appendChild(satellites(spec.actions));
+
+  if (keep) { host.appendChild(keep); return; }
   if (openSheet && spec.sheet) {
     buildSheet(host, {
       title: spec.sheet.title,
