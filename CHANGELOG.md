@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.9.0
+
+The legal surface, finished and checkable, and several messages at once folded into one line.
+
+### A licence that exists
+
+The app has said "MIT" in its footer and its README since the beginning, and there was no LICENSE
+file in the repository to back it — a claim about the legal position of the software with nothing
+behind it. There is one now: MIT, © 2026 Detronics, with `package.json` declaring it and the
+README pointing at it.
+
+The two legal panels moved into a pure `js/legal.js`, and a test now holds the three in step: the
+licence the panel names, the licence the file grants, and the one `package.json` declares. That is
+the kind of drift nobody notices until it matters.
+
+### The privacy claims are now tested, not asserted
+
+Every sentence in the imprint is a statement about the architecture, so a test reads the shipped
+source and fails if one stops being true — `document.cookie`, `fetch`, `XMLHttpRequest`,
+`WebSocket`, `sendBeacon`, and any absolute URL that is not the SVG namespace or one of the two
+Detronics links in the chrome. Comments are stripped first, which the first run taught me by
+failing on its own documentation.
+
+Checked by adding a `fetch` to an unrelated module and watching it catch.
+
+That verification is also what settles the rest of the legal surface, and the panel now says so:
+**no cookie banner**, because there are no cookies and nothing that tracks you — what the app
+keeps is functional storage holding your own experiment, the kind that needs no consent. **No
+third-party disclosure**, because nothing is loaded from anywhere else. **No privacy policy beyond
+the notice**, because there is no form, no account and no personal data to collect.
+
+### Several messages fold into one
+
+One banner is a message; four stacked above the drawing are a wall — and the second step raises
+two, which on a phone was most of the screen. Two or more now fold into a single line carrying the
+count and the worst of them, worst level first, opening when the reader wants the rest. The count
+re-tallies as rows are closed and the fold unwraps itself at one, because a disclosure around a
+single message is a click in the way of reading it.
+
+Measured on a phone: 38 px folded, against a stack that filled a quarter of the screen.
+
+### "Do not show this again"
+
+On the welcome, ticked by default — which is what the card already did, appearing once and never
+again on its own. The checkbox is there so the reader *knows* that rather than finding out by its
+absence; untick it and the next open starts over.
+
 ## 1.8.0
 
 Somewhere to start on every step, questions on every example, and a page for the things there are

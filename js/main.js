@@ -23,7 +23,7 @@ import { load, save, saveSoon, state, reset } from './state.js';
 import { el, svg, clear, toast, hideTooltip } from './ui/dom.js';
 import { capDiagramScale, dualLabel } from './ui/patterns.js';
 import {
-  configureSections, button, drag, banner, clearDismissed, dismissBanner,
+  configureSections, button, drag, banner, clearDismissed, dismissBanner, renderNotices,
 } from './ui/widgets.js';
 import { copyLink, saveProject, openProject, printSheet, downloadSvg, downloadPng, downloadCsv } from './ui/export.js';
 
@@ -41,7 +41,8 @@ import { galleryPage } from './ui/gallery.js';
 import {
   guidePage, welcomeOverlay, panelOverlay, achievementToast, achievementsPage,
 } from './ui/guide.js';
-import { WHATS_NEW, LICENCE, IMPRINT } from './guide.js';
+import { WHATS_NEW } from './guide.js';
+import { LICENCE, IMPRINT } from './legal.js';
 import { toWorld } from './camera.js';
 import { LEVELS, levelById, shownAt } from './levels.js';
 import {
@@ -62,7 +63,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.8.0';
+export const APP_VERSION = '1.9.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -1237,6 +1238,14 @@ function openWelcome() {
 
   const card = welcomeOverlay({
     dismiss,
+    /*
+     * Unticking it means "show me this again next time", so the timestamp
+     * that suppresses it is cleared rather than set.
+     */
+    setShowAgain: (again) => {
+      state.ui.onboardedAt = again ? null : new Date().toISOString();
+      save();
+    },
     go: (where) => {
       dismiss();
       if (where.stage) goToStage(where.stage);
@@ -1553,8 +1562,10 @@ function paint(force = false) {
        */
       dom.banners.appendChild(banner('info', growthCaption(growth.frame), { dismissible: false }));
     } else {
-      // A banner the reader has closed comes back as null.
-      for (const node of bench.banners(ctx)) if (node) dom.banners.appendChild(node);
+      // A banner the reader has closed comes back as null, and two or more
+      // fold into one line rather than filling the screen above the drawing.
+      const notices = renderNotices(bench.banners(ctx));
+      if (notices) dom.banners.appendChild(notices);
     }
   }
 

@@ -639,6 +639,64 @@ export function dismissBanner(key) {
   return true;
 }
 
+/**
+ * Several messages at once, folded into one.
+ *
+ * One banner is a message; four stacked above the drawing are a wall, and on
+ * step three — which raises two — they were already most of a phone screen.
+ * Folded, the reader sees a single line saying how many there are and what the
+ * worst of them is, and opens it when they want the rest.
+ *
+ * The summary re-tallies as rows are closed, because a count that still says
+ * "3 messages" over two rows is worse than no count. One message is never
+ * folded: there is nothing to summarise and a disclosure around it is a click
+ * in the way.
+ *
+ * @param {Node[]} list  banners, already built; dismissed ones arrive as null
+ */
+export function renderNotices(list) {
+  const rows = list.filter(Boolean);
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0];
+
+  // Worst first, so the summary describes the thing that matters most.
+  const rank = (node) => {
+    const cls = node.className;
+    for (const [i, level] of ['danger', 'error', 'warn', 'ok', 'info'].entries()) {
+      if (cls.includes(BANNER_CLASS[level])) return i;
+    }
+    return 9;
+  };
+  rows.sort((a, b) => rank(a) - rank(b));
+
+  const summary = el('summary', { class: 'notices__summary' });
+  const body = el('div', { class: 'notices__body' }, rows);
+  const details = el('details', { class: 'notices' }, [summary, body]);
+
+  const tally = () => {
+    const left = body.querySelectorAll('.banner').length;
+    if (left === 0) { details.remove(); return; }
+    if (left === 1) {
+      // Down to one: unwrap it, because a fold around a single message is a
+      // click in the way of reading it.
+      details.replaceWith(body.firstElementChild);
+      return;
+    }
+    const worst = body.querySelector('.banner__text')?.textContent ?? '';
+    // A span, so the CSS can clamp the message to one line while the count
+    // and the chevron keep their room.
+    summary.replaceChildren(
+      el('span', { text: `${left} messages — ${worst.split('. ')[0]}` }),
+    );
+  };
+
+  // A row closes by removing itself, so watch the body rather than wiring
+  // every close button — which would also miss the ones the app closes.
+  new MutationObserver(tally).observe(body, { childList: true });
+  tally();
+  return details;
+}
+
 /** Forget every dismissal — for a reset, which is a fresh start in every sense. */
 export const clearDismissed = () => dismissed.clear();
 

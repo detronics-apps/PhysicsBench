@@ -595,64 +595,23 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.8.0',
+  version: '1.9.0',
   body: [
-    ['Somewhere to start',
-      'Every step now opens with a hint under its question: which panel to open and what to '
-      + 'turn, and then it stops — it points rather than answering, so what the setting '
-      + 'should be is still yours to find. It takes itself away once you have done it.'],
-    ['Things to find',
-      'Sixteen of them, on their own page beside How to use, marking the things this bench '
-      + 'does that you would never find from a label. They fire once, when you do the thing, '
-      + 'and say what you just found. Nothing is locked behind them and nothing is scored.'],
-    ['Questions on every example',
-      'Two or three each, answered by using the scene rather than by remembering anything. '
-      + 'Guess first: the reasoning only appears afterwards, because an explanation handed '
-      + 'over in advance gives you no reason to go and look.'],
-    ['The atmosphere on the way up',
-      'The height readout names the layer you are in, how far it runs, and the last landmark '
-      + 'you passed. The rocket scene draws them, and the ISS at 408 km — which is exactly '
-      + 'the height that rocket reaches.'],
-    ['Growing the planet',
-      'Pressing "Next: Grow it into a planet" now plays the same animation the sidebar '
-      + 'button always did, instead of arriving there with no explanation.'],
-  ],
-};
-
-export const LICENCE = {
-  title: 'Licence & terms',
-  body: [
-    ['The code', 'MIT. Use it, change it, ship it, teach with it. The licence text is in the '
-      + 'repository, and it is the whole of the legal position on the software.'],
-    ['What it does not promise',
-      'This is a teaching bench, not an engineering tool. The physics is real and the '
-      + 'arithmetic is tested, but the app tells you plainly where it is approximating — '
-      + 'every panel carries "What this simulation is doing", which separates the reality '
-      + 'from the model, the assumptions and the approximations. Do not size a real part '
-      + 'from it without checking the figure against a source you trust.'],
-    ['Which numbers are indicative',
-      'Friction coefficients and high-Reynolds drag coefficients are typical textbook '
-      + 'values and are labelled as such: published figures for the same pair of materials '
-      + 'differ by more than a factor of two with finish, cleanliness and contact pressure. '
-      + 'Constants, planetary masses and radii are the CODATA and IAU/NASA figures.'],
-  ],
-};
-
-export const IMPRINT = {
-  title: 'Imprint & privacy',
-  body: [
-    ['Who made it', 'Detronics — detronics.co.za. Built as a teaching tool and kept free.'],
-    ['What leaves your browser',
-      'Nothing. There is no server, no account, no analytics, no cookies, and no fonts or '
-      + 'scripts from anywhere else. The page you are reading was the last thing that '
-      + 'crossed the network.'],
-    ['Where your work is kept',
-      'In this browser, on this device, in local storage — which is functional storage for '
-      + 'your own work rather than anything that tracks you. "Save project" downloads a file '
-      + 'to your machine. A share link carries the whole experiment in the part of the URL '
-      + 'after the "#", which browsers never transmit to a server.'],
-    ['Getting rid of it',
-      'Clearing this site’s data in your browser removes everything the app has kept. '
-      + 'There is nowhere else to ask, because there is nowhere else it went.'],
+    ['A licence that exists',
+      'The app has said "MIT" since the beginning with no LICENSE file behind it. There is '
+      + 'one now — MIT, © 2026 Detronics — and a test holds the panel, the file and '
+      + 'package.json in step, so the app can never claim a licence it does not ship.'],
+    ['The privacy claims are tested',
+      'Every sentence in "Imprint & privacy" is a statement about how the app is built, so a '
+      + 'test reads the shipped source and fails if one stops being true: no cookies, no '
+      + 'fetch, no analytics, nothing loaded from anywhere else. That is also why there is '
+      + 'no cookie banner to dismiss — there is nothing to consent to.'],
+    ['Several messages fold into one',
+      'Two or more notices now collapse to a single line with a count and the worst of them, '
+      + 'instead of stacking above the drawing. The count re-tallies as you close them, and '
+      + 'the fold unwraps itself when one is left.'],
+    ['"Do not show this again"',
+      'On the welcome, ticked by default — which is what it already did. Untick it and it '
+      + 'comes back next time.'],
   ],
 };

@@ -1668,3 +1668,54 @@ html[data-level='simple'] .field__hint { display: none; }
   color: var(--text-dim);
 }
 .quiz__why.is-shown { display: block; }
+
+/* --- several messages at once ------------------------------------------ *
+ * One banner is a message; four stacked above the drawing are a wall. The
+ * fold shows how many there are and what the worst one says, and opens when
+ * the reader wants the rest.                                              */
+
+.notices {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+.notices__summary {
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.notices__summary::-webkit-details-marker { display: none; }
+.notices__summary::after {
+  content: '';
+  margin-left: auto;
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.notices[open] > .notices__summary::after { transform: rotate(-135deg) translate(-3px, -3px); }
+.notices__summary:hover { color: var(--text); }
+/* The worst message's first sentence can still be a paragraph. One line. */
+.notices__summary > span:first-child {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.notices__body {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-2);
+}
+/* Inside the fold the rows carry the colour; the wrapper stays quiet. */
+.notices__body .banner { border-width: 1px; }
+
+@media print { .notices { border: none; background: none; } .notices__summary { display: none; } }
+
+/* The welcome's "do not show this again", beside the button that closes it. */
+.welcome__again {
+  flex: 1 1 100%;
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 13px; color: var(--text-dim);
+  cursor: pointer;
+}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import * as LEGAL from '../js/legal.js';
 
 /**
  * The severity of a warning is not decoration.
@@ -516,14 +517,26 @@ test('the exports moved to the sidebar and the footer took their place', () => {
   }
 });
 
+const licenceText = () => LEGAL.LICENCE.body.map(([, t]) => t).join(' ');
+const imprintText = () => LEGAL.IMPRINT.body.map(([, t]) => t).join(' ');
+
 test('each footer panel says something, and none of it is invented', () => {
-  const guide = read('../js/guide.js');
-  for (const name of ['WHATS_NEW', 'LICENCE', 'IMPRINT']) {
-    assert.ok(new RegExp(`export const ${name} = \{`).test(guide), `${name} is missing`);
+  // What changed in this build is release content and lives with the guide;
+  // the two legal panels live in `js/legal.js`, where a test can hold them
+  // against the LICENSE file and against the shipped source.
+  assert.match(read('../js/guide.js'), /export const WHATS_NEW = \{/);
+
+  const legal = read('../js/legal.js');
+  for (const name of ['LICENCE', 'IMPRINT', 'LICENCE_ID', 'COPYRIGHT']) {
+    assert.ok(new RegExp(`export const ${name}`).test(legal), `${name} is missing`);
   }
-  // The licence is the licence, and the privacy text is the architecture.
-  assert.match(guide, /MIT\. Use it, change it, ship it, teach with it\./);
-  assert.match(guide, /There is no server, no account, no analytics, no cookies/);
+  /*
+   * Checked against the rendered text rather than the source, because the
+   * source wraps the sentences across lines and a regex over it is really a
+   * test of the line breaks. What matters is what the reader is shown.
+   */
+  assert.match(licenceText(), /Use it, change it, ship it, teach with it, sell it\./);
+  assert.match(imprintText(), /There is no server, no account, no analytics, no cookies/);
 });
 
 /**
@@ -585,8 +598,10 @@ test('every banner can be closed, and stays closed', () => {
   assert.match(widgets, /'aria-label': 'Dismiss this message',/);
   // Closed once, gone for the session: it returns null rather than a node.
   assert.match(widgets, /if \(dismissible && dismissed\.has\(id\)\) return null;/);
-  // So the callers have to filter rather than track state themselves.
-  assert.match(read('../js/main.js'), /for \(const node of bench\.banners\(ctx\)\) if \(node\) dom\.banners\.appendChild\(node\);/);
+  // So the callers have to filter rather than track state themselves — which
+  // `renderNotices` does on the way to folding two or more into one line.
+  assert.match(read('../js/main.js'), /const notices = renderNotices\(bench\.banners\(ctx\)\);/);
+  assert.match(read('../js/ui/widgets.js'), /const rows = list\.filter\(Boolean\);/);
   assert.match(widgets, /\.filter\(Boolean\);/);
 });
 
@@ -671,4 +686,33 @@ test('the theme control reports its state with three different glyphs', () => {
 
   const glyphs = [...line.matchAll(/'([^']+)'/g)].map((m) => m[1]);
   assert.equal(new Set(glyphs).size, 3, 'two states share a glyph');
+});
+
+/**
+ * Several messages at once fold into one line.
+ *
+ * One banner is a message; four stacked above the drawing are a wall, and on
+ * the second step — which raises two — they were already most of a phone
+ * screen. Folded, the reader gets a count and the worst of them, and opens it
+ * when they want the rest.
+ */
+test('two or more notices fold, and one never does', () => {
+  const widgets = read('../js/ui/widgets.js');
+  const fn = widgets.match(/export function renderNotices\(list\)[\s\S]*?\n\}\r?\n/)[0];
+
+  // Nothing to fold, and nothing to summarise.
+  assert.match(fn, /if \(rows\.length === 0\) return null;/);
+  assert.match(fn, /if \(rows\.length === 1\) return rows\[0\];/);
+
+  // Worst first, so the summary describes the thing that matters most.
+  assert.match(fn, /\['danger', 'error', 'warn', 'ok', 'info'\]/);
+  assert.match(fn, /rows\.sort\(/);
+
+  // The count re-tallies as rows are closed, and the fold unwraps at one —
+  // a count that still says "3 messages" over two rows is worse than none.
+  assert.match(fn, /const left = body\.querySelectorAll\('\.banner'\)\.length;/);
+  // The message goes in its own span so the CSS can clamp it to one line.
+  assert.match(fn, /summary\.replaceChildren\(/);
+  assert.match(fn, /details\.replaceWith\(body\.firstElementChild\);/);
+  assert.match(fn, /new MutationObserver\(tally\)/);
 });

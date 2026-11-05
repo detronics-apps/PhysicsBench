@@ -1,7 +1,8 @@
 {
   "name": "physics-bench",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "An interactive physics laboratory: change a variable, watch what happens, measure it, then see the equation that describes it.",
   "scripts": {

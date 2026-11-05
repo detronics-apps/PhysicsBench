@@ -337,4 +337,16 @@ declared in the step that assumes it away, along with what would change if it we
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE). Copyright © 2026 Detronics.
+
+Use it, change it, ship it, teach with it, sell it. The licence is the whole of the legal position
+on the software, and it comes with no warranty of any kind, which for a teaching bench is the
+sentence that matters: see the Accuracy section above for which figures are indicative.
+
+## Privacy, in one line
+
+Nothing leaves your browser. No server, no account, no analytics, no cookies, no fonts or scripts
+from anywhere else — so there is no cookie banner to dismiss and no third party to disclose. A
+test asserts that: it greps the shipped source for `document.cookie`, `fetch`, `XMLHttpRequest`,
+`WebSocket` and `sendBeacon`, and for any absolute URL that is not the SVG namespace or one of the
+two Detronics links in the chrome.

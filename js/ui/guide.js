@@ -219,10 +219,23 @@ export function welcomeOverlay(actions) {
       button(item.label, () => actions.go(item.go), { small: true }),
     ]))),
 
+    /*
+     * "Do not show this again" is ticked by default, because that is what the
+     * card already does — it appears once and never again on its own. The
+     * checkbox is there so the reader *knows* that, rather than having to find
+     * out by it not coming back; untick it and the next open starts over.
+     */
     el('div', { class: 'welcome__foot' }, [
+      el('label', { class: 'welcome__again' }, [
+        el('input', {
+          type: 'checkbox', checked: '', 'data-field': 'welcome:once',
+          on: { change: (e) => actions.setShowAgain?.(!e.target.checked) },
+        }),
+        el('span', { text: 'Do not show this again' }),
+      ]),
       el('p', {
         class: 'muted',
-        text: 'You can reopen this from "How to use" at any time.',
+        text: 'Either way you can reopen it from "I am new here" at the bottom of the page.',
       }),
       button('Start exploring', close, { primary: true }),
     ]),
