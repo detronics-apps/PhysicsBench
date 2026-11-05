@@ -595,8 +595,13 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.16.0',
+  version: '1.17.0',
   body: [
+    ['Fields big enough that iOS leaves them alone',
+      'Safari zooms into any form field whose text is under 16px — the view lurches and you '
+      + 'lose your place, on every field, every time. The fields here were 14. And every button '
+      + 'you press with a thumb is now at least 44px across the part that responds, including '
+      + 'Play and Step, which were 38.'],
     ['Move is a handle you drag, not a button you arm',
       'Four arrows beside the object. Press them and drag, and the object follows — with '
       + 'your hand next to it rather than on top of the thing you are placing. Double-tap '

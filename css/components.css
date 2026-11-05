@@ -2098,3 +2098,44 @@ html[data-layout='interactive'][data-page='bench'] .stage-wrap {
   z-index: 12;
 }
 .zoom-said[hidden] { display: none; }
+
+/* ======================================================================== *
+ * Touch, on a touch screen.
+ *
+ * Both of these were found by the mobile-first standard the day it was
+ * written, in the app that produced it — which is the argument for having the
+ * standard rather than the instinct.
+ * ======================================================================== */
+
+/*
+ * 16px inputs, or iOS Safari zooms.
+ *
+ * Safari zooms into any form field whose text is under 16px: the viewport
+ * lurches, the layout moves and the reader loses their place — on every
+ * field, every time. The fields here were 14px. Fixed by making the text
+ * bigger rather than by disabling zoom in the viewport tag, because the app
+ * has to stay usable with accessibility zoom on.
+ *
+ * Keyed on the pointer, not the width: a narrow window on a desktop has no
+ * such behaviour and no reason to grow its type.
+ */
+@media (pointer: coarse) {
+  .input, .select, input[type='text'], input[type='number'], input[type='search'], textarea {
+    font-size: 16px;
+  }
+}
+
+/*
+ * 44px targets on the drawing's own furniture.
+ *
+ * The arms were 34px tall and the move handle 38 square — small enough to
+ * mean aiming. The *interactive* area is what has to be 44; the pill and the
+ * glyph inside it stay the size they look.
+ */
+@media (pointer: coarse) {
+  .satellite { min-height: 44px; }
+  .satellite--handle { width: 44px; min-width: 44px; height: 44px; }
+  .sheet__close { width: 44px; height: 44px; }
+  /* Play and Step were 38 x 39 — the two most-pressed controls in the app. */
+  .transport__btn { min-width: 44px; min-height: 44px; }
+}

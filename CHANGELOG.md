@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.17.0
+
+Two faults the new mobile-first standard caught in the app that produced it.
+
+### Fields iOS will leave alone
+
+Safari zooms into any form field whose text is under 16px: the viewport lurches, the layout moves,
+and the reader loses their place — on every field, every time. The fields here were 14px. They are
+16 on a touch screen now, fixed by making the text bigger rather than by disabling zoom in the
+viewport tag, because the app has to stay usable with accessibility zoom switched on.
+
+Keyed on the pointer rather than the width: a narrow window on a desktop has no such behaviour and
+no reason to grow its type.
+
+### Targets a thumb can hit
+
+44px is the minimum for anything pressed with a finger, measured on the *interactive area* rather
+than on the glyph. The satellite arms were 34 tall, the move handle 38 square, and Play and Step —
+the two most-pressed controls in the whole app — were 38 × 39.
+
 ## 1.16.0
 
 Six things from testing 1.15.0 on a phone and on a desktop.
