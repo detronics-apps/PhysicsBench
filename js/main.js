@@ -75,7 +75,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.18.0';
+export const APP_VERSION = '1.19.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -2808,6 +2808,20 @@ const actions = {
   reset() {
     state.transport.playing = false;
     rebuild();
+    /*
+     * And the camera comes back with it.
+     *
+     * Reset puts the experiment back to its starting position; leaving the
+     * view wherever the follow had carried it meant pressing Reset and seeing
+     * an empty patch of grid, with the objects somewhere off to the left. The
+     * bench being reset is exactly the moment to frame the bench.
+     *
+     * Only where the view is being held, which is Interactive — on the page
+     * layout the automatic framing has already done it.
+     */
+    if (interactive() && state.view.camera.mode === 'manual') {
+      state.view.camera = { mode: 'manual', ...autoView(sim.world, 'main') };
+    }
     render();
   },
   setSpeed(value) {

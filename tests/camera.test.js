@@ -296,21 +296,68 @@ test('the camera does nothing while the object is in the middle', () => {
    */
   const view = { cx: 0, cy: 0, span: 10 };
   assert.deepEqual(lazyFollow(view, { x: 0, y: 0 }), { cx: 0, cy: 0 });
-  assert.deepEqual(lazyFollow(view, { x: 2, y: 0 }), { cx: 0, cy: 0 }, 'well inside');
-  assert.deepEqual(lazyFollow(view, { x: -2.2, y: 0 }), { cx: 0, cy: 0 }, 'just inside');
+  assert.deepEqual(lazyFollow(view, { x: 1.5, y: 0 }), { cx: 0, cy: 0 }, 'well inside');
+  assert.deepEqual(lazyFollow(view, { x: -2, y: 0 }), { cx: 0, cy: 0 }, 'right at the edge of it');
+  // And the very first movement outside is tiny rather than a jump, which is
+  // the point of the squared curve.
+  assert.ok(Math.abs(lazyFollow(view, { x: 2.2, y: 0 }).cx) < 0.01, 'barely stirs on leaving');
 });
 
-test('it eases after the object once it leaves the dead zone', () => {
-  const view = { cx: 0, cy: 0, span: 10 };
-  const after = lazyFollow(view, { x: 5, y: 0 }, { ease: 0.5 });
-  // 5 m out, the zone ends at 2.25, so 2.75 of overshoot; half of it closed.
-  assert.ok(Math.abs(after.cx - 1.375) < 1e-9, `${after.cx}`);
-  assert.equal(after.cy, 0, 'and nothing on the axis it has not left');
+test('it follows harder the nearer the edge, and never lets go', () => {
+  /*
+   * A single fixed catch-up rate was the first version, and a fast object
+   * simply outran it and left the screen. The rate now rises with the square
+   * of how far through the band between the dead zone and the edge the object
+   * has travelled, and the edge is a hard limit on top of that.
+   */
+  const span = 10;
+  const limit = (span / 2) * 0.88;
+  let view = { cx: 0, cy: 0, span };
+  const seen = [];
+  for (let i = 0; i < 40; i += 1) {
+    const x = i * 0.5;
+    const next = lazyFollow(view, { x, y: 0 }, { aspect: 0.5 });
+    view = { ...view, cx: next.cx };
+    seen.push({ x, offset: x - next.cx });
+  }
+
+  // It is allowed to travel a long way before anything happens...
+  assert.ok(seen[5].offset > 2, 'free to move across the screen');
+  // ...and it settles at a steady lead rather than being dragged back.
+  const settled = seen.slice(-10).map((s2) => s2.offset);
+  const spread = Math.max(...settled) - Math.min(...settled);
+  assert.ok(spread < 0.01, `the lead should steady, spread was ${spread}`);
+  assert.ok(settled[0] < limit, 'and inside the edge');
+});
+
+test('nothing outruns it, however fast', () => {
+  /*
+   * The guarantee, and the reason easing alone is not enough: a rate can
+   * always be outrun by something fast enough. Pinned at the edge the camera
+   * necessarily travels at the object's own speed.
+   */
+  const span = 10;
+  const limit = (span / 2) * 0.88;
+  let view = { cx: 0, cy: 0, span };
+  let worst = 0;
+  for (let i = 0; i < 30; i += 1) {
+    const x = i * 3;
+    const next = lazyFollow(view, { x, y: 0 }, { aspect: 2 });
+    view = { ...view, cx: next.cx };
+    worst = Math.max(worst, Math.abs(x - next.cx));
+  }
+  assert.ok(worst <= limit + 1e-9, `drifted ${worst}, limit ${limit}`);
+
+  // Even a teleport cannot put it off the screen.
+  const jumped = lazyFollow({ cx: 0, cy: 0, span }, { x: 1000, y: 0 });
+  assert.ok(Math.abs(1000 - jumped.cx) <= limit + 1e-9);
 });
 
 test('it follows backwards as readily as forwards', () => {
-  const after = lazyFollow({ cx: 0, cy: 0, span: 10 }, { x: -5, y: 0 }, { ease: 0.5 });
-  assert.ok(after.cx < 0 && Math.abs(after.cx + 1.375) < 1e-9);
+  const back = lazyFollow({ cx: 0, cy: 0, span: 10 }, { x: -1000, y: 0 });
+  const fwd = lazyFollow({ cx: 0, cy: 0, span: 10 }, { x: 1000, y: 0 });
+  assert.ok(back.cx < 0 && fwd.cx > 0);
+  assert.ok(Math.abs(back.cx + fwd.cx) < 1e-9, 'and symmetrically');
 });
 
 test('the vertical dead zone follows the shape of the screen', () => {
@@ -320,16 +367,8 @@ test('the vertical dead zone follows the shape of the screen', () => {
    * small vertical wobble on a portrait screen.
    */
   const view = { cx: 0, cy: 0, span: 10 };
-  const wide = lazyFollow(view, { x: 0, y: 2 }, { aspect: 2 });
-  const tall = lazyFollow(view, { x: 0, y: 2 }, { aspect: 0.5 });
-  assert.ok(wide.cy !== 0, 'on a wide screen 2 m up is outside the zone');
+  const wide = lazyFollow(view, { x: 0, y: 2.4 }, { aspect: 2 });
+  const tall = lazyFollow(view, { x: 0, y: 2.4 }, { aspect: 0.5 });
+  assert.ok(wide.cy !== 0, 'on a wide screen 2.4 m up is outside the zone');
   assert.equal(tall.cy, 0, 'on a tall one it is still inside');
-});
-
-test('it never overshoots, whatever ease it is given', () => {
-  const view = { cx: 0, cy: 0, span: 10 };
-  for (const ease of [0, 0.5, 1, 5, -3]) {
-    const after = lazyFollow(view, { x: 100, y: 0 }, { ease });
-    assert.ok(after.cx >= 0 && after.cx <= 97.75, `ease ${ease} gave ${after.cx}`);
-  }
 });

@@ -380,52 +380,72 @@ export const overlaps = (a, b, gap = 0) =>
   && a.y + a.height + gap > b.y;
 
 /**
- * A camera that lets the object move on screen, then catches up.
+ * A camera that lets the object move on screen, then catches up — harder the
+ * closer the object gets to the edge, and never letting it off the screen.
  *
  * The automatic framing re-centres on every frame, which pins the object to
- * the middle of the screen and slides the grid past it instead. That is a
- * correct picture of the physics and a poor picture of *motion*: nothing on
- * screen appears to move, and a reader watching a thing accelerate sees only
- * a background scrolling.
+ * the middle and slides the grid past it: a correct picture of the physics and
+ * a poor one of *motion*, because nothing on screen appears to move.
  *
- * So the camera does nothing at all while the object is somewhere in the
- * middle, and only starts moving once the object reaches the edge of a dead
- * zone — and then eases after it rather than snapping, so the object keeps
- * its lead and arrives back toward the centre gradually. It is how a camera
- * operator follows a runner, and how every side-scrolling game has done it
- * since the eighties.
+ * Three bands, and the whole behaviour is in how they meet:
+ *
+ *   **The dead zone.** While the object is somewhere in the middle the camera
+ *   does not move at all. This is what lets a reader see the thing accelerate.
+ *
+ *   **Between the zone and the edge.** The camera follows, gently at first and
+ *   harder the further out the object is — the catch-up rate rises with the
+ *   *square* of how far through this band it has travelled. A single fixed
+ *   rate was the first version, and a fast object simply outran it.
+ *
+ *   **The edge.** The object is not permitted past it. Holding it there means
+ *   the camera moves exactly as fast as the object does, which is the right
+ *   behaviour arrived at by the geometry rather than by a special case.
  *
  * @param {{cx:number,cy:number,span:number}} view  the window now, in metres
  * @param {{x:number,y:number}} at                  where the object is
  * @param {object} [options]
  * @param {number} [options.aspect]    width ÷ height of the view
- * @param {number} [options.deadZone]  fraction of the half-span the object may
+ * @param {number} [options.deadZone]  share of the half-span the object may
  *                                     wander before the camera reacts at all
- * @param {number} [options.ease]      share of the remaining gap closed per
- *                                     frame once it is moving
+ * @param {number} [options.edge]      share of the half-span it may never pass
+ * @param {number} [options.ease]      the catch-up rate at the edge of the
+ *                                     band, before the clamp takes over
  * @returns {{cx:number,cy:number}} the new centre
  */
-export function lazyFollow(view, at, { aspect = 2, deadZone = 0.45, ease = 0.08 } = {}) {
-  const halfX = view.span / 2;
+export function lazyFollow(view, at, {
+  aspect = 2, deadZone = 0.4, edge = 0.88, ease = 0.3,
+} = {}) {
+  const halfX = Math.max(1e-9, view.span / 2);
   const halfY = halfX / Math.max(0.01, aspect);
-  const slackX = halfX * deadZone;
-  const slackY = halfY * deadZone;
 
-  /*
-   * How far outside the dead zone it is, per axis — zero while it is inside.
-   * Measured against the *edge* of the zone rather than the centre, so the
-   * camera does not creep whenever the object is slightly off-middle.
-   */
-  const over = (d, slack) => {
-    if (d > slack) return d - slack;
-    if (d < -slack) return d + slack;
-    return 0;
+  const axis = (centre, p, half) => {
+    const slack = half * deadZone;
+    const limit = half * Math.max(deadZone + 1e-6, edge);
+    const d = p - centre;
+    const a = Math.abs(d);
+    if (a <= slack) return centre;
+
+    /*
+     * How far through the band between the dead zone and the edge, squared —
+     * so the camera is barely moving where the object leaves the zone and is
+     * moving in earnest by the time it nears the edge. Linear felt like the
+     * camera deciding to chase; this feels like it noticing.
+     */
+    const t = Math.min(1, (a - slack) / (limit - slack));
+    const k = Math.min(1, Math.max(0, ease)) * t * t;
+    const over = d > 0 ? a - slack : -(a - slack);
+    let next = centre + over * k;
+
+    /*
+     * And it may not pass the edge, whatever its speed. This is the guarantee:
+     * easing alone is a rate, and a rate can always be outrun by something
+     * fast enough. Pinned here, the camera necessarily travels at the object's
+     * own speed.
+     */
+    const after = p - next;
+    if (Math.abs(after) > limit) next = p - Math.sign(after) * limit;
+    return next;
   };
 
-  const dx = over(at.x - view.cx, slackX);
-  const dy = over(at.y - view.cy, slackY);
-  if (dx === 0 && dy === 0) return { cx: view.cx, cy: view.cy };
-
-  const k = Math.min(1, Math.max(0, ease));
-  return { cx: view.cx + dx * k, cy: view.cy + dy * k };
+  return { cx: axis(view.cx, at.x, halfX), cy: axis(view.cy, at.y, halfY) };
 }

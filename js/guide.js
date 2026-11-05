@@ -595,8 +595,12 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.18.0',
+  version: '1.19.0',
   body: [
+    ['The camera cannot be outrun',
+      'It still lets the object travel across the screen before it reacts — but it follows '
+      + 'harder the nearer the edge the object gets, so a fast one is led rather than lost. '
+      + 'Reset brings the view back over the bench, which it did not before.'],
     ['The object moves across the screen now',
       'The view used to re-fit on every frame, which pinned the object to the middle and slid '
       + 'the grid past it — a correct picture of the physics and a poor one of motion. In '

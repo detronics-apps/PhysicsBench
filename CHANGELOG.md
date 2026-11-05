@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.19.0
+
+### The camera cannot be outrun
+
+1.18.0 followed at one fixed rate once the object left the dead zone, and a fast object simply
+outran it and left the screen. There are three bands now, and the behaviour is in how they meet:
+
+- **The dead zone** — the camera does not move at all. This is what lets you see a thing accelerate.
+- **Between the zone and the edge** — it follows, gently at first and harder the further out, the
+  rate rising with the *square* of how far through the band the object has travelled. Linear felt
+  like the camera deciding to chase; this feels like it noticing.
+- **The edge** — the object is not permitted past it. Holding it there means the camera moves
+  exactly as fast as the object does, which is the right behaviour arrived at from the geometry
+  rather than written as a special case.
+
+Measured on a phone at 6 m/s: the object settles about three-quarters of the way across a 375 px
+stage and stays there. Driven with an object moving 3 m per frame in a 10 m window — and with a
+teleport — it never passes the edge.
+
+### Reset brings the view back
+
+Reset puts the experiment back to its starting position, and the view stayed wherever the follow
+had carried it: an empty patch of grid, with the objects somewhere off to the left. The bench being
+reset is exactly the moment to frame the bench.
+
 ## 1.18.0
 
 A camera that lets things move, a close button that closes, and the rest of the grey block.
