@@ -1961,3 +1961,46 @@ html[data-level='simple'] .corner__itemNote { display: none; }
     border-radius: var(--radius-lg);
   }
 }
+
+/* --- one graph, kept on screen --------------------------------------- *
+ * It costs the bench its height, so it is thin, flush with the transport, and
+ * only ever there because the reader asked for it.                        */
+
+.strip { display: none; }
+
+html[data-layout='interactive'][data-page='bench'] #strip:not(:empty) {
+  display: block;
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+html[data-layout='interactive'][data-page='bench'] #strip .graph {
+  border: none;
+  border-radius: 0;
+  padding: var(--space-1) var(--space-2) 0;
+  background: none;
+}
+html[data-layout='interactive'][data-page='bench'] #strip .graph__head {
+  padding: 0 0 2px;
+  font-size: 11px;
+}
+
+/* In landscape the furniture floats, so the strip floats with it - sitting on
+   top of the transport bar rather than pushing the bench up by both. */
+@media (orientation: landscape) and (max-height: 560px) {
+  html[data-layout='interactive'][data-page='bench'] #strip:not(:empty) {
+    position: absolute;
+    left: 0; right: 0; bottom: 56px;
+    z-index: 4;
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    backdrop-filter: blur(6px);
+  }
+}
+
+.stage-ui__cluster--bl { bottom: 0; left: 0; top: auto; }
+/* A menu anchored to the bottom opens upward, or it opens off the screen. */
+.corner--left.stage-ui__cluster--bl .corner__menu,
+.stage-ui__cluster--bl .corner__menu {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+}

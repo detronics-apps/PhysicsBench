@@ -72,7 +72,7 @@ import * as bench from './ui/bench.js';
 
 /** Bumped on every release. Read it before debugging anything: a stale cache
  *  serving yesterday's build has cost more time here than any actual bug. */
-export const APP_VERSION = '1.13.0';
+export const APP_VERSION = '1.14.0';
 
 const dom = {};
 let sim = { scenario: null, world: null, recorder: createRecorder(), key: '' };
@@ -601,6 +601,15 @@ function buildViewport() {
    */
   dom.stageUI = el('div', { class: 'stage-ui', id: 'stage-ui' });
   dom.legend = el('div', { id: 'legend' });
+  /*
+   * One graph, kept on screen in Interactive, directly above the transport.
+   *
+   * Its own element rather than a reuse of `#graphs`: that one holds every
+   * graph the step draws, stacked, and lives below the drawing with the rest
+   * of the output. This is a single thin band that costs the bench its height,
+   * so it is placed where the reader chose to spend it.
+   */
+  dom.strip = el('div', { class: 'strip', id: 'strip' });
   dom.transportHost = el('div', { id: 'transport' });
   dom.readout = el('div', { class: 'readout', id: 'readout' });
   dom.graphs = el('div', { id: 'graphs' });
@@ -651,6 +660,7 @@ function buildViewport() {
     dom.stage,
     dom.stageUI,
     dom.legend,
+    dom.strip,
     dom.transportHost,
     // Live commentary belongs beside the live picture, not three sections down.
     dom.banners,
@@ -1681,6 +1691,17 @@ export function render({ controls = true } = {}) {
         }, { sim: 'none' });
       },
       openPanel: openPanelSheet,
+      // The step's own graphs, so the drawer can never offer one this step
+      // does not record.
+      graphs: channelsFor(state.stage, state.bench),
+      showGraph: (id) => {
+        state.ui.strip = id;
+        saveSoon();
+        render();
+        // The stage is a different height now, so the drawing is re-cut to it
+        // before the frame is painted rather than one frame later.
+        if (measureStage()) paint(true);
+      },
     },
   });
 
@@ -2075,6 +2096,36 @@ function paint(force = false) {
   const refreshNumbers = force || clock.frame % cadence === 0;
 
   if (refreshNumbers) {
+    /*
+     * The strip reads the same recording as the full graphs, so the thin one
+     * and the tall one can never tell different stories — and scrubbing it
+     * scrubs the timeline, exactly as the others do.
+     */
+    clear(dom.strip);
+    if (interactive() && state.ui.strip) {
+      const group = channelsFor(state.stage, state.bench)
+        .find((g) => g.id === state.ui.strip);
+      if (group) {
+        dom.strip.appendChild(renderGraph(sim.recorder, group.ids, {
+          t: shownTime(),
+          /*
+           * Shorter on a short screen. A phone in landscape has 375 px in
+           * total, and the strip was taking 145 of them — more than a third
+           * of the bench for a graph the reader asked to keep *beside* the
+           * thing it describes.
+           */
+          height: window.innerHeight <= 560 ? 54 : 96,
+          title: group.label.split('—')[0].trim(),
+          onScrub: (time) => {
+            state.transport.scrubT = time;
+            state.transport.playing = false;
+            renderTransportBar();
+            paint(true);
+          },
+        }));
+      }
+    }
+
     clear(dom.legend);
     dom.legend.appendChild(sceneLegend(ctx.world, state.vectors));
 

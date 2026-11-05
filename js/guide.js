@@ -595,8 +595,14 @@ export const categories = () => [...new Set(HOWTOS.map((h) => h.category))];
  */
 export const WHATS_NEW = {
   title: "What's new",
-  version: '1.13.0',
+  version: '1.14.0',
   body: [
+    ['One graph, kept on screen',
+      'The ▦ in the bottom corner, in Interactive. Pick a graph and it sits as a thin band '
+      + 'above the timeline while you watch; pick another and it swaps; put it away and the '
+      + 'bench gets the height back. One at a time on purpose — two graphs on a phone are '
+      + 'two unreadable graphs. It reads the same recording as the full graphs, so the thin one '
+      + 'and the tall one can never disagree, and dragging across it scrubs the timeline.'],
     ['A menu for everything that is not a thing on the bench',
       'The ☰ in the top corner, in Interactive. Add an object, a cannon or a box of walls; '
       + 'draw a wall by dragging across the bench; open the list of what you have added, each '

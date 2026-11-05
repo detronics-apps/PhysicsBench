@@ -1194,6 +1194,14 @@ const contactKindLabel = (shapeId) => (rollsOn(shapeId) ? 'rolling' : 'sliding')
  * rest of the bench — they are not a topic that arrives late, they are two more
  * ways of describing what is already on screen.
  */
+/**
+ * Which graphs this step draws, newest concern first.
+ *
+ * Each group carries an `id` as well as a label. The label is prose and will
+ * be rewritten; the id is what a reader's choice of which graph to keep on
+ * screen is stored against, and a stored choice keyed on a sentence breaks the
+ * first time the sentence is improved.
+ */
 export function channelsFor(stageId, p = {}) {
   const f = featuresAt(stageId);
   const space = f.has('space') && p.worldMode === 'space';
@@ -1202,30 +1210,30 @@ export function channelsFor(stageId, p = {}) {
   const grounded = f.has('ground') && !space;
 
   if (moving) {
-    groups.push({ label: 'Velocity against time — the gradient is the acceleration', ids: ['vx', 'vy'] });
+    groups.push({ id: 'velocity', label: 'Velocity against time — the gradient is the acceleration', ids: ['vx', 'vy'] });
     // Momentum and energy from the moment anything can move, and for the rest
     // of the bench. They are not a later topic; they are two more ways of
     // describing what is already on screen, and holding them back until a
     // "momentum chapter" is what makes them feel like one.
-    groups.push({ label: 'Momentum against time — mass and velocity together', ids: ['px', 'py'] });
-    groups.push({ label: 'Energy against time', ids: grounded ? ['ke', 'pe', 'etotal'] : ['ke'] });
+    groups.push({ id: 'momentum', label: 'Momentum against time — mass and velocity together', ids: ['px', 'py'] });
+    groups.push({ id: 'energy', label: 'Energy against time', ids: grounded ? ['ke', 'pe', 'etotal'] : ['ke'] });
   }
 
   if (grounded) {
-    groups.push({ label: 'Position against time', ids: ['x', 'height'] });
+    groups.push({ id: 'position', label: 'Position against time', ids: ['x', 'height'] });
   }
 
   // Graphs never mix units: momentum in kg·m/s and energy in joules on one
   // ruler is two graphs pretending to be one.
   if (f.has('collide')) {
-    groups.push({ label: 'Total momentum — flat straight through the impact', ids: ['sys-p'] });
-    groups.push({ label: 'Total energy — and where the missing kinetic energy went', ids: ['sys-ke', 'sys-heat', 'sys-e'] });
+    groups.push({ id: 'sys-momentum', label: 'Total momentum — flat straight through the impact', ids: ['sys-p'] });
+    groups.push({ id: 'sys-energy', label: 'Total energy — and where the missing kinetic energy went', ids: ['sys-ke', 'sys-heat', 'sys-e'] });
   } else if (f.has('fluid') || f.has('friction')) {
-    groups.push({ label: 'Where the energy has gone', ids: ['sys-ke', 'sys-heat', 'sys-e'] });
+    groups.push({ id: 'energy-lost', label: 'Where the energy has gone', ids: ['sys-ke', 'sys-heat', 'sys-e'] });
   }
 
   if (moving && !grounded) {
-    groups.push({ label: 'Net force against time', ids: ['fx', 'fnet'] });
+    groups.push({ id: 'force', label: 'Net force against time', ids: ['fx', 'fnet'] });
   }
   return groups;
 }

@@ -55,7 +55,7 @@ function menuFor(name, { label, title, items, align = 'left' }) {
     class: 'corner__btn', title, 'aria-label': title, 'data-field': `corner:${name}`,
   }, label));
 
-  const list = el('div', { class: 'corner__menu', role: 'menu' });
+  const list = el('div', { class: `corner__menu corner__menu--${align}`, role: 'menu' });
   for (const item of items.filter(Boolean)) {
     list.appendChild(el('button', {
       class: `corner__item${item.current ? ' is-current' : ''}`,
@@ -233,10 +233,45 @@ export function stageFurniture({ state, actions }) {
     ],
   });
 
+  /*
+   * The graphs, bottom left, above the transport's own row.
+   *
+   * One graph on screen at a time and the rest a tap away. Two graphs on a
+   * phone are two unreadable graphs, and a drawer that shows all six at once
+   * is the page layout again with extra steps.
+   */
+  const graphs = actions.graphs || [];
+  const strip = state.ui.strip;
+  const graphMenu = graphs.length ? menuFor('graphs', {
+    label: '▦',
+    title: strip
+      ? 'A graph is on screen. Tap to swap it, or to put it away.'
+      : 'Keep one graph on screen while you watch',
+    align: 'left',
+    items: [
+      ...graphs.map((g) => ({
+        label: g.label.split('—')[0].trim(),
+        note: g.label.includes('—') ? g.label.split('—')[1].trim() : null,
+        current: g.id === strip,
+        field: `graph:${g.id}`,
+        go: () => actions.showGraph(g.id === strip ? null : g.id),
+      })),
+      strip ? {
+        label: 'Put it away',
+        note: 'Give the height back to the bench',
+        field: 'graph:none',
+        go: () => actions.showGraph(null),
+      } : null,
+    ],
+  }) : null;
+
   return [
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tl' }, [levels, steps]),
     el('div', { class: 'stage-ui__cluster stage-ui__cluster--tr' }, [menu, leave]),
-  ];
+    graphMenu
+      ? el('div', { class: 'stage-ui__cluster stage-ui__cluster--bl' }, [graphMenu])
+      : null,
+  ].filter(Boolean);
 }
 
 /*

@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.14.0
+
+One graph, kept on screen in Interactive.
+
+### The strip
+
+A button in the bottom corner opens the step's graphs — three to six of them. Pick one and it sits
+as a thin band directly above the timeline while you watch the bench; pick another and it swaps;
+put it away and the bench gets the height back.
+
+**One at a time, on purpose.** Two graphs on a phone are two unreadable graphs, and a drawer that
+shows all six at once is the page layout again with extra steps.
+
+It reads the same recording as the full graphs below the drawing, so the thin one and the tall one
+can never tell different stories, and dragging across it scrubs the timeline exactly as they do.
+The drawer offers only the graphs the step records.
+
+### What it costs, measured
+
+On a 375 × 812 phone the bench goes from 756 px to 659 while a graph is up — and back to 756 the
+moment it is put away. In landscape, where there are only 375 px of height to begin with, the band
+floats over the transport rather than stacking with it, and is shorter: the first version took 145
+px of 375 for a graph the reader asked to keep *beside* the thing it describes, which is more than
+a third of the bench. It is 107 now.
+
+### The choice is remembered, and keyed on an id
+
+Each graph group now carries an id — `velocity`, `energy`, `sys-momentum` — alongside its label.
+The label is prose that says what the graph is for and will be rewritten; a stored choice keyed on
+a sentence breaks the first time the sentence is improved. A test holds every group to having one,
+unique within its step.
+
 ## 1.13.0
 
 A menu in Interactive, for everything that is not a thing on the bench.

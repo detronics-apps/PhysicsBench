@@ -1220,3 +1220,33 @@ test('every hint can be finished, and is not finished on arrival', () => {
       `${stage.id}: the hint is already finished before the reader does anything`);
   }
 });
+
+test('every graph group has a stable id, unique within its step', () => {
+  /*
+   * The reader's choice of which graph to keep on screen is stored against
+   * this id. Stored against the label instead, the choice would break the
+   * first time a sentence was improved - and labels here are prose that says
+   * what the graph is for, so they get improved.
+   */
+  for (const stage of STAGES) {
+    const groups = channelsFor(stage.id);
+    const ids = groups.map((g) => g.id);
+    for (const g of groups) {
+      assert.ok(g.id && /^[a-z-]+$/.test(g.id), `${stage.id}: "${g.label}" has no usable id`);
+    }
+    assert.equal(new Set(ids).size, ids.length, `${stage.id} has two groups with one id`);
+  }
+
+  /*
+   * An id names the same *graph* on every step, not the same channels. Energy
+   * against time is one graph; it carries potential and total as well as
+   * kinetic only where there is a floor to have potential energy against. An
+   * earlier version of this test asserted the channel lists matched and
+   * failed on exactly that, which is the model being right.
+   */
+  assert.deepEqual(channelsFor('push').find((g) => g.id === 'energy').ids, ['ke']);
+  assert.deepEqual(
+    channelsFor('friction').find((g) => g.id === 'energy').ids,
+    ['ke', 'pe', 'etotal'],
+  );
+});

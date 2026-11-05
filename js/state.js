@@ -356,6 +356,15 @@ export const defaults = () => ({
     layout: null,
 
     /*
+     * Which graph is kept on screen in Interactive, or null for none.
+     *
+     * One at a time, deliberately: two graphs on a phone are two unreadable
+     * graphs. Stored against the group's id rather than its label, because the
+     * label is prose and gets rewritten.
+     */
+    strip: null,
+
+    /*
      * When this reader first opened the app, or null if they have not.
      *
      * A timestamp rather than a flag, because "when" is the more useful thing
@@ -601,6 +610,10 @@ export function migrate(incoming) {
       level: oneOf(incoming.ui?.level, LEVEL_IDS, base.ui.level),
       // Anything unrecognised reads as "not chosen", so the screen decides.
       layout: oneOf(incoming.ui?.layout, LAYOUTS, null),
+      // Not checked against the step's graphs here: which groups exist
+      // depends on the step, and a graph that is not on this one simply
+      // does not draw.
+      strip: typeof incoming.ui?.strip === 'string' ? incoming.ui.strip.slice(0, 40) : null,
       /*
        * Only ever a string that looks like a date, or null.
        *
