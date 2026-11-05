@@ -1,6 +1,6 @@
 # PhysicsBench: skill sync
 
-Skill revision: r9
+Skill revision: r10
 
 Which revision of the `detronics-app` skill this app is in step with. To bring it up to date later:
 read this number, take every entry above it in the skill's `CHANGELOG.md`, run each entry's Detect
@@ -11,6 +11,8 @@ than a recipient of them.
 
 ## Adopted
 
+- **r10** · mobile-first as a standing standard — 2026-11-05 *(both of its unusual items came out
+  of this app: the on-screen keyboard read as a rotation, and a panel rebuilt mid-typing)*
 - **r9** · the feature menu, `STORY.md`, revision tracking — 2026-11-05
 - **r8** · Interactive, the full-screen drawing mode — 2026-11-05 *(built here; step 1 of 7 shipped)*
 - **r7** · the legal surface, and notices that fold — 2026-11-05 *(v1.9.0)*
