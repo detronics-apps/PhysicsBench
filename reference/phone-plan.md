@@ -1,40 +1,47 @@
 # Interactive — a fourth mode, with no sidebar
 
-A plan, for review. Nothing here is built yet. It replaces an earlier draft that added gestures to
-the existing phone layout; that draft solved the wrong problem.
+The plan, reviewed and settled. Nothing here is built yet. It replaces an earlier draft that added
+gestures to the existing phone layout; that draft solved the wrong problem.
 
 ## The problem, measured
 
-On a 375 × 812 phone, at step 1, with nothing dismissed:
+Today, with nothing dismissed:
 
-| | |
-|---|---|
-| Furniture above the drawing | **774 px** — header 56, level bar 74, step bar 46, step block 226, a notice 96, arrow picker 313 |
-| The drawing | **200 px** — a quarter of the screen, starting below the fold |
-| Transport below it | 125 px |
-| Drawing → first control | **511 px**, so the two are never on screen together |
-| Whole page | 2812 px at step 1, **3402 px at step 6** — 4.2 screens, 67 fields |
+| | Portrait 375 × 812 | Landscape 812 × 375 |
+|---|---|---|
+| Furniture above the drawing | **774 px** | **608 px** |
+| The drawing | **200 px** — a quarter of the screen | **416 px — taller than the screen**, so it is never all visible |
+| Transport below it | 125 px | 57 px |
+| Drawing → first control | 511 px | 591 px |
+| Whole page | 2812 px, 3402 at step 6 | **3777 px — 10.1 screens** |
 
-Reaching the mass means scrolling past the drawing; watching the result means scrolling back. The
-thing you are looking at is the one thing you cannot touch, and on the later steps the controls are
-spread over four screens.
+Portrait gives the drawing a quarter of the phone under 774 px of apparatus. Landscape is worse: the
+page is ten screens long, and the drawing is taller than the viewport, so even after scrolling to it
+you cannot see all of it.
 
-Gestures on the drawing would not have fixed that. The layout is the problem.
+Gestures would not have fixed that. The layout is the problem.
 
 ## The mode
 
-**A fourth chip beside Simple · Advanced · Expert: Interactive.**
+**A fourth chip beside Simple · Advanced · Expert: Interactive.** It is a *layout*, not a detail
+level. Choosing it hides the header, the level bar, the step bar, the arrow picker, the sidebar, the
+graphs, the measurements, the teaching panels and the footer; gives the screen to the drawing and
+its timeline; and puts every sidebar input onto the drawing, reached by tapping the thing it
+belongs to.
 
-It is a *layout*, not a detail level. Choosing it:
+**A phone opens in it.** Not a width test — 812 px wide in landscape looks like a tablet. The test
+is a coarse pointer and a *smaller* dimension under about 560 px, which catches a phone held either
+way and leaves a tablet alone. And it is a **default, not an override**: the moment you press the X
+or pick a level chip, that choice is stored and reload respects it. Nobody gets put back into a mode
+they just left.
 
-- hides the header, the level bar, the step bar, the arrow picker, the sidebar, the graphs, the
-  measurements, the teaching panels and the footer;
-- gives the whole screen to the drawing and its timeline;
-- puts every input that was in the sidebar onto the drawing, reachable by tapping the thing it
-  belongs to.
+What it gives back, same two phones:
 
-Budget on the same phone: furniture ≤ 180 px, so the drawing gets **666–756 px instead of 200** —
-between 3.3× and 3.8× what it has now, and no scrolling at all.
+| | Portrait | Landscape |
+|---|---|---|
+| Drawing, no graph | **756 px** (3.8×) | **375 px**, all of it, 812 wide |
+| Drawing, graph open | **666 px** (3.3×) | 295 px |
+| Scrolling | none | none |
 
 ## The one rule
 
@@ -48,34 +55,54 @@ copy of them — a second copy is two things to keep in step, and it would drift
 
 Three consequences, and they are what keep this honest:
 
-- **A layout never changes a value, and never restarts the clock.** The same rule the levels follow:
+- **A layout never changes a value, and never restarts the clock.** The rule the levels follow:
   `render()`, never `rebuild()`.
 - **Nothing is reachable only here.** Leave the mode and every control is where it was.
 - **The physics is untouched.** No module under `js/` changes except one new pure one.
 
-## The screen
+## The screen, portrait
 
 ```
 ┌──────────────────────────────────────────┐
-│ (3/6)                                 ☰  │  step pill · menu
-│ v hint, folded                           │
+│ (S) (3/6)                         (☰)(✕) │  level · step · menu · exit
+│  v  hint, folded                         │
 │                                          │
 │                  ▲ properties            │
-│         ◀ move  (  ●  )  forces ▶        │  satellites, next to the body
+│         ◀ move  (  ●  )  forces ▶        │  satellites, beside the body
 │                                          │
 │                 the drawing              │
-│                                          │
 │                                          │
 │ ┌──────────────────────────────────────┐ │
 │ │ velocity ————————————                │ │  one thin graph, swappable
 │ └──────────────────────────────────────┘ │
-│ 📈  ⏮ ⏸ ⏭  ────●──────  1.0×  12.2 m/s   │  graphs button + transport
+│ (📈) ⏮ ⏸ ⏭ ────●──── 1.0×   12.2 m/s     │  graphs button + transport
 └──────────────────────────────────────────┘
 ```
 
-The transport owns the bottom edge, because it is the one thing always needed and the bottom edge
-is where the thumb is. The graph strip sits directly above it. The corner buttons float over the
-drawing, so they cost no height.
+Four round 44 px buttons, floating over the drawing so they cost no height:
+
+- **(S)** top left — the current level. Tap for Simple · Advanced · Expert, which changes what the
+  sheets show without leaving the mode. It reads S, A or E.
+- **(3/6)** beside it — the step. Tap for the six steps, Examples, How to use, Things to find.
+- **(☰)** top right — Add, Remove, Arrows, How this works.
+- **(✕)** beside it — leave Interactive, back to the page layout.
+
+The transport owns the bottom edge, because it is the one thing always needed and the bottom edge is
+where the thumb is. The graph strip sits directly above it.
+
+## Landscape
+
+375 px of height cannot afford to give any away, so landscape differs in two ways and nothing else:
+
+- **The furniture floats instead of claiming height.** The transport becomes a centred pill over the
+  bottom of the drawing and the graph strip a translucent band, so the drawing keeps the full 375 px
+  rather than 319.
+- **The sheet opens on the right, not the bottom** — about 320 px of the 812, leaving ~490 px of
+  drawing visible while you edit. A bottom sheet in landscape covers the thing you are changing;
+  a side sheet is why every landscape phone app uses one.
+
+Everything else — targets, satellites, menu, graphs — is identical. Orientation is a media query,
+not a second code path.
 
 ## What a tap opens
 
@@ -92,47 +119,51 @@ Precedence, first hit wins: **body → cannon → wall → water → ground/plan
 | The sky / background | The fluid it moves through | `fluidSection()` |
 | Empty space | deselects | — |
 
+**Edits are live, and the button says Done** — not Accept. Everything in the app is live: the arrow
+redraws as the slider moves, which is the feedback that makes a slider worth dragging. The timeline
+is the undo — pause, scrub back, or reset.
+
 The satellites, when a body is selected — **beside it, never on it**, so the thing being edited is
 never under your thumb:
 
-- **◀ move** arms the drag, so a drag moves the body and a drag anywhere else still pans.
-- **▲ properties** opens the sheet above.
+- **◀ move** arms the drag, so a drag moves the body while a drag anywhere else still pans.
+- **▲ properties** opens the sheet.
 - **forces ▶** opens The push, plus Take the controls where the step has it, with the arrow
   previewing on the body as the slider moves.
 
-The cluster is clamped inside the screen and flips to whichever side has room. It follows a moving
-body; the sheet, once open, does not — it is anchored to the bottom and stays put.
+No delete arm. A delete under your thumb on a phone is a mistake waiting to happen; removal is in
+the menu's Remove list.
 
-## The menu (☰, top right)
+The cluster is clamped inside the screen and flips to whichever side has room. It follows a moving
+body; the sheet, once open, does not — it is anchored and stays put.
+
+## The menu (☰)
 
 - **Add** — another object · a shape you draw on the screen · a wall · a cannon. Only what the
-  current step has: the add list is built from the step's features, so it can never offer a wall
-  on a step that cannot draw one.
-- **Remove** — the list of what you have added, each with a delete.
+  current step has: the list is built from the step's features, so it can never offer a wall on a
+  step that cannot draw one.
+- **Remove** — what you have added, each with a delete.
 - **Arrows** — the picker that is 313 px of the page today.
-- **Steps** — the six, plus Examples, How to use, Things to find.
 - **How this works** — the teaching panel for this step.
-- **Leave Interactive** — the three detail levels, so the way out is next to the way in.
 
-## The graphs (bottom left)
+## The graphs (📈)
 
-Tap it and a drawer lists the step's graphs — three to seven of them, from `channelsFor()`. Tap one
-and it becomes the thin strip above the transport. Tap another and it swaps. Tap the strip to put it
-away. One at a time, deliberately: two graphs on a phone are two unreadable graphs.
-
-Scrubbing the strip scrubs the timeline, exactly as the full graphs do now.
+Tap it and a drawer lists the step's graphs — three to seven, from `channelsFor()`. Tap one and it
+becomes the thin strip; tap another and it swaps; tap the strip to put it away. One at a time,
+deliberately: two graphs on a phone are two unreadable graphs. Scrubbing the strip scrubs the
+timeline, exactly as the full graphs do now.
 
 ## Where the teaching goes
 
-The mission does not get dropped because the sidebar did. In this mode:
+The mission does not get dropped because the sidebar did:
 
-- the **step pill** shows `3/6` and opens the step list;
-- the **hint** for the step stays, folded, under the pill — it is one line until you open it, and it
-  still disappears when you have done the thing;
+- the **step button** shows `3/6` and opens the walk;
+- the **hint** stays, folded, under it — one line until you open it, and it still disappears when
+  you have done the thing;
 - **achievements** still toast;
-- **How this works** is in the menu, one tap away;
-- the **readouts** fold into the transport row: the one number the step is about, with the rest in
-  the properties sheet.
+- **How this works** is one tap, in the menu;
+- the **readouts** fold into the transport row: the number the step is about, with the rest in the
+  properties sheet.
 
 Nothing is removed. Everything is one tap instead of one scroll.
 
@@ -143,7 +174,7 @@ js/targets.js        pure, tested. What is under this point, by precedence, and 
                      section belongs to each kind of thing. Hit-tested in SCREEN space
                      with a minimum radius — a 0.4 m ball at phone zoom is a 20 px
                      target and a finger is 44 px.
-js/ui/stage-ui.js    the overlay: step pill, menu, satellites, sheet, graph strip.
+js/ui/stage-ui.js    the overlay: the four corner buttons, satellites, sheet, graph strip.
 js/gestures.js       pure, tested. Tap vs drag, and what a pull means as a velocity.
                      Last piece only.
 ```
@@ -151,64 +182,62 @@ js/gestures.js       pure, tested. Tap vs drag, and what a pull means as a veloc
 One new pure module, one new UI module, one later. Everything else is CSS behind
 `[data-layout="interactive"]` and one new state field.
 
-State: `state.ui.layout = 'page' | 'interactive'` and `state.ui.strip = <graph id>`. The layout is
-**a separate field from the level**, not a fourth rank — `atLeast()` is called in several hundred
-places, and a fourth rank would turn every `at('expert')` either always-true or always-false. The
-graph groups need an `id` each; they have only labels today.
+State: `state.ui.layout = 'page' | 'interactive' | null` — **null means never chosen**, which is
+what lets a phone default into it and still respect an explicit exit. Plus `state.ui.strip`, the
+graph in the strip. The layout is **a separate field from the level**, not a fourth rank:
+`atLeast()` is called in several hundred places, and a fourth rank would turn every `at('expert')`
+either always-true or always-false. The graph groups need an `id` each; they have only labels today.
 
 ## Build order
 
 Each is independently useful and independently shippable.
 
-1. **The mode exists.** The chip, `data-layout`, the CSS, and a menu holding only the way out.
-   Verifiable immediately: the drawing goes from 200 px to ~756 px on a phone.
+1. **The mode exists.** The chip, `data-layout`, the CSS for both orientations, the phone default,
+   and the four corner buttons with only the level and the exit live. Verifiable immediately: the
+   drawing goes from 200 px to 756 px in portrait, and from a scroll-and-still-clipped 416 px to all
+   375 px in landscape.
 2. **Tap to select, and the properties satellite.** `js/targets.js`, the cluster, the object sheet.
-   This is the commit that pays for the mode — edit the mass without leaving the picture.
+   This is the commit that pays for the mode — change the mass without leaving the picture.
 3. **The rest of the targets.** Planet, ground, water, sky, wall, cannon.
-4. **Add, Remove, Arrows** in the menu.
+4. **Add, Remove and Arrows** in the menu.
 5. **The forces satellite**, with the arrow previewing as you drag the slider.
 6. **The graph strip and drawer.**
 7. **The gestures.** Drag to move, pull to throw, pinch to zoom.
 
 ## The traps, named in advance
 
-- **`100dvh`, never `100vh`** — on a phone `100vh` is taller than the visible page, so the transport
-  sits under the URL bar.
-- **`env(safe-area-inset-*)`** on all four corner buttons, or the notch and the home bar eat them.
+- **Detect the phone by its smaller dimension, not its width.** A phone in landscape is 812 px wide;
+  a width test would send exactly the case this mode was asked for into the page layout.
+- **`100dvh`, never `100vh`** — `100vh` is taller than the visible page on a phone, so the transport
+  sits under the URL bar. Worse in landscape, where the bar is a larger share of the height.
+- **`env(safe-area-inset-*)`** on all four corner buttons — and the insets move when the phone
+  rotates: in landscape the notch is on the left, not the top.
 - **`touch-action: none` on the stage**, or the browser pans the page instead and nothing works.
   Easy to forget, and it looks like every gesture is broken.
 - **The overlay must not be rebuilt per frame.** `paint()` runs on every animation frame; the
   satellites are built when the selection changes and only their `transform` is written per frame.
   Same class as the scroll and focus preservation already in `render()`.
 - **The sheet is a native `<dialog>`** — top layer, Escape, focus trap and a backdrop for free, and
-  it escapes the `overflow: auto` clipping context that the sidebar tooltips were bitten by.
-- **One layout renders at a time.** Both at once would put two elements on screen with the same
+  it escapes the `overflow: auto` clipping context the sidebar tooltips were bitten by.
+- **One layout renders at a time.** Both at once puts two elements on screen with the same
   `data-field`, which is what every test selects by.
 
 ## What I would not do
 
-- **Not a replacement.** The page layout stays the default and stays exactly as it is.
-- **Not an auto-switch.** A phone is not moved into this mode on its behalf; it is offered once.
+- **Not a replacement.** The page layout stays the default on a desktop and stays exactly as it is.
+- **Not an override.** A phone *defaults* into the mode; it is never pushed back in after leaving.
 - **Not a second set of controls.** If a sheet ever needs a field the sidebar does not have, the
   field goes in the sidebar first.
 - **Not polish** — no haptics, no inertia, no animation — until the six pieces are real and have
   been used on an actual phone.
 
-## Questions, before any of it
+## Settled in review
 
-1. **Which detail level do the sheets use?** My answer: the one you last picked, so choosing
-   Interactive does not throw away the Simple/Advanced/Expert choice. The alternative is that
-   Interactive always shows Advanced.
-2. **Live, or adjust-then-accept?** You said adjust and accept. Everything in the app is live
-   today — the arrow redraws as the slider moves, which is the feedback. My answer: keep it live and
-   label the button **Done**. Say if you want a real draft you confirm.
-3. **The water strip — world or fluid?** My answer: the water strip is the planet's surface made of
-   water, so it opens The world it is on; the sky opens The fluid it moves through.
-4. **Does a phone get told this exists?** My answer: no switch, but one dismissible line on a narrow
-   screen the first time.
-5. **A delete arm on the cluster?** A fourth satellite below the body to remove the selected object,
-   or only the menu's Remove list. My answer: menu only — a delete under your thumb on a phone is a
-   mistake waiting to happen.
+1. **The level stays reachable** — a round S/A/E button in the top left, inside the mode.
+2. **Edits are live.** The timeline is the pause and the reset.
+3. **The water strip opens The world it is on**; the sky opens The fluid.
+4. **A phone opens in Interactive**, portrait or landscape, with an X next to the menu to leave.
+5. **No delete arm** under the body.
 
 Once it is built and has been used, the mode goes into the `detronics-app` skill, so the other
 benches get the same one.
